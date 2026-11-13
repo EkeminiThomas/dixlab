@@ -1,0 +1,16 @@
+# Frontend
+node_modules
+dist
+
+# Backend
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+backend/data/
+backend/uploads/
+
+# Secrets
+.env
+.env.*
+!.env.example
