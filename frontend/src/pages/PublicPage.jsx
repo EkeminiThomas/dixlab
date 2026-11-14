@@ -1,17 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Logo, TEMPLATES, FORMATS } from '../components/ui.jsx';
 import { fetchPublic } from '../api.js';
 import { SitePreview, SITE_TEMPLATES } from '../components/sites/index.jsx';
-import { projectToSite } from '../components/sites/shared.jsx';
+import { projectToSite, site, OpenProject } from '../components/sites/shared.jsx';
+import ProjectView from '../components/sites/ProjectView.jsx';
+import { ContactTarget } from '../components/sites/contact.jsx';
 import { ScaledDoc, CvDoc, CV_TEMPLATES } from '../components/cv/index.jsx';
 import { projectToCv } from '../components/cv/data.js';
 import { CasePreview, CASE_TEMPLATES } from '../components/case/index.jsx';
 import { projectToCase } from '../components/case/data.js';
 
-/** A published portfolio, CV or case study at /p/:slug. No login needed. */
+/**
+ * A published portfolio, CV or case study at /p/:slug. No login needed.
+ * Each portfolio project also has its own page at /p/:slug/work/:n.
+ */
 export default function PublicPage() {
-  const { slug } = useParams();
+  const { slug, '*': rest = '' } = useParams();
+  const n = /^work\/(\d+)\/?$/.exec(rest)?.[1]; // /p/:slug/work/:n
+  const navigate = useNavigate();
   const [state, setState] = useState({ loading: true });
 
   useEffect(() => {
@@ -23,12 +30,22 @@ export default function PublicPage() {
   }, [slug]);
 
   const p = state.project;
+  const siteData = p?.type === 'portfolio' && SITE_TEMPLATES[p.template] ? projectToSite(p) : null;
+  const s = siteData ? site(siteData) : null;
+  const count = s?.hasProjects ? s.projects.length : 0;
+  const workIndex = n != null && +n >= 1 && +n <= count ? +n - 1 : null;
+  const workHref = (i) => `/p/${slug}/work/${i + 1}`;
+
   useEffect(() => {
     if (!p) return;
     const prev = document.title;
-    document.title = [p.title || p.name, p.role].filter(Boolean).join(' · ') || 'Dixlab';
+    const page = workIndex != null ? s.projects[workIndex].title : '';
+    document.title = [page, p.title || p.name, p.role].filter(Boolean).join(' · ') || 'Dixlab';
     return () => { document.title = prev; };
-  }, [p]);
+  }, [p, workIndex]);
+
+  // Coming back to the portfolio from a project: start at the top.
+  useEffect(() => { window.scrollTo({ top: 0 }); }, [workIndex]);
 
   if (state.loading) return <div className="pub pub--msg"><span className="cz__spin" aria-label="Loading" /></div>;
   if (state.error) {
@@ -62,8 +79,25 @@ export default function PublicPage() {
         <div className="cvprint" aria-hidden><CvDoc template={p.template} data={data} /></div>
       </>
     );
-  } else if (p.type === 'portfolio' && SITE_TEMPLATES[p.template]) {
-    body = <SitePreview template={p.template} data={projectToSite(p)} />;
+  } else if (siteData && workIndex != null) {
+    body = (
+      <ProjectView
+        template={p.template}
+        data={siteData}
+        index={workIndex}
+        hrefFor={(to) => (to === 'home' ? `/p/${slug}` : workHref(to))}
+        onBack={() => navigate(`/p/${slug}`)}
+        onGo={(i) => navigate(workHref(i))}
+      />
+    );
+  } else if (siteData) {
+    body = (
+      <OpenProject.Provider value={{ count, href: workHref, open: (i) => navigate(workHref(i)) }}>
+        <ContactTarget.Provider value={slug}>
+          <SitePreview template={p.template} data={siteData} />
+        </ContactTarget.Provider>
+      </OpenProject.Provider>
+    );
   } else {
     const tpl = TEMPLATES[p.template] && !TEMPLATES[p.template].site ? p.template : 'outline';
     body = (

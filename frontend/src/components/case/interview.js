@@ -105,7 +105,12 @@ function draftPortfolio(transcript) {
   for (const t of transcript) {
     if (t.topic !== 'project' || !t.a.trim()) continue;
     if (t.part === 'name') projects.push({ title: t.a.trim().replace(/[.!?]$/, '').slice(0, 60), desc: '', link: '' });
-    else if (projects.length) projects[projects.length - 1].desc = tidy(t.a);
+    else if (projects.length) {
+      // A long answer becomes the project page write-up, with its opening as the summary.
+      const last = projects[projects.length - 1];
+      const text = tidy(t.a);
+      if (text.length > 220) { last.desc = firstSentence(text); last.details = text; } else last.desc = text;
+    }
     else projects.push({ title: firstSentence(t.a).slice(0, 60), desc: tidy(t.a), link: '' }); // AI-style turn
   }
   const experience = answers('experience').join('\n').split(/\n|;/).map((line) => {

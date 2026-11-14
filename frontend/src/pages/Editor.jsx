@@ -5,7 +5,7 @@ import {
   FORMATS, TEMPLATES, loadProjects, saveProjects, loadUser,
   deleteProject, ConfirmDelete, TrashIcon,
 } from '../components/ui.jsx';
-import { SitePreview, SITE_TEMPLATES } from '../components/sites/index.jsx';
+import { LiveSite, SITE_TEMPLATES } from '../components/sites/index.jsx';
 import TemplateViewer from '../components/sites/Viewer.jsx';
 import Customize from '../components/sites/Customize.jsx';
 import { blankSiteProject, blankSiteRole, projectToSite } from '../components/sites/shared.jsx';
@@ -17,6 +17,7 @@ import PublishDialog from '../components/Publish.jsx';
 import { draftKeysFor } from '../components/case/interview.js';
 import MediaField from '../components/MediaField.jsx';
 import FileField from '../components/FileField.jsx';
+import ProfilePhotoField from '../components/ProfilePhotoField.jsx';
 import { uploadMedia, ACCEPT } from '../components/media.js';
 import { CasePreview, CASE_TEMPLATES } from '../components/case/index.jsx';
 import { projectToCase, caseStrength, CASE_FIELDS, blankStep, blankMetric, readImage, MAX_GALLERY } from '../components/case/data.js';
@@ -253,6 +254,9 @@ export default function Editor() {
                     <span aria-hidden>Start the interview →</span>
                   </Link>
                 )}
+                {d.type === 'portfolio' && (
+                  <ProfilePhotoField value={d.photo || ''} name={d.name} onChange={(url) => setField('photo', url)} siteTemplate={isSite} />
+                )}
                 <label className="field">
                   <span className="field__label">{isSite ? 'About you' : 'Your notes'}</span>
                   <textarea className="field__input field__input--notes" {...bind('notes')} placeholder={isSite ? 'I like building solid, well-considered software. Leave a blank line to start a new paragraph.' : 'Built a campus events app. Worked on the API. Made it easier to find things.'} />
@@ -310,6 +314,16 @@ export default function Editor() {
                         value={p.media || []}
                         onChange={(media) => { dirty.current = true; setD((prev) => ({ ...prev, sample: false, updatedAt: Date.now(), projects: prev.projects.map((r, j) => (j === i ? { ...r, media } : r)) })); }}
                       />
+                      <details className="ed__more" open={Boolean(p.details || p.role || p.year || p.tools) || undefined}>
+                        <summary>Project page details <em className="field__opt">optional</em></summary>
+                        <small className="field__hint">Visitors click a project to open its own page. These fill it out, alongside every image and video above.</small>
+                        <div className="ed__pair">
+                          <input className="field__input" value={p.role || ''} onChange={setRow('projects', i, 'role')} placeholder="Your role, e.g. Lead designer" aria-label={`Project ${i + 1} your role`} />
+                          <input className="field__input" value={p.year || ''} onChange={setRow('projects', i, 'year')} placeholder="Year, e.g. 2025" aria-label={`Project ${i + 1} year`} />
+                        </div>
+                        <input className="field__input" value={p.tools || ''} onChange={setRow('projects', i, 'tools')} placeholder="Tools, separated by commas: Figma, React, After Effects" aria-label={`Project ${i + 1} tools`} />
+                        <textarea className="field__input" rows={5} value={p.details || ''} onChange={setRow('projects', i, 'details')} placeholder={'The full story: the brief, what you did, how it turned out.\n\nLeave a blank line between paragraphs.'} aria-label={`Project ${i + 1} full write-up`} />
+                      </details>
                     </div>
                   ))}
                   {d.projects.length < 6 && <button type="button" className="ed__add" onClick={() => addRow('projects', blankSiteProject)}>+ Add project</button>}
@@ -732,7 +746,7 @@ export default function Editor() {
           ) : isCv ? (
             <ScaledDoc template={tpl} data={projectToCv(d)} className="ed__cv" />
           ) : isSite ? (
-            <SitePreview template={tpl} data={projectToSite(d)} />
+            <LiveSite template={tpl} data={projectToSite(d)} />
           ) : (
           <article className={`story story--${tpl}`}>
             <p className="story__k">{FORMATS[d.type].label}{d.role ? ` · ${d.role}` : ''}</p>

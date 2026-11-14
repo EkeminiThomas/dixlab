@@ -1,4 +1,7 @@
 import { site, Shot, Glyph, ProjectLink, MailLink } from './shared.jsx';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { ToolList } from './tools.jsx';
 
 /* Folio — minimal and personal. Monogram bar, open-to-work hero, a gently
    tilted strip of project shots, stats, selected work, a timeline and an
@@ -15,7 +18,7 @@ export default function Folio({ data }) {
   return (
     <div className="site folio">
       <header className="folio__bar">
-        <span className="folio__brand"><span className="folio__mono">{s.mono}</span><span>{s.name}</span></span>
+        <span className="folio__brand"><Avatar s={s} className="folio__mono" /><span>{s.name}</span></span>
         <nav className="folio__links"><span>Work</span><span>About</span><span>Contact</span></nav>
         <MailLink email={s.email} className="folio__hello">Say hello <Glyph name="arrow" size={12} /></MailLink>
       </header>
@@ -23,7 +26,7 @@ export default function Folio({ data }) {
       <div className="folio__col">
         <section className="folio__hero">
           <div className="folio__id">
-            <span className="folio__avatar">{s.mono}</span>
+            <Avatar s={s} className="folio__avatar" />
             <span className="folio__status"><i />Open to new work</span>
           </div>
           <h1 className="folio__h1">Hi, I’m {s.first} —<br /><span>{s.role}</span></h1>
@@ -52,7 +55,7 @@ export default function Folio({ data }) {
                 {stats.map(([n, l]) => <div key={l}><strong>{n}</strong><span>{l}</span></div>)}
               </div>
             )}
-            {s.skills.length > 0 && <ul className="folio__skills">{s.skills.map((k) => <li key={k}>{k}</li>)}</ul>}
+            {s.skills.length > 0 && <ToolList items={s.skills} className="folio__tools" label="Tools" />}
           </section>
         )}
 
@@ -60,7 +63,7 @@ export default function Folio({ data }) {
           <div className="folio__head"><p className="folio__k">Selected work</p><span>({String(s.projects.length).padStart(2, '0')})</span></div>
           <div className="folio__grid">
             {s.projects.map((p, i) => (
-              <ProjectLink key={i} href={p.link} className="folio__card">
+              <ProjectLink key={i} project={i} href={p.link} className="folio__card">
                 <Shot media={p.media?.[0]} title={p.title} i={i} />
                 <div className="folio__card-row">
                   <h3>{p.title || 'Untitled project'}</h3>
@@ -93,6 +96,8 @@ export default function Folio({ data }) {
           {s.email && <p className="folio__mail">{s.email}</p>}
         </section>
       </div>
+
+      <GetInTouch s={s} />
 
       <footer className="folio__foot">
         <p className="folio__sign" aria-hidden style={{ fontSize: `${Math.min(17, 88 / (s.name.length * 0.62)).toFixed(2)}cqw` }}>{s.name}</p>

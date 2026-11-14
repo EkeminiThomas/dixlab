@@ -20,5 +20,15 @@ MAX_VIDEO_BYTES = 50 * 1024 * 1024    # one video
 MAX_FILE_BYTES = 20 * 1024 * 1024     # one document (PDF, Word, PowerPoint, Excel)
 AI_REQUESTS_PER_MINUTE = int(os.getenv("DIXLAB_AI_PER_MINUTE", "20"))
 
+# Email for "Get in touch" messages. Leave SMTP_HOST empty to only keep
+# messages in the owner's Dixlab inbox (nothing is emailed).
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER).strip()
+SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() not in ("0", "false", "no")
+CONTACT_PER_10_MIN = int(os.getenv("DIXLAB_CONTACT_PER_10_MIN", "5"))  # per visitor, per page
+
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

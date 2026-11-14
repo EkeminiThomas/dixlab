@@ -1,4 +1,7 @@
 import { site, hash, ProjectLink, MailLink } from './shared.jsx';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { ToolList } from './tools.jsx';
 
 const slug = (t = '') => t.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'untitled';
 
@@ -20,7 +23,10 @@ export default function Terminal({ data }) {
 
       <div className="term__body">
         <Cmd>whoami</Cmd>
-        <h1 className="term__name">{s.name}</h1>
+        <div className="term__who">
+          <Avatar s={s} className="avp avp--term" fallback={false} />
+          <h1 className="term__name">{s.name}</h1>
+        </div>
         <p className="term__role"><span className="term__hl">#</span> {s.role}</p>
         {s.tagline && s.tagline.split('\n').map((l, i) => <p key={i} className="term__dim">// {l}</p>)}
 
@@ -35,7 +41,7 @@ export default function Terminal({ data }) {
         <ul className="term__ls">
           {s.projects.map((p, i) => (
             <li key={i}>
-              <ProjectLink href={p.link} className="term__dir">
+              <ProjectLink project={i} href={p.link} className="term__dir">
                 <span className="term__perm">drwxr-xr-x</span> {slug(p.title)}/
               </ProjectLink>
               {p.desc && <p className="term__dim">{p.desc}</p>}
@@ -46,9 +52,7 @@ export default function Terminal({ data }) {
         {s.skills.length > 0 && (
           <>
             <Cmd>cat stack.json</Cmd>
-            <p className="term__json">
-              [{s.skills.map((k, i) => <span key={k}><span className="term__str">"{k}"</span>{i < s.skills.length - 1 ? ', ' : ''}</span>)}]
-            </p>
+            <ToolList items={s.skills} className="term__stack" label="Stack" />
           </>
         )}
 
@@ -72,6 +76,9 @@ export default function Terminal({ data }) {
           <span className="term__hl">→</span>{' '}
           {s.email ? <MailLink email={s.email} className="term__link">{s.email}</MailLink> : <span className="term__dim">add your email to show it here</span>}
         </p>
+
+        <Cmd>./message.sh</Cmd>
+        <GetInTouch s={s} title="Send a message" />
 
         <p className="term__prompt"><span className="term__user">{s.handle || 'me'}@portfolio</span>:<span className="term__hl">~</span>$ <i className="term__cursor" /></p>
       </div>

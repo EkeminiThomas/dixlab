@@ -137,6 +137,10 @@ How to ask:
 class PortfolioProject(BaseModel):
     title: str = Field(description="The project's name, as they called it, 1-5 words.")
     desc: str = Field(description="One or two sentences: what it is and what came of it, in their words.")
+    role: str = Field(description='Their role on this project, e.g. "Lead designer", or "" if not said.')
+    year: str = Field(description='When it happened, e.g. "2025", or "" if not said.')
+    tools: list[str] = Field(description="Tools or skills they used on this project. Empty if none mentioned.")
+    details: str = Field(description='The fuller story for the project page, first person, 1-3 short paragraphs separated by a blank line: the brief, what they did, how it turned out. Only what they said; "" if they said little.')
 
 
 class PortfolioRole(BaseModel):
@@ -192,13 +196,14 @@ def draft(body: TranscriptIn, user=Depends(current_user)):
         return blocked
     if body.kind == "portfolio":
         out, err = ai.parse(PortfolioDraft, PORTFOLIO_DRAFT_SYSTEM, f"Interview transcript:\n\n{_transcript_text(body.transcript)}",
-                            max_tokens=6000, effort="medium")
+                            max_tokens=10000, effort="medium")
         if err:
             return err
         d = out.model_dump()
         return {"draft": {
             "role": d["role"], "tagline": d["tagline"], "notes": d["about"], "skills": ", ".join(d["skills"]),
-            "projects": [{"title": p["title"], "desc": p["desc"], "link": ""} for p in d["projects"]],
+            "projects": [{"title": p["title"], "desc": p["desc"], "link": "", "role": p.get("role", ""), "year": p.get("year", ""),
+                          "tools": ", ".join(p.get("tools") or []), "details": p.get("details", "")} for p in d["projects"]],
             "experience": [{"role": e["role"], "company": e["company"], "from": e["start"], "to": e["end"]} for e in d["experience"]],
             "certs": ", ".join(d["certs"]),
         }}

@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import CORS_ORIGINS, UPLOAD_DIR
 from .db import init_db
-from .routers import auth, customize, interview, projects, publish, uploads
+from .routers import auth, customize, interview, messages, projects, publish, uploads
 
 
 @asynccontextmanager
@@ -31,6 +31,7 @@ app.include_router(uploads.router)
 app.include_router(customize.router)
 app.include_router(interview.router)
 app.include_router(publish.router)
+app.include_router(messages.router)
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 DOWNLOAD_ONLY = (".docx", ".pptx", ".xlsx")

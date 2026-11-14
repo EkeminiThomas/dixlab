@@ -18,6 +18,7 @@ import Cvs from './pages/Cvs.jsx';
 import CaseStudies from './pages/CaseStudies.jsx';
 import Interview from './pages/Interview.jsx';
 import PublicPage from './pages/PublicPage.jsx';
+import Messages from './pages/Messages.jsx';
 
 // Bring this browser up to date with the account, and again whenever we come back online.
 refreshUser();
@@ -36,7 +37,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/cv" element={<Cvs />} />
         <Route path="/case" element={<CaseStudies />} />
         <Route path="/interview/:id" element={<Interview />} />
-        <Route path="/p/:slug" element={<PublicPage />} />
+        <Route path="/messages" element={<Messages />} />
+        <Route path="/p/:slug/*" element={<PublicPage />} />
         <Route path="/editor" element={<Editor />} />
         <Route path="/editor/:id" element={<Editor />} />
       </Routes>

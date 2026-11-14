@@ -99,7 +99,10 @@ export default function Interview() {
         const key = (s = '') => s.trim().toLowerCase();
         filled.projects = filled.projects.map((p) => {
           const match = existing.find((e) => key(e.title) && key(e.title) === key(p.title));
-          return match ? { ...p, link: p.link || match.link || '', media: match.media } : p;
+          if (!match) return p;
+          // Keep anything the user already wrote for this project that the draft leaves blank.
+          const fresh = Object.fromEntries(Object.entries(p).filter(([, v]) => String(v ?? '').trim()));
+          return { ...match, ...fresh, media: match.media };
         });
         const used = new Set(filled.projects.map((p) => key(p.title)));
         filled.projects.push(...existing.filter((e) => e.media?.length && !used.has(key(e.title))));

@@ -43,6 +43,19 @@ CREATE TABLE IF NOT EXISTS publications (
     updated_at INTEGER NOT NULL,
     UNIQUE (user_id, project_id)
 );
+CREATE TABLE IF NOT EXISTS messages (
+    id         TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,   -- the portfolio owner
+    project_id TEXT NOT NULL,
+    slug       TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    email      TEXT NOT NULL,
+    body       TEXT NOT NULL,
+    emailed    INTEGER NOT NULL DEFAULT 0,
+    read_at    INTEGER,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
 """

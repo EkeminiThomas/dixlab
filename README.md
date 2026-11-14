@@ -54,6 +54,9 @@ Vite forwards `/api` and `/uploads` to the backend, so the browser only ever tal
 | `POST` | `/api/interview/draft` | Interview: "Write my case study" |
 | `GET` / `POST` / `DELETE` | `/api/projects/{id}/publish` | Publish dialog: status and views, publish or update, unpublish |
 | `GET` | `/api/public/{slug}` | Public page at `/p/{slug}` (no login; published fields only) |
+| `POST` | `/api/public/{slug}/contact` | Portfolio "Get in touch" form (no login; rate limited; spam honeypot) |
+| `GET` | `/api/messages` | Messages inbox and the sidebar unread count |
+| `PATCH` / `DELETE` | `/api/messages/{id}` | Mark a message read, delete it |
 | `GET` | `/api/health` | Health check |
 
 Everything except `/api/auth/signup`, `/api/auth/login`, `/api/public/*` and `/api/health` needs `Authorization: Bearer <token>`.
@@ -82,6 +85,7 @@ python -m pytest
 ```
 
 ## Production notes
+- **Get in touch emails:** set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `backend/.env` (see `.env.example`). Without them, messages are kept in each owner's Messages inbox only. The owner's address is never shown to visitors. Behind a reverse proxy, the per-visitor rate limit sees the proxy's IP; put a limit at the proxy too.
 
 - Data lives in SQLite (`backend/data/dixlab.db`) and images in `backend/uploads/`. Back both up, or point `DIXLAB_DB` and `DIXLAB_UPLOADS` somewhere durable.
 - Serve `frontend/dist` behind the same domain as the API, or set `DIXLAB_CORS_ORIGINS` to the frontend's origin.

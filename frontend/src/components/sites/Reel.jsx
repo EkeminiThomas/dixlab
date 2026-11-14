@@ -1,4 +1,7 @@
 import { useContext } from 'react';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { Tool } from './tools.jsx';
 import { site, Shot, Glyph, ProjectLink, MailLink, StaticSite } from './shared.jsx';
 
 const FRAMES = [
@@ -34,6 +37,7 @@ export default function Reel({ data }) {
           <span className="rl__res">4K · 24fps</span>
           <div className="rl__title">
             <p>Showreel {s.year}</p>
+            <Avatar s={s} className="avp avp--reel" fallback={false} />
             <h1>{s.role}</h1>
           </div>
           {!s.reel && <span className="rl__play"><Glyph name="play" size={18} stroke={0} /></span>}
@@ -50,7 +54,7 @@ export default function Reel({ data }) {
 
       <div className="rl__ticker" aria-hidden>
         <div className="rl__track-x">
-          {[0, 1, 2, 3].map((r) => ticker.map((k) => <span key={`${r}-${k}`}>{k}<i>●</i></span>))}
+          {[0, 1, 2, 3].map((r) => ticker.map((k) => <span key={`${r}-${k}`}>{s.skills.length ? <Tool name={k} as="b" className="tk__tick" /> : k}<i>●</i></span>))}
         </div>
       </div>
 
@@ -58,7 +62,7 @@ export default function Reel({ data }) {
         <div className="rl__head"><h2>Selected work</h2><span>{String(s.projects.length).padStart(2, '0')} films</span></div>
         <div className="rl__grid">
           {s.projects.map((p, i) => (
-            <ProjectLink key={i} href={p.link} className={`rl__clip ${i === 0 ? 'is-wide' : ''}`}>
+            <ProjectLink key={i} project={i} href={p.link} className={`rl__clip ${i === 0 ? 'is-wide' : ''}`}>
               <div className="rl__thumb">
                 <Shot media={p.media?.[0]} title={p.title} i={i} palette={FRAMES} />
                 <span className="rl__thumb-play"><Glyph name="play" size={12} stroke={0} /></span>
@@ -85,6 +89,7 @@ export default function Reel({ data }) {
         <p className="rl__k">Now booking</p>
         <MailLink email={s.email} className="rl__mail">{s.email || 'your@email.com'}</MailLink>
       </section>
+      <GetInTouch s={s} />
       <footer className="rl__foot"><span>© {s.year} {s.name}</span><span>Made frame by frame</span></footer>
     </div>
   );

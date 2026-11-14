@@ -1,4 +1,7 @@
 import { site, Shot, ProjectLink, MailLink } from './shared.jsx';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { ToolList } from './tools.jsx';
 
 const WALL = [
   { bg: '#d9d4ca', ink: '#1b1a17', hi: '#8a5a3c' },
@@ -21,13 +24,14 @@ export default function Exhibit({ data }) {
       </header>
 
       <section className="exhibit__intro">
+        <Avatar s={s} className="avp avp--exhibit" fallback={false} />
         <p className="exhibit__k">{s.role}</p>
         <h1>{headline}</h1>
       </section>
 
       <div className="exhibit__wall">
         {s.projects.map((p, i) => (
-          <ProjectLink key={i} href={p.link} className={`exhibit__piece exhibit__piece--${i % 4}`}>
+          <ProjectLink key={i} project={i} href={p.link} className={`exhibit__piece exhibit__piece--${i % 4}`}>
             <Shot media={p.media?.[0]} title={p.title} i={i} palette={WALL} />
             <span className="exhibit__cap">
               <span className="exhibit__n">{String(i + 1).padStart(2, '0')}</span>
@@ -46,7 +50,7 @@ export default function Exhibit({ data }) {
           {s.skills.length > 0 && (
             <>
               <p className="exhibit__k">Disciplines</p>
-              <p className="exhibit__list">{s.skills.join(' / ')}</p>
+              <ToolList items={s.skills} label="Disciplines" />
             </>
           )}
           {s.experience.length > 0 && (
@@ -59,6 +63,8 @@ export default function Exhibit({ data }) {
           )}
         </div>
       </section>
+
+      <GetInTouch s={s} />
 
       <footer className="exhibit__foot">
         <p className="exhibit__k">Say hello</p>

@@ -27,6 +27,37 @@ export async function uploadMedia(file, onProgress) {
   return { type: 'image', src };
 }
 
+/**
+ * A profile photo: centre-cropped to a square and resized in the browser,
+ * then uploaded (or kept in this browser when signed out). Resolves to its URL.
+ */
+export async function uploadProfilePhoto(file, size = 640) {
+  if (!file?.type?.startsWith('image/')) throw new Error('Choose an image: a JPG, PNG or WebP photo.');
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) throw new Error(`That photo is over ${MAX_IMAGE_MB} MB. Try a smaller one.`);
+  const dataUrl = await new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const out = Math.min(size, side);
+      const c = document.createElement('canvas');
+      c.width = out; c.height = out;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, out, out);
+      // Centre crop, biased slightly upwards so faces in portrait photos stay in frame.
+      const sx = (img.naturalWidth - side) / 2;
+      const sy = Math.max(0, (img.naturalHeight - side) * 0.35);
+      ctx.drawImage(img, sx, sy, side, side, 0, 0, out, out);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL('image/jpeg', 0.86));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Couldn’t read that image. Try a JPG or PNG.')); };
+    img.src = url;
+  });
+  return uploadImage(dataUrl);
+}
+
 /* Case study attachments: research reports, decks, specs, data. */
 export const FILE_TYPES = { pdf: 'PDF', docx: 'Word', pptx: 'PowerPoint', xlsx: 'Excel' };
 export const FILE_ACCEPT = '.pdf,.docx,.pptx,.xlsx';

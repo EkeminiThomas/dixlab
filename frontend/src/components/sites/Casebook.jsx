@@ -1,4 +1,7 @@
 import { site, Shot, Glyph, ProjectLink, MailLink } from './shared.jsx';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { ToolList } from './tools.jsx';
 
 const SCREENS = [
   { bg: '#eef0ff', ink: '#1e1b4b', hi: '#6366f1' },
@@ -23,6 +26,7 @@ export default function Casebook({ data }) {
       </header>
 
       <section className="cb__hero">
+        <Avatar s={s} className="avp avp--cb" fallback={false} />
         <p className="cb__chip"><Glyph name="spark" size={11} stroke={2.2} />{s.role}</p>
         <h1 className="cb__h1">Hi, I’m {s.first}.<br /><em>{headline}</em></h1>
         {more && <p className="cb__tag">{more}</p>}
@@ -35,7 +39,7 @@ export default function Casebook({ data }) {
         <div className="cb__head"><h2>Selected case studies</h2><span>{String(s.projects.length).padStart(2, '0')} projects</span></div>
         <div className="cb__cases">
           {s.projects.map((p, i) => (
-            <ProjectLink key={i} href={p.link} className={`cb__case ${i % 2 ? 'is-flip' : ''}`}>
+            <ProjectLink key={i} project={i} href={p.link} className={`cb__case ${i % 2 ? 'is-flip' : ''}`}>
               <div className="cb__device">
                 <div className="cb__device-bar"><i /><i /><i /></div>
                 <Shot media={p.media?.[0]} title={p.title} i={i} palette={SCREENS} />
@@ -44,7 +48,7 @@ export default function Casebook({ data }) {
                 <p className="cb__case-k">Case {String(i + 1).padStart(2, '0')}</p>
                 <h3>{p.title || 'Untitled project'}</h3>
                 {p.desc && <p className="cb__case-d">{p.desc}</p>}
-                <div className="cb__case-meta"><span>Role · {s.role}</span>{s.skills[0] && <span>Tools · {s.skills.slice(0, 2).join(', ')}</span>}</div>
+                <div className="cb__case-meta"><span>Role · {s.role}</span>{s.skills[0] && <span className="cb__case-tools">Tools <ToolList items={s.skills.slice(0, 4)} size="sm" /></span>}</div>
                 <span className="cb__read">Read case study <Glyph name="right" size={12} /></span>
               </div>
             </ProjectLink>
@@ -65,7 +69,7 @@ export default function Casebook({ data }) {
           {s.skills.length > 0 && (
             <div>
               <h2>Toolkit</h2>
-              <ul className="cb__chips">{s.skills.map((k) => <li key={k}>{k}</li>)}</ul>
+              <ToolList items={s.skills} label="Toolkit" />
             </div>
           )}
           {s.certs.length > 0 && (
@@ -89,9 +93,13 @@ export default function Casebook({ data }) {
       )}
 
       <section className="cb__contact">
-        <h2>Have a product problem worth solving?</h2>
+        <h2>How can I help you?</h2>
+        {s.skills.length > 0
+          ? <><p className="cb__help">The skills and tools I bring to a project:</p><ToolList items={s.skills} size="lg" className="cb__help-tools" label="Skills and tools" /></>
+          : <p className="cb__help">Add your skills and tools to show them here.</p>}
         <MailLink email={s.email} className="cb__btn">{s.email || 'Get in touch'} <Glyph name="arrow" size={13} /></MailLink>
       </section>
+      <GetInTouch s={s} />
       <footer className="cb__foot">© {s.year} {s.name} · Designed with care</footer>
     </div>
   );

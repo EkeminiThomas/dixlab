@@ -191,3 +191,57 @@ def test_upload_size_limits():
     too_big = b"GIF89a" + b"\x00" * (16 * mb)
     r = c.post("/api/uploads", files={"file": ("huge.gif", too_big, "image/gif")}, headers=h)
     assert r.status_code == 413 and "15 MB" in r.json()["detail"]
+
+
+def test_get_in_touch_messages(monkeypatch):
+    from app import mailer
+    from app.routers import messages as msgs
+    sent = []
+    monkeypatch.setattr(mailer, "configured", lambda: True)
+    monkeypatch.setattr(mailer, "send", lambda to, subject, body, reply_to=None: sent.append((to, subject, body, reply_to)) or True)
+
+    c = client(); h = sign_up(c, "inbox-owner@example.com"); other = sign_up(c, "inbox-nosy@example.com")
+    folio = {"id": "p-folio", "type": "portfolio", "template": "casebook", "title": "My work", "name": "Alex Morgan",
+             "email": "hello@alex.dev", "updatedAt": 1}
+    case = {"id": "p-case", "type": "case", "template": "snapshot", "title": "A case", "updatedAt": 1}
+    for p in (folio, case):
+        c.put(f"/api/projects/{p['id']}", json=p, headers=h)
+    slug = c.post("/api/projects/p-folio/publish", headers=h).json()["slug"]
+    case_slug = c.post("/api/projects/p-case/publish", headers=h).json()["slug"]
+
+    note = {"name": "Sam\r\nBcc: x@evil.test", "email": "sam@client.co", "message": "Loved the launch film. Free next week?"}
+    assert c.post("/api/public/nope-123/contact", json=note).status_code == 404
+    assert c.post(f"/api/public/{case_slug}/contact", json=note).status_code == 404  # portfolios only
+    assert c.post(f"/api/public/{slug}/contact", json={**note, "email": "not-an-email"}).status_code == 422
+    assert c.post(f"/api/public/{slug}/contact", json={**note, "message": ""}).status_code == 422
+    r = c.post(f"/api/public/{slug}/contact", json=note)
+    assert r.status_code == 201 and r.json() == {"ok": True}
+    assert "hello@alex.dev" not in r.text  # the owner's address is never revealed
+
+    # Emailed to the portfolio's contact address, replying to the visitor; the name can't add headers.
+    assert len(sent) == 1
+    to, subject, body, reply_to = sent[0]
+    assert to == "hello@alex.dev" and reply_to == ("Sam Bcc: x@evil.test", "sam@client.co")
+    assert "\n" not in subject and "Loved the launch film" in body
+
+    # Bots that fill the hidden field get a 201 but nothing is kept.
+    assert c.post(f"/api/public/{slug}/contact", json={**note, "website": "spam.biz"}).status_code == 201
+
+    inbox = c.get("/api/messages", headers=h).json()
+    assert inbox["unread"] == 1 and inbox["emailEnabled"] is True
+    m = inbox["messages"][0]
+    assert m["email"] == "sam@client.co" and m["emailed"] is True and m["slug"] == slug
+    assert c.get("/api/messages", headers=other).json()["messages"] == []
+    assert c.patch(f"/api/messages/{m['id']}", json={"read": True}, headers=other).status_code == 404
+    assert c.patch(f"/api/messages/{m['id']}", json={"read": True}, headers=h).status_code == 200
+    assert c.get("/api/messages", headers=h).json()["unread"] == 0
+    assert c.get("/api/messages").status_code == 401
+
+    # Rate limit per visitor and page.
+    msgs._recent.clear()
+    codes = [c.post(f"/api/public/{slug}/contact", json=note).status_code for _ in range(msgs.CONTACT_PER_10_MIN + 1)]
+    assert codes[-1] == 429 and set(codes[:-1]) == {201}
+    msgs._recent.clear()
+
+    assert c.delete(f"/api/messages/{m['id']}", headers=h).status_code == 204
+    assert all(x["id"] != m["id"] for x in c.get("/api/messages", headers=h).json()["messages"])

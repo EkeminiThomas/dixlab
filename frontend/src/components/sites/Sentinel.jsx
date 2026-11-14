@@ -1,4 +1,7 @@
 import { site, hash, Glyph, ProjectLink, MailLink } from './shared.jsx';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { ToolList } from './tools.jsx';
 
 /* Sentinel — a portfolio for cyber security professionals: certifications up
    front, research and engagements as advisories, and a clean contact line. */
@@ -14,13 +17,14 @@ export default function Sentinel({ data }) {
       </header>
 
       <section className="sn__hero">
+        <Avatar s={s} className="avp avp--sn" fallback={false} />
         <div className="sn__radar" aria-hidden><span /></div>
         <p className="sn__k">// security portfolio</p>
         <h1 className="sn__h1">{s.name}</h1>
         <p className="sn__role"><Glyph name="shield" size={14} />{s.role}</p>
         {s.tagline && <p className="sn__tag">{s.tagline}</p>}
         <dl className="sn__profile">
-          <div><dt>Focus</dt><dd>{focus.length ? focus.join(' · ') : 'Add skills to show your focus'}</dd></div>
+          <div><dt>Focus</dt><dd>{focus.length ? <ToolList items={focus} size="sm" label="Focus" /> : 'Add skills to show your focus'}</dd></div>
           <div><dt>Certifications</dt><dd>{s.certs.length ? `${s.certs.length} held` : '—'}</dd></div>
           <div><dt>Status</dt><dd className="sn__ok">Open to engagements</dd></div>
         </dl>
@@ -39,7 +43,7 @@ export default function Sentinel({ data }) {
         <p className="sn__label">Research &amp; engagements</p>
         <div className="sn__grid">
           {s.projects.map((p, i) => (
-            <ProjectLink key={i} href={p.link} className="sn__card">
+            <ProjectLink key={i} project={i} href={p.link} className="sn__card">
               <div className="sn__card-top">
                 <span className="sn__id">SEC-{String(i + 1).padStart(3, '0')}</span>
                 <span className="sn__hash">{hash(p.title + i)}</span>
@@ -55,7 +59,7 @@ export default function Sentinel({ data }) {
       {s.skills.length > 0 && (
         <section className="sn__sec">
           <p className="sn__label">Capabilities</p>
-          <ul className="sn__caps">{s.skills.map((k) => <li key={k}><span>›</span>{k}</li>)}</ul>
+          <ToolList items={s.skills} label="Capabilities" />
         </section>
       )}
 
@@ -85,6 +89,7 @@ export default function Sentinel({ data }) {
         <h2>Enquiries &amp; responsible disclosure</h2>
         <MailLink email={s.email} className="sn__btn">{s.email || 'Add your email'}</MailLink>
       </section>
+      <GetInTouch s={s} />
       <footer className="sn__foot"><span>© {s.year} {s.name}</span><span>Authorised testing only</span></footer>
     </div>
   );

@@ -1,4 +1,7 @@
 import { site, Shot, ProjectLink, MailLink } from './shared.jsx';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { ToolList } from './tools.jsx';
 
 const PAPER = [
   { bg: '#1d1a16', ink: '#f4efe6', hi: '#c2410c' },
@@ -14,6 +17,7 @@ export default function Journal({ data }) {
       <header className="journal__mast">
         <div className="journal__meta"><span>Vol. {s.roman}</span><span>The portfolio of</span><span>{s.role}</span></div>
         <h1 className="journal__name">{s.name}</h1>
+        <Avatar s={s} className="avp avp--journal" fallback={false} />
         <nav className="journal__nav"><span>Work</span><span>Profile</span><span>Correspondence</span></nav>
       </header>
 
@@ -30,7 +34,7 @@ export default function Journal({ data }) {
 
       <section className="journal__sec">
         <p className="journal__k">Selected work</p>
-        <ProjectLink href={feature.link} className="journal__feature">
+        <ProjectLink project={0} href={feature.link} className="journal__feature">
           <Shot media={feature.media?.[0]} title={feature.title} i={0} palette={PAPER} />
           <div>
             <p className="journal__no">No. 01 — Feature</p>
@@ -42,7 +46,7 @@ export default function Journal({ data }) {
           <ol className="journal__index">
             {rest.map((p, i) => (
               <li key={i}>
-                <ProjectLink href={p.link} className="journal__row">
+                <ProjectLink project={i + 1} href={p.link} className="journal__row">
                   <span className="journal__n">{String(i + 2).padStart(2, '0')}</span>
                   <span className="journal__t">{p.title || 'Untitled project'}</span>
                   <span className="journal__d">{p.desc}</span>
@@ -55,7 +59,7 @@ export default function Journal({ data }) {
       </section>
 
       {s.skills.length > 0 && (
-        <p className="journal__spec"><span>Specialisms —</span> {s.skills.join(', ')}.</p>
+        <div className="journal__spec"><span>Specialisms —</span> <ToolList items={s.skills} size="sm" label="Specialisms" /></div>
       )}
 
       {s.experience.length > 0 && (
@@ -72,6 +76,8 @@ export default function Journal({ data }) {
           </ul>
         </section>
       )}
+
+      <GetInTouch s={s} />
 
       <footer className="journal__foot">
         <p className="journal__k">Correspondence</p>

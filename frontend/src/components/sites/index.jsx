@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
+import ProjectView from './ProjectView.jsx';
 import Folio from './Folio.jsx';
 import Bento from './Bento.jsx';
 import Terminal from './Terminal.jsx';
@@ -9,7 +10,7 @@ import Punch from './Punch.jsx';
 import Casebook from './Casebook.jsx';
 import Sentinel from './Sentinel.jsx';
 import Reel from './Reel.jsx';
-import { StaticSite } from './shared.jsx';
+import { StaticSite, OpenProject, site } from './shared.jsx';
 import { brandProps } from './brand.js';
 
 /* ==========================================================================
@@ -109,6 +110,24 @@ export function SitePreview({ template, data }) {
     <div key={`${b.motion || 'none'}-${b.speed || 'normal'}-${b.replay || 0}`} {...brandProps(b)}>
       <T data={data} />
     </div>
+  );
+}
+
+/**
+ * A site people can click through: each project card opens that project's
+ * page, with a way back. Used by the editor and the full-screen preview.
+ */
+export function LiveSite({ template, data }) {
+  const [open, setOpen] = useState(null);
+  const count = site(data).hasProjects ? site(data).projects.length : 0;
+  const shown = open != null && open < count ? open : null;
+  if (shown != null) {
+    return <ProjectView template={template} data={data} index={shown} onBack={() => setOpen(null)} onGo={setOpen} />;
+  }
+  return (
+    <OpenProject.Provider value={{ count, open: setOpen }}>
+      <SitePreview template={template} data={data} />
+    </OpenProject.Provider>
   );
 }
 

@@ -231,6 +231,30 @@ export async function publishProject(project) {
 export const unpublishProject = (id) => request(`/api/projects/${encodeURIComponent(id)}/publish`, { method: 'DELETE' });
 export const fetchPublic = (slug) => request(`/api/public/${encodeURIComponent(slug)}`);
 
+/* ---------- Get in touch: visitors message a portfolio's owner ---------- */
+
+export const sendContact = (slug, { name, email, message, website = '' }) =>
+  request(`/api/public/${encodeURIComponent(slug)}/contact`, { method: 'POST', body: { name, email, message, website } });
+
+let unread = 0;
+const unreadSubs = new Set();
+const setUnread = (n) => { if (n !== unread) { unread = n; unreadSubs.forEach((fn) => fn()); } };
+/** Unread "Get in touch" messages, for the sidebar badge. */
+export function useUnread() {
+  return useSyncExternalStore((fn) => { unreadSubs.add(fn); return () => unreadSubs.delete(fn); }, () => unread);
+}
+export async function fetchMessages() {
+  const data = await request('/api/messages');
+  setUnread(data.unread);
+  return data;
+}
+export async function markMessage(id, read = true) {
+  await request(`/api/messages/${encodeURIComponent(id)}`, { method: 'PATCH', body: { read } });
+}
+export const deleteMessage = (id) => request(`/api/messages/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export const refreshUnread = () => (isSignedIn() ? fetchMessages().catch(() => null) : null);
+export const adjustUnread = (delta) => setUnread(Math.max(0, unread + delta));
+
 /* ---------- Interview (AI); see components/case/interview.js for the offline version ---------- */
 
 export const interviewNext = (transcript, hint, kind = 'case') => request('/api/interview/next', { method: 'POST', body: { transcript, hint, kind } });

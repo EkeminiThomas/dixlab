@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { SitePreview, SITE_TEMPLATES } from './index.jsx';
+import { LiveSite, SITE_TEMPLATES } from './index.jsx';
 import { Glyph } from './shared.jsx';
 
 /* Device widths for the responsive preview. `null` = fill the stage. */
@@ -159,7 +159,7 @@ export default function TemplateViewer({ template, data, title, subtitle, action
         <div ref={stageRef} className="tview__stage">
           <div ref={frameRef} className={`tview__frame ${shown && shown <= 480 ? 'is-phone' : ''}`} style={{ width: width ? `${width}px` : '100%' }}>
             <button className="tview__handle tview__handle--l" onPointerDown={startDrag('left')} onDoubleClick={() => pick('fit', null)} aria-label="Drag to resize" />
-            {render ? render() : <SitePreview template={template} data={data} />}
+            {render ? render() : <LiveSite template={template} data={data} />}
             <button className="tview__handle tview__handle--r" onPointerDown={startDrag('right')} onDoubleClick={() => pick('fit', null)} aria-label="Drag to resize" />
           </div>
         </div>

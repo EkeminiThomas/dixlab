@@ -1,4 +1,7 @@
 import { site, Shot, Glyph, ProjectLink, MailLink } from './shared.jsx';
+import { Avatar } from './shared.jsx';
+import { GetInTouch } from './contact.jsx';
+import { ToolList } from './tools.jsx';
 
 /* Bento — everything on one screen, as a grid of rounded tiles. */
 export default function Bento({ data }) {
@@ -7,13 +10,13 @@ export default function Bento({ data }) {
   return (
     <div className="site bento">
       <header className="bento__top">
-        <span className="bento__logo">{s.mono}</span>
+        <Avatar s={s} className="bento__logo" />
         <nav className="bento__nav"><span className="is-on">Home</span><span>Work</span><span>About</span></nav>
       </header>
 
       <div className="bento__grid">
         <section className="bento__t bento__t--hero">
-          <span className="bento__avatar">{s.mono}</span>
+          <Avatar s={s} className="bento__avatar" />
           <h1 className="bento__h1">{s.name}</h1>
           <p className="bento__role">{s.role}</p>
           {s.tagline && <p className="bento__tag">{s.tagline}</p>}
@@ -42,7 +45,7 @@ export default function Bento({ data }) {
         </section>
 
         {s.projects.map((p, i) => (
-          <ProjectLink key={i} href={p.link} className="bento__t bento__t--proj">
+          <ProjectLink key={i} project={i} href={p.link} className="bento__t bento__t--proj">
             <Shot media={p.media?.[0]} title={p.title} i={i} />
             <div className="bento__proj-row">
               <div>
@@ -57,7 +60,7 @@ export default function Bento({ data }) {
         {s.skills.length > 0 && (
           <section className="bento__t bento__t--skills">
             <p className="bento__k">Toolkit</p>
-            <ul className="bento__chips">{s.skills.map((k) => <li key={k}>{k}</li>)}</ul>
+            <ToolList items={s.skills} label="Toolkit" />
           </section>
         )}
 
@@ -78,6 +81,8 @@ export default function Bento({ data }) {
           <span className="bento__contact-go"><Glyph name="arrow" size={18} /></span>
         </MailLink>
       </div>
+
+      <GetInTouch s={s} />
 
       <footer className="bento__foot">© {s.year} {s.name}</footer>
     </div>

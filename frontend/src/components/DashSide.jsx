@@ -1,6 +1,7 @@
+import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Logo, AppSparkles13, useProjects, useUser, initials } from './ui.jsx';
-import { logOut } from '../api.js';
+import { logOut, useUnread, refreshUnread } from '../api.js';
 
 const ITEMS = [
   ['all', 'Everything'],
@@ -26,6 +27,8 @@ export default function DashSide({ active, onFilter }) {
     if (onFilter) return onFilter(k);
     nav(k === 'all' ? '/dashboard' : `/dashboard?f=${k}`);
   };
+  const unread = useUnread();
+  useEffect(() => { refreshUnread(); }, []);
   const onLogOut = async () => { await logOut(); nav('/login'); };
 
   return (
@@ -39,6 +42,11 @@ export default function DashSide({ active, onFilter }) {
             <small>{k !== 'all' ? <span className="dash__nav-new">Templates</span> : counts[k]}</small>
           </button>
         ))}
+        <p className="dash__nav-k dash__nav-k--gap">Inbox</p>
+        <button className={`dash__nav-btn ${active === 'messages' ? 'is-active' : ''}`} onClick={() => nav('/messages')} aria-pressed={active === 'messages'}>
+          <span>Messages</span>
+          <small>{unread > 0 ? <span className="dash__nav-badge" aria-label={`${unread} unread`}>{unread}</span> : null}</small>
+        </button>
       </nav>
       <div className="dash__side-foot">
         <div className="dash__tip">

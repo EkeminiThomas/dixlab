@@ -44,6 +44,7 @@ export function projectToSite(p) {
     tagline: p.tagline ?? '',
     about: p.notes,
     email: p.email ?? '',
+    photo: p.photo || '',
     skills: (p.skills || '').split(',').map((s) => s.trim()).filter(Boolean),
     projects: p.projects || [],
     experience: p.experience || [],
@@ -89,6 +90,7 @@ export function site(data = {}) {
     reel: projects.flatMap((p) => p.media || []).find((m) => m.type === 'video') || null,
     certs: d.certs || [],
     email: d.email || '',
+    photo: typeof d.photo === 'string' ? d.photo : '',
     year,
     roman: roman(year),
   };
@@ -102,6 +104,19 @@ export const SHOTS = [
   { bg: '#10201a', ink: '#d8f5e4', hi: '#3ddc97' },
   { bg: '#f7e8ef', ink: '#3a1024', hi: '#e0447c' },
 ];
+
+/**
+ * The person's profile photo, or their initials when they haven't added one.
+ * With `fallback={false}` nothing renders without a photo.
+ */
+export function Avatar({ s, className = '', fallback = true }) {
+  if (!s.photo) return fallback ? <span className={className}>{s.mono}</span> : null;
+  return (
+    <span className={`${className} has-photo`}>
+      <img src={s.photo} alt={s.name === 'Your name' ? 'Profile photo' : s.name} draggable={false} />
+    </span>
+  );
+}
 
 /**
  * A project's thumbnail: the user's image or video when they've added one,
@@ -157,9 +172,32 @@ export function Glyph({ name, size = 14, stroke = 1.8 }) {
   );
 }
 
-/** A project's call-to-action: a real link when the user gave one. */
-export function ProjectLink({ href, className, children }) {
+/**
+ * Opening a project's own page. Provided by whatever shows a live site:
+ * { count, open(i), href?(i) }. Thumbnails don't provide it.
+ */
+export const OpenProject = createContext(null);
+
+/**
+ * A project card. On a live site it opens that project's page; otherwise it
+ * falls back to the project's own link, or plain text in a thumbnail.
+ */
+export function ProjectLink({ href, className, children, project }) {
   const isStatic = useContext(StaticSite);
+  const nav = useContext(OpenProject);
+  if (nav && !isStatic && project != null && project < nav.count) {
+    const url = nav.href?.(project);
+    const onClick = (e) => {
+      if (url && (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1)) return; // let "open in new tab" work
+      e.preventDefault();
+      nav.open(project);
+    };
+    return (
+      <a className={`${className || ''} is-openable`} href={url || '#'} onClick={onClick}>
+        {children}
+      </a>
+    );
+  }
   return href && !isStatic
     ? <a className={className} href={href} target="_blank" rel="noreferrer">{children}</a>
     : <span className={className}>{children}</span>;
