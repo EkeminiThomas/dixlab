@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Chronicle, Snapshot, Blueprint, Spotlight, Framework, Lab, Showcase, Impact, Deck, Brief } from './templates.jsx';
+import { Depth } from './Depth.jsx';
 import { CASE_SAMPLES } from './data.js';
 import { brandProps } from '../sites/brand.js';
 import { StaticSite } from '../sites/shared.jsx';
@@ -26,6 +27,7 @@ export const CASE_TEMPLATES = {
   impact:    { name: 'Impact',    desc: 'Numbers first',           blurb: 'Leads with your headline result, then before-and-after and a timeline of how you got there.', tags: ['Metrics', 'New'], niches: ['business', 'eng', 'design'], sample: CASE_SAMPLES.ux, Component: Impact },
   deck:      { name: 'Deck',      desc: 'Slides you scroll',       blurb: 'Each section is a numbered slide, ready to present in an interview or pitch.', tags: ['Presentation', 'New'], niches: ['business', 'brand', 'student'], sample: CASE_SAMPLES.ops, Component: Deck },
   brief:     { name: 'Brief',     desc: 'Swiss & compact',         blurb: 'Six numbered sections on a strict grid. Everything important, nothing extra.', tags: ['Minimal', 'New'], niches: ['design', 'research', 'visual'], sample: CASE_SAMPLES.ux, Component: Brief },
+  depth:     { name: 'Depth',     desc: 'Dark & 3D',               blurb: 'A layered 3D hero, panels on a curved wall, your process as rising cubes, a cover-flow gallery and results that stand up.', tags: ['3D', 'New'], niches: ['design', 'eng', 'brand'], three: true, sample: CASE_SAMPLES.ux, Component: Depth },
 };
 
 export const caseNicheLabels = (ids = []) => ids.map((id) => CASE_NICHES.find((n) => n.id === id)?.label).filter(Boolean);

@@ -1,6 +1,7 @@
 /* ==========================================================================
    Branding: the user's customisations layered over any site template.
-   Stored on the project as `brand` = { font, accent, motion, speed }.
+   Stored on the project as `brand` = { font, accent, motion, speed }, plus
+   { depth, tilt, float } for the 3D templates.
    Anything left unset falls back to the template's own default.
    ========================================================================== */
 
@@ -32,6 +33,12 @@ export const MOTIONS = {
 
 export const SPEEDS = { calm: ['Calm', 1.1], normal: ['Normal', 0.7], snappy: ['Snappy', 0.4] };
 
+/* 3D effects, used by the 3D templates (Blocks, Depth). Every angle and depth
+   in their CSS is multiplied by --d3, so Flat turns the 3D off entirely. */
+export const DEPTHS = { flat: ['Flat', 0], subtle: ['Subtle', 0.55], normal: ['Normal', 1], deep: ['Deep', 1.6] };
+export const TILTS = { pointer: 'Follow the pointer', off: 'Off' };
+export const FLOATS = { on: 'Gentle float', off: 'Still' };
+
 /** Black or white, whichever reads better on the given hex colour. */
 export function onColor(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
@@ -53,14 +60,18 @@ export function brandProps(brand = {}) {
   const speed = (SPEEDS[brand.speed] || SPEEDS.normal)[1];
   const style = {
     '--bx': m.x, '--by': m.y, '--bs': m.s, '--brand-dur': `${speed}s`,
+    '--d3': (DEPTHS[brand.depth] || DEPTHS.normal)[1],
+    '--tilt-k': brand.tilt === 'off' ? 0 : 1,
   };
   if (brand.accent) { style['--brand-accent'] = brand.accent; style['--brand-on'] = onColor(brand.accent); }
   if (font) { style['--brand-head'] = font.head; style['--brand-body'] = font.body; }
   return {
     className: `brand ${font ? 'brand--font' : ''}`,
     'data-motion': motion,
+    'data-float': brand.float === 'off' ? 'off' : 'on',
     style,
   };
 }
 
-export const isBranded = (b = {}) => Boolean((b.font && b.font !== 'default') || b.accent || (b.motion && b.motion !== 'none'));
+export const isBranded = (b = {}) => Boolean((b.font && b.font !== 'default') || b.accent || (b.motion && b.motion !== 'none')
+  || (b.depth && b.depth !== 'normal') || b.tilt === 'off' || b.float === 'off');

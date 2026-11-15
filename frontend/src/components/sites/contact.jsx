@@ -2,14 +2,14 @@ import { createContext, useContext, useState } from 'react';
 import { StaticSite } from './shared.jsx';
 import { sendContact } from '../../api.js';
 
-/** The published page's slug, so the form knows whose inbox to send to. */
+/** The published page's slug, so the form knows whose portfolio it's on. */
 export const ContactTarget = createContext(null);
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 /**
  * "Get in touch": visitors write a message that's delivered to the
- * portfolio owner's inbox (and email). Their address is never shown.
+ * portfolio owner by email. Their address is never shown.
  */
 export function GetInTouch({ s, title = 'Get in touch', lead }) {
   const isStatic = useContext(StaticSite);

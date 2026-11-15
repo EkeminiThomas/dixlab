@@ -9,8 +9,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, create_model
 
 from .. import ai
-from ..catalog import (CASE_TEMPLATES, CV_SIZES, CV_TEMPLATES, FONT_PAIRS, MOTIONS, SITE_TEMPLATES, SPEEDS,
-                       font_lines, template_lines)
+from ..catalog import (CASE_TEMPLATES, CV_SIZES, CV_TEMPLATES, DEPTHS, FLOATS, FONT_PAIRS, MOTIONS, SITE_TEMPLATES,
+                       SPEEDS, THREE_D_TEMPLATES, TILTS, font_lines, template_lines)
 from ..security import current_user
 
 router = APIRouter(prefix="/api", tags=["customize"])
@@ -31,6 +31,9 @@ def _site_changes(name: str, keys: list[str]):
         accent=(str, Field(description='A 6-digit hex colour like "#7b5cff", "default" for the template colour, or "keep".')),
         motion=(_lit(MOTIONS), Field(description='Animation direction, or "keep".')),
         speed=(_lit(SPEEDS), Field(description='Animation speed, or "keep".')),
+        depth=(_lit(DEPTHS), Field(description='3D depth (3D templates only), or "keep".')),
+        tilt=(_lit(TILTS), Field(description='Hero tilts toward the pointer ("pointer") or not ("off"); 3D templates only, or "keep".')),
+        float=(_lit(FLOATS), Field(description='Gentle floating of small 3D pieces ("on"/"off"); 3D templates only, or "keep".')),
         role=(str, Field(description='New role/job title, or "" to keep the current one.')),
         tagline=(str, Field(description='New tagline (may contain one \\n line break), or "" to keep the current one.')),
         summary=(str, Field(description="One short, friendly sentence describing what you changed, addressed to the user.")),
@@ -68,7 +71,13 @@ Font pairs:
 {font_lines()}
 
 Animation directions (sections animate in as they appear): {", ".join(MOTIONS)}.
-Animation speeds: {", ".join(SPEEDS)}."""
+Animation speeds: {", ".join(SPEEDS)}.
+
+3D settings, which only affect the 3D templates ({", ".join(sorted(THREE_D_TEMPLATES & set(catalog)))}):
+- depth: {", ".join(DEPTHS)} ("flat" keeps the layout but turns the 3D off; "deep" is the most dramatic).
+- tilt: "pointer" makes the hero lean toward the visitor's pointer, "off" holds it still.
+- float: "on" lets small 3D pieces drift gently, "off" keeps them still.
+If the user asks for 3D ("make it 3D") and the page isn't on a 3D template, switch to one. "Deep" in a colour ("deep navy") is a colour, not depth."""
 
 
 CV_SYSTEM = f"""You customise a CV (résumé) built with Dixlab. It is a printed A4 document, so there is no animation. The user describes, in plain language, how they want it to look or read. Translate their request into changes.
@@ -102,7 +111,7 @@ class CustomizeIn(BaseModel):
     kind: Literal["site", "cv", "case"] = "site"
 
 
-def _normalise(kind: str, out, catalog: dict[str, str]) -> dict:
+def _normalise(kind: str, out, catalog: dict[str, str], current_template: str | None = None) -> dict:
     """Only include fields that change, in the shape the frontend applies."""
     changes: dict[str, Any] = {}
     brand: dict[str, Any] = {}
@@ -126,6 +135,13 @@ def _normalise(kind: str, out, catalog: dict[str, str]) -> dict:
             brand["motion"] = out.motion
         if out.speed != "keep":
             brand["speed"] = out.speed
+        # 3D settings only mean something on a 3D template (the current one, or the one being switched to).
+        target = changes.get("template", current_template)
+        if target in THREE_D_TEMPLATES:
+            for key in ("depth", "tilt", "float"):
+                value = getattr(out, key)
+                if value != "keep":
+                    brand[key] = value
         if out.role.strip():
             changes["role"] = out.role.strip()
         if out.tagline.strip():
@@ -146,6 +162,9 @@ def customize(body: CustomizeIn, user=Depends(current_user)):
     schema, system, catalog = KINDS[body.kind]
     content = f"Current settings:\n{json.dumps(body.current, ensure_ascii=False, indent=2)}\n\nRequest:\n{prompt}"
     out, err = ai.parse(schema, system, content)
+    ai.track(user["id"], "customize", err)
     if err:
         return err
-    return {"changes": _normalise(body.kind, out, catalog), "summary": out.summary}
+    current_template = body.current.get("template")
+    changes = _normalise(body.kind, out, catalog, current_template if isinstance(current_template, str) else None)
+    return {"changes": changes, "summary": out.summary}

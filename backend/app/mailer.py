@@ -6,18 +6,44 @@ import ssl
 from email.message import EmailMessage
 from email.utils import formataddr
 
-from .config import SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_STARTTLS, SMTP_USER
+from .config import MAIL_TO_LOG, SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_STARTTLS, SMTP_USER
 
 log = logging.getLogger("dixlab.mail")
 
 
+# The example values from .env.example aren't a real mail server.
+_PLACEHOLDER = ("example.com", "example.org", "example.net", ".example", ".test", ".invalid", "localhost.localdomain")
+
+
+def placeholder_host() -> bool:
+    return bool(SMTP_HOST) and SMTP_HOST.lower().endswith(_PLACEHOLDER)
+
+
 def configured() -> bool:
-    return bool(SMTP_HOST and SMTP_FROM)
+    return bool(SMTP_HOST and SMTP_FROM) and not placeholder_host()
+
+
+def can_send() -> bool:
+    """Whether account emails (verification, password reset) can go out."""
+    return configured() or MAIL_TO_LOG
+
+
+def safe_name(name: str | None) -> str:
+    """The first name to greet someone with in an email. Names are chosen by
+    whoever signs up (who may not own the address), so anything that isn't a
+    plain name, such as a link, becomes "there"."""
+    first = (name or "").strip().split()[0] if (name or "").strip() else ""
+    if not first or len(first) > 30 or not all(ch.isalpha() or ch in "-'’." for ch in first) or "." in first.strip("."):
+        return "there"
+    return first
 
 
 def send(to: str, subject: str, body: str, reply_to: tuple[str, str] | None = None) -> bool:
     """Send a plain-text email. Returns True when the server accepted it."""
     if not configured():
+        if MAIL_TO_LOG:  # local testing only (DIXLAB_MAIL_TO_LOG)
+            log.warning("\n--- EMAIL (not sent: DIXLAB_MAIL_TO_LOG is on) ---\nTo: %s\nSubject: %s\n\n%s\n--- END EMAIL ---", to, subject, body)
+            return True
         return False
     msg = EmailMessage()  # refuses header values with line breaks (no header injection)
     msg["From"] = SMTP_FROM

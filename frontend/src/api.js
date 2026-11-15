@@ -3,11 +3,18 @@
    Projects stay cached in this browser so the app keeps working offline;
    when you're signed in, every change is pushed to your account and the
    cache is reconciled with the server on start-up and after logging in.
+
+   The login itself lives in an HttpOnly cookie set by the server: page
+   scripts can't read it, so an injected script can't steal a session. The
+   page only remembers *that* someone is signed in. Every request carries
+   X-Dixlab-Request, which the server requires for changes (other sites
+   can't add it, so they can't act in your name).
    ========================================================================== */
 import { useSyncExternalStore } from 'react';
 import { loadProjects, saveProjects, saveUser, clearProjects } from './components/ui.jsx';
 
-const TOKEN_KEY = 'dixlab.token';
+const LEGACY_TOKEN_KEY = 'dixlab.token'; // old sessions kept the token here; moved to the cookie on load
+const SIGNED_IN_KEY = 'dixlab.session'; // just a flag: the real session is the HttpOnly cookie
 const OWNER_KEY = 'dixlab.owner';     // whose account the cached projects belong to
 const TOMB_KEY = 'dixlab.deleted';    // deletions made while offline
 
@@ -22,18 +29,18 @@ export class ApiError extends Error {
   }
 }
 
-export const getToken = () => read(TOKEN_KEY);
-export const isSignedIn = () => Boolean(getToken());
+export const isSignedIn = () => Boolean(read(SIGNED_IN_KEY) || read(LEGACY_TOKEN_KEY));
+const BASE_HEADERS = { 'X-Dixlab-Request': '1' };
 
-/** fetch() wrapper: JSON in and out, bearer token, readable errors. */
+/** fetch() wrapper: JSON in and out, the session cookie, readable errors. */
 export async function request(path, { method = 'GET', body, form } = {}) {
-  const headers = {};
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
+  const headers = { ...BASE_HEADERS };
+  const legacy = read(LEGACY_TOKEN_KEY);
+  if (legacy) headers.Authorization = `Bearer ${legacy}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   let res;
   try {
-    res = await fetch(path, { method, headers, body: form ?? (body !== undefined ? JSON.stringify(body) : undefined) });
+    res = await fetch(path, { method, headers, credentials: 'same-origin', body: form ?? (body !== undefined ? JSON.stringify(body) : undefined) });
   } catch {
     throw new ApiError('Can’t reach the Dixlab server.', 0, true);
   }
@@ -45,7 +52,7 @@ export async function request(path, { method = 'GET', body, form } = {}) {
     const message = typeof data?.detail === 'string' ? data.detail
       : Array.isArray(data?.detail) ? 'Check the details and try again.'
       : data?.error || (offline ? 'Can’t reach the Dixlab server.' : 'Something went wrong. Please try again.');
-    if (res.status === 401 && token) signOutLocally(); // session expired or revoked
+    if (res.status === 401 && isSignedIn() && !path.startsWith('/api/auth/login')) signOutLocally(); // session expired or revoked
     const err = new ApiError(message, res.status, offline);
     err.body = data;
     throw err;
@@ -68,11 +75,12 @@ export function useSyncStatus() {
 
 /* ---------- Accounts ---------- */
 
-async function startSession({ token, user }) {
+async function startSession({ user }) {
   // Never mix another account's cached work into this one.
   const owner = read(OWNER_KEY);
   if (owner && owner !== user.id) clearProjects();
-  write(TOKEN_KEY, token);
+  write(LEGACY_TOKEN_KEY, null);
+  write(SIGNED_IN_KEY, '1');
   write(OWNER_KEY, user.id);
   saveUser(user);
   setStatus('idle');
@@ -83,8 +91,51 @@ async function startSession({ token, user }) {
 export const signUp = ({ name, email, password }) =>
   request('/api/auth/signup', { method: 'POST', body: { name, email, password } }).then(startSession);
 
-export const logIn = ({ email, password }) =>
-  request('/api/auth/login', { method: 'POST', body: { email, password } }).then(startSession);
+/** Log in. With two-step login on, the first try (no code) fails with
+    err.body.code === 'two_factor_required'; send it again with `code`. */
+export const logIn = ({ email, password, code }) =>
+  request('/api/auth/login', { method: 'POST', body: { email, password, ...(code ? { code } : {}) } }).then(startSession);
+
+/* ---------- Two-step login ---------- */
+
+export const twoFactorStatus = () => request('/api/auth/2fa');
+export const twoFactorSetup = (password) => request('/api/auth/2fa/setup', { method: 'POST', body: { password } });
+export async function twoFactorEnable(code) {
+  const res = await request('/api/auth/2fa/enable', { method: 'POST', body: { code } });
+  await refreshUser();
+  return res;
+}
+export async function twoFactorDisable(password, code) {
+  const res = await request('/api/auth/2fa/disable', { method: 'POST', body: { password, code } });
+  await refreshUser();
+  return res;
+}
+export const twoFactorNewCodes = (password, code) => request('/api/auth/2fa/recovery-codes', { method: 'POST', body: { password, code } });
+
+/* ---------- Account self-service ---------- */
+
+export const resendVerification = () => request('/api/auth/verify/send', { method: 'POST' });
+export async function verifyEmail(token) {
+  const res = await request('/api/auth/verify', { method: 'POST', body: { token } });
+  if (isSignedIn()) await refreshUser();
+  return res;
+}
+export const forgotPassword = (email) => request('/api/auth/password/forgot', { method: 'POST', body: { email } });
+export const resetPassword = (token, password) => request('/api/auth/password/reset', { method: 'POST', body: { token, password } });
+export const changePassword = (current, password) => request('/api/auth/password/change', { method: 'POST', body: { current, password } });
+export async function updateName(name) {
+  const { user } = await request('/api/auth/me', { method: 'PATCH', body: { name } });
+  saveUser(user);
+  return user;
+}
+/** Permanently delete the signed-in account, then forget it in this browser. */
+export async function deleteAccount(password) {
+  await request('/api/auth/me', { method: 'DELETE', body: { password } });
+  signOutLocally();
+}
+
+/** Where someone lands after logging in: admins go to the admin dashboard. */
+export const homeFor = (user) => (user?.isAdmin ? '/admin' : '/dashboard');
 
 export async function logOut() {
   try { if (isSignedIn()) await request('/api/auth/logout', { method: 'POST' }); } catch { /* signing out locally anyway */ }
@@ -92,7 +143,8 @@ export async function logOut() {
 }
 
 function signOutLocally() {
-  write(TOKEN_KEY, null);
+  write(LEGACY_TOKEN_KEY, null);
+  write(SIGNED_IN_KEY, null);
   write(OWNER_KEY, null);
   write(TOMB_KEY, null);
   clearProjects();
@@ -104,6 +156,14 @@ function signOutLocally() {
 export async function refreshUser() {
   if (!isSignedIn()) return null;
   try {
+    // Sessions from before the cookie change: move the token into the cookie, then forget it here.
+    if (read(LEGACY_TOKEN_KEY)) {
+      const { user } = await request('/api/auth/adopt', { method: 'POST' });
+      write(LEGACY_TOKEN_KEY, null);
+      write(SIGNED_IN_KEY, '1');
+      saveUser(user);
+      return user;
+    }
     const { user } = await request('/api/auth/me');
     saveUser(user);
     return user;
@@ -236,24 +296,6 @@ export const fetchPublic = (slug) => request(`/api/public/${encodeURIComponent(s
 export const sendContact = (slug, { name, email, message, website = '' }) =>
   request(`/api/public/${encodeURIComponent(slug)}/contact`, { method: 'POST', body: { name, email, message, website } });
 
-let unread = 0;
-const unreadSubs = new Set();
-const setUnread = (n) => { if (n !== unread) { unread = n; unreadSubs.forEach((fn) => fn()); } };
-/** Unread "Get in touch" messages, for the sidebar badge. */
-export function useUnread() {
-  return useSyncExternalStore((fn) => { unreadSubs.add(fn); return () => unreadSubs.delete(fn); }, () => unread);
-}
-export async function fetchMessages() {
-  const data = await request('/api/messages');
-  setUnread(data.unread);
-  return data;
-}
-export async function markMessage(id, read = true) {
-  await request(`/api/messages/${encodeURIComponent(id)}`, { method: 'PATCH', body: { read } });
-}
-export const deleteMessage = (id) => request(`/api/messages/${encodeURIComponent(id)}`, { method: 'DELETE' });
-export const refreshUnread = () => (isSignedIn() ? fetchMessages().catch(() => null) : null);
-export const adjustUnread = (delta) => setUnread(Math.max(0, unread + delta));
 
 /* ---------- Interview (AI); see components/case/interview.js for the offline version ---------- */
 
@@ -268,8 +310,10 @@ export function uploadFile(file, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/uploads');
-    const token = getToken();
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader('X-Dixlab-Request', '1');
+    const legacy = read(LEGACY_TOKEN_KEY);
+    if (legacy) xhr.setRequestHeader('Authorization', `Bearer ${legacy}`);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
     xhr.onload = () => {
       let data = null;
@@ -283,3 +327,39 @@ export function uploadFile(file, onProgress) {
     xhr.send(form);
   });
 }
+
+/* ---------- Admin dashboard (admins only; the server checks every call) ---------- */
+
+const qs = (params = {}) => {
+  const p = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null && v !== 'all'));
+  const s = p.toString();
+  return s ? `?${s}` : '';
+};
+const enc = encodeURIComponent;
+export const admin = {
+  overview: (days = 30) => request(`/api/admin/overview?days=${days}`),
+  users: (params) => request(`/api/admin/users${qs(params)}`),
+  user: (id) => request(`/api/admin/users/${enc(id)}`),
+  suspend: (id, reason = '') => request(`/api/admin/users/${enc(id)}/suspend`, { method: 'POST', body: { reason } }),
+  unsuspend: (id) => request(`/api/admin/users/${enc(id)}/unsuspend`, { method: 'POST' }),
+  signOutUser: (id) => request(`/api/admin/users/${enc(id)}/signout`, { method: 'POST' }),
+  setAdmin: (id, isAdmin) => request(`/api/admin/users/${enc(id)}/admin`, { method: 'PATCH', body: { isAdmin } }),
+  deleteUser: (id, email) => request(`/api/admin/users/${enc(id)}`, { method: 'DELETE', body: { email } }),
+  pages: (params) => request(`/api/admin/pages${qs(params)}`),
+  takedown: (slug, reason = '') => request(`/api/admin/pages/${enc(slug)}/takedown`, { method: 'POST', body: { reason } }),
+  messages: (page = 1) => request(`/api/admin/messages?page=${page}`),
+  deleteMessage: (id) => request(`/api/admin/messages/${enc(id)}`, { method: 'DELETE' }),
+  storage: () => request('/api/admin/storage'),
+  cleanup: () => request('/api/admin/storage/cleanup', { method: 'POST' }),
+  activity: (params) => request(`/api/admin/activity${qs(params)}`),
+  system: () => request('/api/admin/system'),
+  /** Download the users CSV as a file. */
+  async exportUsers(params) {
+    const res = await fetch(`/api/admin/users.csv${qs(params)}`, { headers: BASE_HEADERS, credentials: 'same-origin' });
+    if (!res.ok) throw new ApiError('Couldn’t export users.', res.status);
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement('a'), { href: url, download: `dixlab-users-${new Date().toISOString().slice(0, 10)}.csv` });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+};

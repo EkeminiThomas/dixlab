@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { safeHref } from '../../safeUrl.js';
 import { ToolList } from './tools.jsx';
 import { site, Shot, Glyph, MailLink, Avatar } from './shared.jsx';
 import { brandProps } from './brand.js';
@@ -33,7 +34,7 @@ export default function ProjectView({ template = 'folio', data, index, onBack, o
   const total = s.projects.length;
   const prev = index > 0 ? index - 1 : null;
   const next = index < total - 1 ? index + 1 : null;
-  const link = p.link && !/^https?:\/\//i.test(p.link) ? `https://${p.link}` : p.link;
+  const link = safeHref(p.link);
 
   const NavLink = ({ to, className, children }) => (
     <a className={className} href={hrefFor?.(to) || '#'} onClick={(e) => {

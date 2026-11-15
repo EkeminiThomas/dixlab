@@ -4,33 +4,24 @@ when SMTP is configured. The owner's email address is never shown to visitors.""
 import json
 import secrets
 import sqlite3
-import time
-from collections import defaultdict, deque
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field
 
-from .. import mailer
+from .. import events, mailer
 from ..config import CONTACT_PER_10_MIN
 from ..db import connect, get_db
+from ..ratelimit import Limiter, client_ip
 from ..security import current_user, now_ms
 
 router = APIRouter(tags=["messages"])
 
-_recent: dict[tuple[str, str], deque] = defaultdict(deque)
-WINDOW = 600  # seconds
+_recent = Limiter("contact_ip_page", CONTACT_PER_10_MIN, 600)
 
 
 def _limited(ip: str, slug: str) -> bool:
     """At most CONTACT_PER_10_MIN messages per visitor, per page, per 10 minutes."""
-    now = time.monotonic()
-    q = _recent[(ip, slug)]
-    while q and now - q[0] > WINDOW:
-        q.popleft()
-    if len(q) >= CONTACT_PER_10_MIN:
-        return True
-    q.append(now)
-    return False
+    return not _recent.hit(f"{ip}|{slug}")
 
 
 class ContactIn(BaseModel):
@@ -62,13 +53,13 @@ def contact(slug: str, body: ContactIn, request: Request, background: Background
             db: sqlite3.Connection = Depends(get_db)):
     pub = db.execute(
         "SELECT p.user_id, p.project_id, p.data, u.email AS account_email, u.name AS owner_name "
-        "FROM publications p JOIN users u ON u.id = p.user_id WHERE p.slug = ?", (slug,),
+        "FROM publications p JOIN users u ON u.id = p.user_id WHERE p.slug = ? AND u.suspended_at IS NULL", (slug,),
     ).fetchone()
     if not pub or json.loads(pub["data"]).get("type") != "portfolio":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This page isn't published.")
     if body.website.strip():
         return {"ok": True}  # a bot filled the hidden field: pretend it worked, keep nothing
-    if _limited(request.client.host if request.client else "?", slug):
+    if _limited(client_ip(request), slug):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "You've sent a few messages already. Please try again in a few minutes.")
 
     name, message = _one_line(body.name), body.message.strip()
@@ -79,6 +70,7 @@ def contact(slug: str, body: ContactIn, request: Request, background: Background
         "INSERT INTO messages (id, user_id, project_id, slug, name, email, body, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         (message_id, pub["user_id"], pub["project_id"], slug, name, str(body.email), message, now_ms()),
     )
+    events.log(db, "contact.sent", pub["user_id"], slug=slug)
     db.commit()  # saved before we try to email it
     if mailer.configured():
         data = json.loads(pub["data"])

@@ -12,6 +12,7 @@ export const TEMPLATE_CATALOG = {
   casebook: { name: 'Casebook', look: 'light, case-study-led with device frames and design process; UI/UX and product designers' },
   sentinel: { name: 'Sentinel', look: 'dark navy security dashboard with radar and certifications; cyber security professionals' },
   reel:     { name: 'Reel',     look: 'dark cinematic showreel player hero; motion designers, animators, filmmakers, video editors' },
+  blocks:   { name: 'Blocks',   look: 'light, playful 3D: extruded name, floating skill cubes, flip cards; developers, students, creatives' },
 };
 
 export const TEMPLATE_KEYS = Object.keys(TEMPLATE_CATALOG);
@@ -44,5 +45,6 @@ export const CASE_CATALOG = {
   impact:    { name: 'Impact',    look: 'numbers first with a big headline result and before/after; growth, product, ops' },
   deck:      { name: 'Deck',      look: 'scrolling slides, each section a numbered slide; presentations and pitches' },
   brief:     { name: 'Brief',     look: 'Swiss minimal, six numbered sections on a strict grid, red accent; compact' },
+  depth:     { name: 'Depth',     look: 'dark 3D: layered hero, curved panels, process as cube towers, cover-flow gallery; product, engineering, brand' },
 };
 export const CASE_KEYS = Object.keys(CASE_CATALOG);

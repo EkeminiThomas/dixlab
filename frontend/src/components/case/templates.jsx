@@ -1,4 +1,5 @@
 /* ==========================================================================
+import { safeSrc } from '../../safeUrl.js';
    Case study templates. Each renders a responsive page (it's a `.site`, so
    container queries, branding fonts, accent colour and motion all apply).
    Styles live in case.css.
@@ -97,7 +98,7 @@ const Gallery = ({ d, className = '', ratio = '4 / 3', min = 0 }) => {
 };
 
 /** Attachments (reports, decks, specs) people can open or download. */
-function Files({ d }) {
+export function Files({ d }) {
   const isStatic = useContext(StaticSite);
   if (!d.files.length) return null;
   return (
@@ -115,8 +116,8 @@ function Files({ d }) {
           );
           return (
             <li key={i}>
-              {isStatic ? <span className="cs-file">{body}</span>
-                : <a className="cs-file" href={f.src} target="_blank" rel="noreferrer" download={ext === 'pdf' ? undefined : (f.name || true)}>{body}</a>}
+              {isStatic || !safeSrc(f.src) ? <span className="cs-file">{body}</span>
+                : <a className="cs-file" href={safeSrc(f.src)} target="_blank" rel="noopener noreferrer" download={ext === 'pdf' ? undefined : (f.name || true)}>{body}</a>}
             </li>
           );
         })}

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { safeSrc } from '../safeUrl.js';
 import { uploadAttachment, FILE_ACCEPT, FILE_TYPES, MAX_FILE_MB, fileExt, fileSize } from './media.js';
 import { isSignedIn } from '../api.js';
 
@@ -45,7 +46,7 @@ export default function FileField({ value = [], onChange, max = 8 }) {
                 <span className={`ff__ext ff__ext--${ext}`}>{FILE_TYPES[ext] || ext.toUpperCase()}</span>
                 <input className="field__input ff__name" value={f.name || ''} onChange={(e) => rename(i, e.target.value)} aria-label={`Name shown for file ${i + 1}`} />
                 <span className="ff__size">{fileSize(f.size)}</span>
-                <a className="ff__open" href={f.src} target="_blank" rel="noreferrer">Open</a>
+                {safeSrc(f.src) && <a className="ff__open" href={safeSrc(f.src)} target="_blank" rel="noopener noreferrer">Open</a>}
                 <button type="button" className="ed__remove" onClick={() => remove(i)} aria-label={`Remove ${f.name || 'file'}`}>Remove</button>
               </li>
             );

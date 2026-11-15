@@ -56,8 +56,41 @@ CREATE TABLE IF NOT EXISTS messages (
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_messages_user ON messages(user_id, created_at);
+CREATE TABLE IF NOT EXISTS events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    type       TEXT NOT NULL,          -- e.g. user.signup, page.published, ai.customize, admin.suspend
+    user_id    TEXT,                   -- who it was about (not a foreign key: kept after deletes)
+    actor_id   TEXT,                   -- who did it, when that's someone else (admin actions)
+    data       TEXT NOT NULL DEFAULT '{}',
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_events_time ON events(created_at);
+CREATE INDEX IF NOT EXISTS idx_events_type ON events(type, created_at);
+CREATE INDEX IF NOT EXISTS idx_events_user ON events(user_id, created_at);
+CREATE TABLE IF NOT EXISTS page_views_daily (
+    slug  TEXT NOT NULL,
+    day   TEXT NOT NULL,               -- YYYY-MM-DD (UTC)
+    views INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (slug, day)
+);
+CREATE INDEX IF NOT EXISTS idx_views_day ON page_views_daily(day);
+CREATE TABLE IF NOT EXISTS email_tokens (
+    token_hash TEXT PRIMARY KEY,           -- sha256 of the token in the emailed link
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    purpose    TEXT NOT NULL,              -- verify | reset
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    used_at    INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id, purpose);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
+CREATE TABLE IF NOT EXISTS recovery_codes (
+    user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,              -- sha256 of a one-time two-step backup code
+    used_at   INTEGER,
+    PRIMARY KEY (user_id, code_hash)
+);
 """
 
 
@@ -71,9 +104,42 @@ def connect() -> sqlite3.Connection:
     return conn
 
 
+# Columns added after the first release, applied to existing databases on start-up.
+MIGRATIONS = {
+    "users": {
+        "is_admin": "INTEGER NOT NULL DEFAULT 0",
+        "suspended_at": "INTEGER",
+        "suspend_reason": "TEXT",
+        "last_seen_at": "INTEGER",
+        "email_verified_at": "INTEGER",
+        "totp_secret": "TEXT",          # two-step login: base32 secret, once turned on
+        "totp_pending": "TEXT",         # a secret being set up, not yet confirmed
+        "totp_enabled_at": "INTEGER",
+        "totp_last_step": "INTEGER",    # last 30-second step used, so a code works only once
+    },
+    "sessions": {
+        "last_used_at": "INTEGER",      # seconds; sessions unused for SESSION_IDLE_DAYS end
+    },
+}
+# When a column first appears, fill it for existing rows.
+BACKFILL = {
+    # Accounts made before verification existed keep working as they did.
+    ("users", "email_verified_at"): "UPDATE users SET email_verified_at = created_at",
+    # Sessions from before idle timeouts count as used now, so nobody is logged out by the upgrade.
+    ("sessions", "last_used_at"): "UPDATE sessions SET last_used_at = CAST(strftime('%s', 'now') AS INTEGER)",
+}
+
+
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(SCHEMA)
+        for table, cols in MIGRATIONS.items():
+            have = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+            for col, ddl in cols.items():
+                if col not in have:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+                    if (table, col) in BACKFILL:
+                        conn.execute(BACKFILL[(table, col)])
 
 
 def get_db() -> Iterator[sqlite3.Connection]:

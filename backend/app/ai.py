@@ -2,19 +2,18 @@
 error responses. The API key is read from the environment on the server and
 is never sent to the browser or logged."""
 import os
-import time
-from collections import defaultdict, deque
 
 import anthropic
 from fastapi.responses import JSONResponse
 
 from .config import AI_REQUESTS_PER_MINUTE
+from .ratelimit import Limiter
 
 MODEL = "claude-opus-5-5"
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
 _client: anthropic.Anthropic | None = None
-_recent: dict[str, deque] = defaultdict(deque)
+_recent = Limiter("ai_user", AI_REQUESTS_PER_MINUTE, 60)
 
 
 def configured() -> bool:
@@ -29,14 +28,7 @@ def client() -> anthropic.Anthropic:
 
 
 def rate_limited(user_id: str) -> bool:
-    now = time.monotonic()
-    q = _recent[user_id]
-    while q and now - q[0] > 60:
-        q.popleft()
-    if len(q) >= AI_REQUESTS_PER_MINUTE:
-        return True
-    q.append(now)
-    return False
+    return not _recent.hit(user_id)
 
 
 def error(status: int, message: str, unavailable: bool = False) -> JSONResponse:
@@ -53,6 +45,12 @@ def guard(user_id: str) -> JSONResponse | None:
     if rate_limited(user_id):
         return error(429, "Too many requests. Try again in a moment.")
     return None
+
+
+def track(user_id: str, feature: str, err: JSONResponse | None) -> None:
+    """Log one AI request for the admin dashboard (feature, success, status)."""
+    from . import events  # local import: events -> db -> config only
+    events.log_now(f"ai.{feature}", user_id, ok=err is None, status=None if err is None else err.status_code)
 
 
 def parse(schema, system: str, content: str, max_tokens: int = 4000, effort: str = "low"):

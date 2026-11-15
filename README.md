@@ -42,6 +42,10 @@ Vite forwards `/api` and `/uploads` to the backend, so the browser only ever tal
 | `GET` | `/api/auth/me` | App start-up (refreshes your name and email) |
 | `PATCH` | `/api/auth/me` | Update your name |
 | `POST` | `/api/auth/logout` | Sidebar "Log out" |
+| `POST` | `/api/auth/verify/send`, `/api/auth/verify` | Confirm your email (needed to publish) |
+| `POST` | `/api/auth/password/forgot`, `/api/auth/password/reset` | "Forgot your password?" and the emailed reset link |
+| `POST` | `/api/auth/password/change` | Account page: change password |
+| `DELETE` | `/api/auth/me` | Account page: delete your account and everything in it |
 | `GET` | `/api/projects` | Dashboard, Portfolios, CVs and Case studies lists (sync) |
 | `GET` | `/api/projects/{id}` | Editor, opening a project not cached in this browser |
 | `PUT` | `/api/projects/{id}` | Editor autosave, "Use template", sync |
@@ -57,6 +61,7 @@ Vite forwards `/api` and `/uploads` to the backend, so the browser only ever tal
 | `POST` | `/api/public/{slug}/contact` | Portfolio "Get in touch" form (no login; rate limited; spam honeypot) |
 | `GET` | `/api/messages` | Messages inbox and the sidebar unread count |
 | `PATCH` / `DELETE` | `/api/messages/{id}` | Mark a message read, delete it |
+| `GET` | `/api/admin/*` | Admin dashboard (admins only): overview, users, pages, messages, storage, activity, system |
 | `GET` | `/api/health` | Health check |
 
 Everything except `/api/auth/signup`, `/api/auth/login`, `/api/public/*` and `/api/health` needs `Authorization: Bearer <token>`.
@@ -85,6 +90,16 @@ python -m pytest
 ```
 
 ## Production notes
+- **Account emails** (confirm your email, reset your password) need SMTP and `DIXLAB_PUBLIC_URL` set to the site's address. New accounts must confirm their email before publishing; accounts that existed before this feature count as confirmed. To try it locally without SMTP, set `DIXLAB_MAIL_TO_LOG=true` and the emails appear in the backend terminal (never do this on a real server).
+- **Admin dashboard:** sign up in the app, then run `.venv\Scripts\python -m app.admin_cli grant you@example.com` in `backend/`. Admins land on `/admin` when they log in. See `docs/admin-dashboard.md`.
+- **Production mode:** set `DIXLAB_ENV=production` on the live server. The API then refuses to start with unsafe settings (`DIXLAB_MAIL_TO_LOG` on, a non-https `DIXLAB_PUBLIC_URL`, localhost or http in `DIXLAB_CORS_ORIGINS`), logs warnings for risky ones, hides `/docs`, always marks the session cookie Secure, and requires admins to use two-step login. Run `python -m app.prodcheck` in `backend/` with the live environment before deploying.
+- **Security headers:** the API sets its own. `npm run build` writes the frontend's `production` headers (from `frontend/security-headers.js`) into `dist/_headers` (Netlify, Cloudflare Pages), `dist/vercel.json` (Vercel) and `dist/headers.json` (copy these into any other host's settings). Serve everything over HTTPS.
+- **Rate limits** (logins, two-step codes, sign-ups, emails, contact form, AI, page views) are stored in SQLite (`backend/data/dixlab-ratelimits.db`), so all workers share them and they survive restarts. Behind a reverse proxy set `DIXLAB_TRUST_PROXY_HOPS=1` so they see visitors' real IPs (and so `X-Forwarded-Proto` is trusted). With several servers, also limit at the proxy.
+- **Two-step login:** anyone can turn it on in Your account (authenticator app + 10 one-time recovery codes). Someone who loses both: `python -m app.admin_cli reset-2fa them@example.com`, after confirming who they are. `DIXLAB_ADMIN_REQUIRE_2FA` (on in production) keeps admins without it out of the dashboard.
+- **Passwords:** at least 8 characters, and common passwords or ones that are just the person's email or name are refused. Optionally, `DIXLAB_PWNED_PASSWORD_CHECK=true` also refuses passwords from known data breaches via Have I Been Pwned (only the first 5 characters of the password's SHA-1 hash are sent).
+- **Uploads:** PDFs with scripts or other active content, and Office files with macros, embedded programs, remote templates or zip bombs, are refused. For virus scanning, run ClamAV (`clamd`) and set `DIXLAB_CLAMAV=127.0.0.1:3310`. Uploads are then refused if the scanner can't be reached.
+- **Sessions** end 30 days after login (`DIXLAB_SESSION_DAYS`) or after 7 days unused (`DIXLAB_SESSION_IDLE_DAYS`). They use an HttpOnly, SameSite=Lax cookie (`dixlab_session`), marked Secure over HTTPS. Serve the frontend and the API from the **same domain** (the dev server's proxy does this locally) so the cookie is sent. Changes made with the cookie need the `X-Dixlab-Request: 1` header, which the frontend always sends. API clients can still use `Authorization: Bearer` (ask for a token with `X-Dixlab-Want-Token: 1` when logging in).
+- **Per-account limits:** 1 GB of uploads (`DIXLAB_STORAGE_MB_PER_USER`) and 100 projects (`DIXLAB_MAX_PROJECTS_PER_USER`). When someone is nearly full, their unused uploads are cleared first.
 - **Get in touch emails:** set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `backend/.env` (see `.env.example`). Without them, messages are kept in each owner's Messages inbox only. The owner's address is never shown to visitors. Behind a reverse proxy, the per-visitor rate limit sees the proxy's IP; put a limit at the proxy too.
 
 - Data lives in SQLite (`backend/data/dixlab.db`) and images in `backend/uploads/`. Back both up, or point `DIXLAB_DB` and `DIXLAB_UPLOADS` somewhere durable.

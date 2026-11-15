@@ -1,14 +1,21 @@
-"""Password hashing (scrypt, standard library) and session tokens."""
+"""Password hashing (scrypt, standard library) and sessions.
+
+The browser keeps its session in an HttpOnly cookie, which page scripts can't
+read, so an injected script can't steal a login. API clients (and the tests)
+can still send `Authorization: Bearer <token>`. Changes made with the cookie
+must carry the X-Dixlab-Request header (see main.py), which other websites
+can't add, so they can't act in a user's name (CSRF)."""
 import hashlib
 import hmac
 import secrets
 import sqlite3
 import time
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, Response, status
 
-from .config import SESSION_DAYS
+from .config import ADMIN_REQUIRE_2FA, PRODUCTION, SESSION_DAYS, SESSION_IDLE_DAYS
 from .db import get_db
+from .ratelimit import is_https
 
 _N, _R, _P = 2**14, 8, 1
 
@@ -41,8 +48,8 @@ def create_session(db: sqlite3.Connection, user_id: str) -> str:
     token = secrets.token_urlsafe(32)
     now = int(time.time())
     db.execute(
-        "INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
-        (_token_hash(token), user_id, now, now + SESSION_DAYS * 86400),
+        "INSERT INTO sessions (token_hash, user_id, created_at, expires_at, last_used_at) VALUES (?, ?, ?, ?, ?)",
+        (_token_hash(token), user_id, now, now + SESSION_DAYS * 86400, now),
     )
     return token
 
@@ -57,22 +64,94 @@ def _bearer(authorization: str | None) -> str | None:
     return None
 
 
-def current_user(
-    authorization: str | None = Header(default=None),
-    db: sqlite3.Connection = Depends(get_db),
-) -> sqlite3.Row:
-    """Dependency: the signed-in user, or 401."""
-    token = _bearer(authorization)
-    if token:
-        row = db.execute(
-            """SELECT u.id, u.name, u.email FROM sessions s JOIN users u ON u.id = s.user_id
-               WHERE s.token_hash = ? AND s.expires_at > ?""",
-            (_token_hash(token), int(time.time())),
-        ).fetchone()
-        if row:
-            return row
-    raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Please log in again.", headers={"WWW-Authenticate": "Bearer"})
+SESSION_COOKIE = "dixlab_session"
+CSRF_HEADER = "x-dixlab-request"
 
 
-def bearer_token(authorization: str | None = Header(default=None)) -> str | None:
-    return _bearer(authorization)
+def _is_https(request: Request) -> bool:
+    """In production the cookie is always Secure, whatever the request looks like."""
+    return PRODUCTION or is_https(request)
+
+
+def set_session_cookie(response: Response, request: Request, token: str) -> None:
+    response.set_cookie(SESSION_COOKIE, token, max_age=SESSION_DAYS * 86400, path="/",
+                        httponly=True, samesite="lax", secure=_is_https(request))
+
+
+def clear_session_cookie(response: Response, request: Request) -> None:
+    response.delete_cookie(SESSION_COOKIE, path="/", httponly=True, samesite="lax", secure=_is_https(request))
+
+
+def request_token(request: Request) -> str | None:
+    """The session token: a bearer header if sent, otherwise the cookie."""
+    return _bearer(request.headers.get("authorization")) or request.cookies.get(SESSION_COOKIE) or None
+
+
+IDLE_REFRESH_SECONDS = 5 * 60  # how often a session's "last used" time is updated
+
+
+def _session_user(db: sqlite3.Connection, token: str | None):
+    """The account behind a live session. A session ends SESSION_DAYS after
+    login, or sooner if it goes unused for SESSION_IDLE_DAYS."""
+    if not token:
+        return None
+    now = int(time.time())
+    th = _token_hash(token)
+    row = db.execute(
+        """SELECT u.id, u.name, u.email, u.is_admin, u.suspended_at, u.last_seen_at, u.email_verified_at,
+                  u.totp_enabled_at, s.last_used_at
+           FROM sessions s JOIN users u ON u.id = s.user_id
+           WHERE s.token_hash = ? AND s.expires_at > ? AND COALESCE(s.last_used_at, s.created_at) > ?""",
+        (th, now, now - SESSION_IDLE_DAYS * 86400),
+    ).fetchone()
+    if row and (row["last_used_at"] or 0) < now - IDLE_REFRESH_SECONDS:
+        db.execute("UPDATE sessions SET last_used_at = ? WHERE token_hash = ?", (now, th))
+    return row
+
+
+def optional_user_id(request: Request, db: sqlite3.Connection) -> str | None:
+    """Who's signed in, if anyone (for public pages). Never raises."""
+    row = _session_user(db, request_token(request))
+    return row["id"] if row and not row["suspended_at"] else None
+
+
+SEEN_EVERY_MS = 5 * 60 * 1000  # how often "last active" is refreshed
+SUSPENDED = "This account is suspended. Contact support if you think this is a mistake."
+
+
+def is_admin(row) -> bool:
+    """Admins are flagged in the database (see app.admin_cli)."""
+    return bool(row["is_admin"])
+
+
+def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> dict:
+    """Dependency: the signed-in user, or 401 (403 when suspended)."""
+    row = _session_user(db, request_token(request))
+    if not row:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Please log in again.", headers={"WWW-Authenticate": "Bearer"})
+    if row["suspended_at"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, SUSPENDED)
+    now = now_ms()
+    if not row["last_seen_at"] or now - row["last_seen_at"] > SEEN_EVERY_MS:
+        db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (now, row["id"]))
+    return {"id": row["id"], "name": row["name"], "email": row["email"], "is_admin": is_admin(row),
+            "email_verified": row["email_verified_at"] is not None,
+            "two_factor": row["totp_enabled_at"] is not None}
+
+
+ADMIN_NEEDS_2FA = "Turn on two-step login in Your account before using the admin dashboard."
+
+
+def require_admin(user: dict = Depends(current_user)) -> dict:
+    """Dependency: the signed-in user, who must be an admin (else 403), and, when
+    DIXLAB_ADMIN_REQUIRE_2FA is on, must have two-step login turned on."""
+    if not user["is_admin"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admins only.")
+    if ADMIN_REQUIRE_2FA and not user["two_factor"]:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, ADMIN_NEEDS_2FA)
+    return user
+
+
+def bearer_token(request: Request) -> str | None:
+    """The current session token (bearer header or cookie), for logging out."""
+    return request_token(request)

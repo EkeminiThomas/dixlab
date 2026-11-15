@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './styles.css';
 import './sites.css';
 import './cv.css';
 import './case.css';
+import './three.css'; // 3D templates: Blocks (portfolio) and Depth (case study)
 import './theme-pro.css'; // Resend-inspired dark theme (swap back to './theme.css' for the original look)
 import './product.css';
 import { syncProjects, refreshUser } from './api.js';
@@ -18,7 +19,20 @@ import Cvs from './pages/Cvs.jsx';
 import CaseStudies from './pages/CaseStudies.jsx';
 import Interview from './pages/Interview.jsx';
 import PublicPage from './pages/PublicPage.jsx';
-import Messages from './pages/Messages.jsx';
+import Account from './pages/Account.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import ResetPassword from './pages/ResetPassword.jsx';
+import VerifyEmail from './pages/VerifyEmail.jsx';
+// The admin dashboard loads only when an admin opens it.
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout.jsx'));
+const AdminOverview = lazy(() => import('./pages/admin/Overview.jsx'));
+const AdminUsers = lazy(() => import('./pages/admin/Users.jsx'));
+const AdminUserDetail = lazy(() => import('./pages/admin/UserDetail.jsx'));
+const AdminPages = lazy(() => import('./pages/admin/Pages.jsx'));
+const AdminMessages = lazy(() => import('./pages/admin/AdminMessages.jsx'));
+const AdminStorage = lazy(() => import('./pages/admin/Storage.jsx'));
+const AdminActivity = lazy(() => import('./pages/admin/Activity.jsx'));
+const AdminSystem = lazy(() => import('./pages/admin/System.jsx'));
 
 // Bring this browser up to date with the account, and again whenever we come back online.
 refreshUser();
@@ -27,17 +41,30 @@ window.addEventListener('online', () => syncProjects());
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<LogIn />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/account" element={<Account />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/portfolio" element={<Portfolios />} />
         <Route path="/cv" element={<Cvs />} />
         <Route path="/case" element={<CaseStudies />} />
         <Route path="/interview/:id" element={<Interview />} />
-        <Route path="/messages" element={<Messages />} />
+        <Route path="/admin" element={<Suspense fallback={<div className="adm-denied"><span className="cz__spin" aria-label="Loading" /></div>}><AdminLayout /></Suspense>}>
+          <Route index element={<AdminOverview />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="users/:id" element={<AdminUserDetail />} />
+          <Route path="pages" element={<AdminPages />} />
+          <Route path="messages" element={<AdminMessages />} />
+          <Route path="storage" element={<AdminStorage />} />
+          <Route path="activity" element={<AdminActivity />} />
+          <Route path="system" element={<AdminSystem />} />
+        </Route>
         <Route path="/p/:slug/*" element={<PublicPage />} />
         <Route path="/editor" element={<Editor />} />
         <Route path="/editor/:id" element={<Editor />} />

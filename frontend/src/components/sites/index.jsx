@@ -10,6 +10,7 @@ import Punch from './Punch.jsx';
 import Casebook from './Casebook.jsx';
 import Sentinel from './Sentinel.jsx';
 import Reel from './Reel.jsx';
+import Blocks from './Blocks.jsx';
 import { StaticSite, OpenProject, site } from './shared.jsx';
 import { brandProps } from './brand.js';
 
@@ -97,6 +98,7 @@ export const SITE_TEMPLATES = {
   casebook: { name: 'Casebook', desc: 'Case studies first',       blurb: 'Device-framed case studies, your design process and toolkit. Built for UI/UX and product.', tags: ['New', 'Process'], niches: ['ux'], sample: SAMPLES.casebook, Component: Casebook },
   sentinel: { name: 'Sentinel', desc: 'For security professionals', blurb: 'Certifications up front, research as advisories, an experience log and a clear disclosure line.', tags: ['New', 'Dark'], niches: ['cyber'], sample: SAMPLES.sentinel, Component: Sentinel },
   reel:     { name: 'Reel',     desc: 'Showreel first',           blurb: 'A cinematic player hero, a film-strip grid of work and studios you’ve worked with.', tags: ['New', 'Cinematic'], niches: ['motion', 'perform'], sample: SAMPLES.reel, Component: Reel },
+  blocks:   { name: 'Blocks',   desc: 'Playful 3D',               blurb: 'Your name in extruded 3D type, skills as floating blocks, project cards that flip and a timeline that recedes into the page.', tags: ['New', '3D'], niches: ['dev', 'learn', 'graphic', 'ux'], three: true, Component: Blocks },
 };
 
 export const nicheLabels = (ids = []) => ids.map((id) => NICHES.find((n) => n.id === id)?.label).filter(Boolean);

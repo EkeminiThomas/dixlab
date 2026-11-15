@@ -7,7 +7,8 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..config import MAX_PROJECT_BYTES, UPLOAD_DIR
+from ..config import MAX_PROJECT_BYTES, MAX_PROJECTS_PER_USER, UPLOAD_DIR
+from .. import events, safety
 from ..db import get_db
 from ..security import current_user, now_ms
 
@@ -51,16 +52,22 @@ def save_project(project_id: str, body: ProjectIn, user=Depends(current_user), d
     """Create or replace a project (the editor autosaves through this)."""
     if body.id != project_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Project id doesn’t match the URL.")
-    project = body.model_dump()
+    project = safety.clean(body.model_dump())  # no script links or off-site media
     project["updatedAt"] = body.updatedAt or now_ms()
     data = json.dumps(project, ensure_ascii=False)
     if len(data.encode()) > MAX_PROJECT_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "This project is too large to save. Try removing some images.")
+    is_new = not db.execute("SELECT 1 FROM projects WHERE user_id = ? AND id = ?", (user["id"], project_id)).fetchone()
+    if is_new and db.execute("SELECT COUNT(*) FROM projects WHERE user_id = ?", (user["id"],)).fetchone()[0] >= MAX_PROJECTS_PER_USER:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                            f"You’ve reached the limit of {MAX_PROJECTS_PER_USER} projects. Delete one you don’t need, then try again.")
     db.execute(
         """INSERT INTO projects (user_id, id, type, data, updated_at) VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(user_id, id) DO UPDATE SET type = excluded.type, data = excluded.data, updated_at = excluded.updated_at""",
         (user["id"], project_id, body.type, data, project["updatedAt"]),
     )
+    if is_new:
+        events.log(db, "project.created", user["id"], project=project_id, kind=body.type, template=body.template)
     return {"project": project}
 
 
@@ -70,6 +77,7 @@ def delete_project(project_id: str, user=Depends(current_user), db: sqlite3.Conn
     if not row:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
     db.execute("DELETE FROM projects WHERE user_id = ? AND id = ?", (user["id"], project_id))
+    events.log(db, "project.deleted", user["id"], project=project_id)
     db.execute("DELETE FROM publications WHERE user_id = ? AND project_id = ?", (user["id"], project_id))
     # Remove images this project used, unless another of the user's projects still uses them.
     others = " ".join(r["data"] for r in db.execute(

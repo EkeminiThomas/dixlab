@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FORMATS } from './ui.jsx';
-import { isSignedIn, getPublishStatus, publishProject, unpublishProject, publishUrl } from '../api.js';
+import { isSignedIn, getPublishStatus, publishProject, unpublishProject, publishUrl, resendVerification } from '../api.js';
 
 /**
  * "Publish": turn the project into a link you can send to a recruiter or
@@ -13,6 +13,8 @@ export default function PublishDialog({ project, onClose, onStatus }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [unverified, setUnverified] = useState(false);
+  const [resent, setResent] = useState('');
   const closeRef = useRef(null);
   const signedIn = isSignedIn();
   const kind = (FORMATS[project.type]?.label || 'page').toLowerCase();
@@ -37,7 +39,8 @@ export default function PublishDialog({ project, onClose, onStatus }) {
       setInfo(res);
       onStatus?.('Published');
     } catch (e) {
-      setError(e.offline ? 'Can’t reach the Dixlab server. Check it’s running, then try again.' : e.message);
+      if (e.body?.code === 'email_unverified') setUnverified(true);
+      else setError(e.offline ? 'Can’t reach the Dixlab server. Check it’s running, then try again.' : e.message);
     } finally {
       setBusy(false);
     }
@@ -90,6 +93,7 @@ export default function PublishDialog({ project, onClose, onStatus }) {
               <a className="app-btn app-btn--ghost" href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`} target="_blank" rel="noreferrer">LinkedIn</a>
               <span className="pub-dlg__views">{info.views === 1 ? 'Viewed once' : `Viewed ${info.views} times`}</span>
             </div>
+            <DomainSoon />
             {outdated && (
               <div className="pub-dlg__update">
                 <p>You’ve made changes since publishing. Visitors still see the earlier version.</p>
@@ -109,8 +113,40 @@ export default function PublishDialog({ project, onClose, onStatus }) {
             </div>
           </>
         )}
+        {unverified && (
+          <div className="pub-dlg__update" role="alert">
+            <p><b>Confirm your email first.</b> We sent a link to your inbox when you signed up. Confirming it lets you publish and receive messages from visitors.</p>
+            {resent ? <p>{resent}</p> : (
+              <button className="app-btn app-btn--ghost" onClick={() => resendVerification().then(() => setResent('Sent! Check your inbox, then publish again.')).catch((e) => setResent(e.message))}>Send the link again</button>
+            )}
+          </div>
+        )}
         {error && <p className="form-error" role="alert">{error}</p>}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Custom domains: a placeholder for now. Later, "Get a domain" will search and
+ * buy one (via Pxxl) and "Add my domain" will connect one the user already owns.
+ */
+function DomainSoon() {
+  const [asked, setAsked] = useState('');
+  return (
+    <div className="pub-dom">
+      <div className="pub-dom__head">
+        <p className="pub-dom__t">Your own domain <span className="pub-dom__soon">Coming soon</span></p>
+        <p className="pub-dom__d">Put this page on an address like <b>yourname.com</b>, or a free <b>yourname.dixlab.app</b>.</p>
+      </div>
+      <div className="pub-dom__actions">
+        <button type="button" className="app-btn app-btn--ghost" aria-describedby="pub-dom-note" onClick={() => setAsked('get')}>Get a domain</button>
+        <button type="button" className="app-btn app-btn--ghost" aria-describedby="pub-dom-note" onClick={() => setAsked('add')}>Add my domain</button>
+      </div>
+      <p id="pub-dom-note" className="pub-dom__note" role="status">
+        {asked === 'get' && 'Buying a domain isn’t available yet. Soon you’ll be able to search and buy one without leaving Dixlab.'}
+        {asked === 'add' && 'Connecting a domain isn’t available yet. Soon you’ll be able to add one you already own and we’ll walk you through the DNS settings.'}
+      </p>
     </div>
   );
 }

@@ -216,6 +216,7 @@ export const TEMPLATES = {
   casebook: { site: true, name: 'Casebook', desc: 'Case studies first', swatch: 'linear-gradient(135deg, #f7f7fb 55%, #6366f1 55%)' },
   sentinel: { site: true, name: 'Sentinel', desc: 'For security professionals', swatch: 'linear-gradient(135deg, #060b14 60%, #22d3ee 60%)' },
   reel: { site: true, name: 'Reel', desc: 'Showreel first', swatch: 'linear-gradient(135deg, #0a0a0a 60%, #ff3d2e 60%)' },
+  blocks: { site: true, three: true, name: 'Blocks', desc: 'Playful 3D', swatch: 'linear-gradient(135deg, #f2efe8 50%, #ff5b3a 50%, #ff5b3a 72%, #3445ff 72%)' },
   // CV templates (rendered by components/cv)
   classic: { cv: true, name: 'Classic', desc: 'Timeless & traditional', swatch: 'linear-gradient(135deg, #ffffff 60%, #7a1f2b 60%)' },
   meridian: { cv: true, name: 'Meridian', desc: 'Modern two-column', swatch: 'linear-gradient(90deg, #dfeeec 35%, #ffffff 35%)' },
@@ -238,6 +239,7 @@ export const TEMPLATES = {
   impact: { cs: true, name: 'Impact', desc: 'Numbers first', swatch: 'linear-gradient(135deg, #ffffff 50%, #059669 50%)' },
   deck: { cs: true, name: 'Deck', desc: 'Slides you scroll', swatch: 'linear-gradient(180deg, #e11d48 50%, #111114 50%)' },
   brief: { cs: true, name: 'Brief', desc: 'Swiss & compact', swatch: 'linear-gradient(135deg, #ffffff 65%, #e3261b 65%)' },
+  depth: { cs: true, three: true, name: 'Depth', desc: 'Dark & 3D', swatch: 'linear-gradient(135deg, #09090f 55%, #9d95ff 55%, #9d95ff 75%, #7ce8c0 75%)' },
 };
 
 /** Create and save a new project, returning it. */

@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import { safeHref } from '../../safeUrl.js';
 import { initials, loadUser } from '../ui.jsx';
 
 /**
@@ -198,8 +199,9 @@ export function ProjectLink({ href, className, children, project }) {
       </a>
     );
   }
-  return href && !isStatic
-    ? <a className={className} href={href} target="_blank" rel="noreferrer">{children}</a>
+  const safe = safeHref(href);
+  return safe && !isStatic
+    ? <a className={className} href={safe} target="_blank" rel="noopener noreferrer">{children}</a>
     : <span className={className}>{children}</span>;
 }
 

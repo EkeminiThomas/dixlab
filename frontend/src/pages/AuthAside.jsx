@@ -8,10 +8,12 @@ export function AuthLayout({ mode, title, lead, children, footer }) {
       <main className="auth__main">
         <div className="auth__logo"><Logo /></div>
         <div className="auth__body">
-          <div className="seg" role="tablist" aria-label="Account">
-            <Link to="/signup" role="tab" aria-selected={mode === 'signup'} className={`seg__btn ${mode === 'signup' ? 'is-active' : ''}`}>Create account</Link>
-            <Link to="/login" role="tab" aria-selected={mode === 'login'} className={`seg__btn ${mode === 'login' ? 'is-active' : ''}`}>Log in</Link>
-          </div>
+          {(mode === 'signup' || mode === 'login') && (
+            <div className="seg" role="tablist" aria-label="Account">
+              <Link to="/signup" role="tab" aria-selected={mode === 'signup'} className={`seg__btn ${mode === 'signup' ? 'is-active' : ''}`}>Create account</Link>
+              <Link to="/login" role="tab" aria-selected={mode === 'login'} className={`seg__btn ${mode === 'login' ? 'is-active' : ''}`}>Log in</Link>
+            </div>
+          )}
           <div>
             <h1 className="auth__title">{title}</h1>
             <p className="auth__lead">{lead}</p>

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { AppSparkles15, AppSparkles13, TEMPLATES } from '../ui.jsx';
 import { SITE_TEMPLATES } from './index.jsx';
-import { FONT_PAIRS, ACCENTS, MOTIONS, SPEEDS, isBranded } from './brand.js';
-import { interpretPrompt, PROMPT_IDEAS, CV_PROMPT_IDEAS, CASE_PROMPT_IDEAS } from './promptCustomize.js';
+import { FONT_PAIRS, ACCENTS, MOTIONS, SPEEDS, DEPTHS, TILTS, FLOATS, isBranded } from './brand.js';
+import { interpretPrompt, PROMPT_IDEAS, CV_PROMPT_IDEAS, CASE_PROMPT_IDEAS, THREE_PROMPT_IDEAS } from './promptCustomize.js';
 import { CV_SIZES } from '../cv/index.jsx';
 
 /**
@@ -19,6 +19,10 @@ export default function Customize({ project, onPatch, template, kind = 'site' })
   const font = FONT_PAIRS[brand.font] ? brand.font : 'default';
   const motion = MOTIONS[brand.motion] ? brand.motion : 'none';
   const speed = SPEEDS[brand.speed] ? brand.speed : 'normal';
+  const is3d = Boolean(t?.three || TEMPLATES[template]?.three);
+  const depth = DEPTHS[brand.depth] ? brand.depth : 'normal';
+  const tilt = brand.tilt === 'off' ? 'off' : 'pointer';
+  const float = brand.float === 'off' ? 'off' : 'on';
 
   return (
     <>
@@ -70,6 +74,39 @@ export default function Customize({ project, onPatch, template, kind = 'site' })
             ))}
           </div>
           <small className="field__hint">Compact helps a longer CV fit on fewer pages. Page breaks show in the full-screen preview.</small>
+        </fieldset>
+      )}
+
+      {is3d && (
+        <fieldset className="ed__set cz__3d">
+          <legend>3D effects</legend>
+          <div className="cz__depths" role="group" aria-label="Depth">
+            {Object.entries(DEPTHS).map(([k, [label, amount]]) => (
+              <button key={k} type="button" className={`cz__depth ${depth === k ? 'is-active' : ''}`} aria-pressed={depth === k} onClick={() => set('depth', k)}>
+                <span className="cz__depth-demo" style={{ '--d': amount }} aria-hidden><i /><i /></span>
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+          <small className="field__hint">How far things tilt and how deep layers sit. Flat keeps the layout but turns the 3D off.</small>
+
+          <div className="cz__3d-row">
+            <span className="cz__3d-label">Pointer tilt</span>
+            <div className="pills">
+              {Object.entries(TILTS).map(([k, label]) => (
+                <button key={k} type="button" className={`pill-btn ${tilt === k ? 'is-active' : ''}`} aria-pressed={tilt === k} onClick={() => set('tilt', k)} disabled={depth === 'flat'}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div className="cz__3d-row">
+            <span className="cz__3d-label">Floating</span>
+            <div className="pills">
+              {Object.entries(FLOATS).map(([k, label]) => (
+                <button key={k} type="button" className={`pill-btn ${float === k ? 'is-active' : ''}`} aria-pressed={float === k} onClick={() => set('float', k)}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <small className="field__hint">The hero leans toward the visitor’s pointer, and small blocks drift gently. People who ask their device for less motion always see a still page.</small>
         </fieldset>
       )}
 
@@ -185,7 +222,7 @@ function PromptPanel({ project, template, onPatch, kind = 'site' }) {
 
       {history.length === 0 ? (
         <div className="cz__ideas">
-          {(isDoc ? CV_PROMPT_IDEAS : kind === 'case' ? CASE_PROMPT_IDEAS : PROMPT_IDEAS).map((idea) => (
+          {(isDoc ? CV_PROMPT_IDEAS : TEMPLATES[template]?.three ? THREE_PROMPT_IDEAS : kind === 'case' ? CASE_PROMPT_IDEAS : PROMPT_IDEAS).map((idea) => (
             <button key={idea} type="button" className="cz__idea" onClick={() => run(idea)} disabled={busy}>{idea}</button>
           ))}
         </div>

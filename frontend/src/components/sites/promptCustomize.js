@@ -42,7 +42,26 @@ const SPEED_WORDS = [
   [/\b(normal|medium) speed\b/, 'normal'],
 ];
 
+/* 3D effects (only on the 3D templates). "Deep" alone is a colour word ("deep
+   navy"), so depth words need 3D or depth in them. */
+const DEPTH_WORDS = [
+  [/\b(flat|2d|no 3d|without (the )?3d|turn off (the )?3d|remove (the )?3d|no depth)\b/, 'flat'],
+  [/\b(less depth|less 3d|subtle 3d|subtle depth|3d (more )?subtle|subtler 3d|softer 3d|gentle 3d|a (bit|little) of depth|tone down the 3d)\b/, 'subtle'],
+  [/\b(more depth|more 3d|deeper 3d|deep 3d|dramatic 3d|stronger 3d|extra depth|lots of depth|really 3d|very 3d|maximum depth)\b/, 'deep'],
+  [/\b(normal|default|standard) (depth|3d)\b/, 'normal'],
+];
+const TILT_WORDS = [
+  [/\b(no|stop|without|disable|turn off|remove)\s+(the\s+)?(pointer\s+|mouse\s+|cursor\s+)?(tilt|tilting|following)\b|\bdon'?t follow\b|\bstop following\b/, 'off'],
+  [/\bfollows?\s+(the\s+)?(mouse|cursor|pointer)\b|\btilts?\s+(toward|towards|with)\b|\b(pointer|mouse|cursor) tilt\b/, 'pointer'],
+];
+const FLOAT_WORDS = [
+  [/\b(no|stop|without|disable|turn off|remove)\s+(the\s+)?(float|floating|bobbing|drifting|drift)\b|\b(keep it|hold) still\b/, 'off'],
+  [/\b(float|floating|bob|bobbing|drift|drifting)\b/, 'on'],
+];
+const THREE_TEMPLATES = { site: 'blocks', case: 'depth' };
+
 const FIELD_WORDS = [
+  [/\b(3d|three.?d|isometric)\b/, 'blocks'],
   [/\b(cyber|security|pentest|hacker|soc analyst|infosec)\b/, 'sentinel'],
   [/\b(ux|ui\/ux|product designer|case stud)/, 'casebook'],
   [/\b(film|cinematic|showreel|reel|video|motion designer|animator)\b/, 'reel'],
@@ -67,6 +86,7 @@ const CV_FIELD_WORDS = [
 ];
 
 const CASE_FIELD_WORDS = [
+  [/\b(3d|three.?d|isometric)\b/, 'depth'],
   [/\b(research|findings|lab|study|report)\b/, 'lab'],
   [/\b(slides?|deck|presentation|pitch|present)\b/, 'deck'],
   [/\b(numbers?|metrics|results first|impact|kpis?)\b/, 'impact'],
@@ -103,7 +123,12 @@ export function parseLocally(prompt, current = {}, kind = 'site') {
   const wantsLayout = /\b(template|layout|look like|switch|change (it )?to|i'?m an?|make it (look )?like)\b/.test(p)
     || (isCv && /\b(ats|applicant tracking|two.?column|sidebar|education first)\b/.test(p))
     || (isCase && /\b(slides?|deck|present|presentation|cinematic|lead with the numbers|numbers first|research report|visuals first)\b/.test(p));
+  // "Make it 3D" means a 3D template, unless it already is one (then it's about depth).
+  const threeTpl = THREE_TEMPLATES[kind];
+  const onThree = Boolean(threeTpl) && (current.template === threeTpl);
+  const wants3d = Boolean(threeTpl) && !onThree && /\b(3d|three.?d|isometric)\b/.test(p) && !DEPTH_WORDS[0][0].test(p);
   let tpl = named;
+  if (!tpl && wants3d) tpl = threeTpl;
   if (!tpl && wantsLayout) tpl = (isCv ? CV_FIELD_WORDS : isCase ? CASE_FIELD_WORDS : FIELD_WORDS).find(([re]) => re.test(p))?.[1];
   if (tpl && tpl !== current.template) { changes.template = tpl; said.push(`switched to ${catalog[tpl].name}`); }
 
@@ -130,8 +155,20 @@ export function parseLocally(prompt, current = {}, kind = 'site') {
   }
   const motion = !isCv && MOTION_WORDS.find(([re]) => re.test(p))?.[1];
   if (motion) { brand.motion = motion; said.push(motion === 'none' ? 'turned animation off' : `animated sections ${motion === 'zoom' ? 'with a zoom' : `from the ${motion === 'up' ? 'bottom' : motion === 'down' ? 'top' : motion}`}`); }
-  const speed = !isCv && SPEED_WORDS.find(([re]) => re.test(p))?.[1];
+  // "Subtle 3D" is about depth, not animation speed.
+  const pSpeed = p.replace(/\b(subtle|subtler|softer|gentle) (3d|depth)\b|\b3d (more )?(subtle|gentle)\b|\bgentle float\b/g, ' ');
+  const speed = !isCv && SPEED_WORDS.find(([re]) => re.test(pSpeed))?.[1];
   if (speed) { brand.speed = speed; if (!brand.motion && (!current.brand?.motion || current.brand.motion === 'none')) brand.motion = 'up'; said.push(`made the motion ${speed}`); }
+
+  // 3D effects apply when the page is (or is becoming) a 3D template.
+  if (threeTpl && (onThree || changes.template === threeTpl)) {
+    const depth = DEPTH_WORDS.find(([re]) => re.test(p))?.[1];
+    if (depth) { brand.depth = depth; said.push(depth === 'flat' ? 'turned the 3D off' : depth === 'normal' ? 'set the 3D to normal depth' : `made the 3D ${depth === 'deep' ? 'deeper' : 'subtler'}`); }
+    const tilt = TILT_WORDS.find(([re]) => re.test(p))?.[1];
+    if (tilt) { brand.tilt = tilt; said.push(tilt === 'off' ? 'stopped the page following the pointer' : 'made the hero tilt toward the pointer'); }
+    const float = FLOAT_WORDS.find(([re]) => re.test(p))?.[1];
+    if (float) { brand.float = float; said.push(float === 'off' ? 'stopped the floating' : 'turned on the gentle float'); }
+  }
 
   if (Object.keys(brand).length) changes.brand = brand;
 
@@ -152,7 +189,7 @@ export function parseLocally(prompt, current = {}, kind = 'site') {
 
   const summary = said.length
     ? `I ${said.join(', ').replace(/, ([^,]*)$/, ' and $1')}.`
-    : `I couldn’t find a change to make. Try mentioning a colour, font style, ${isCv ? 'text size' : 'animation'} or template.`;
+    : `I couldn’t find a change to make. Try mentioning a colour, font style, ${isCv ? 'text size' : onThree ? 'animation, 3D depth' : 'animation'} or template.`;
   return { changes, summary };
 }
 
@@ -180,6 +217,15 @@ export const PROMPT_IDEAS = [
   'Switch to the Reel template, I’m a motion designer',
   'Change my tagline to “Design that ships.”',
   'Go back to the original fonts and colour, no animation',
+];
+
+export const THREE_PROMPT_IDEAS = [
+  'Give it more depth and a cobalt blue accent',
+  'Keep the 3D subtle and stop the floating',
+  'Make it flat, no 3D, but keep the layout',
+  'Stop following the mouse, use a mint accent',
+  'Dramatic 3D with expressive headings and a slow rise',
+  'Go back to the original fonts and colour, normal depth',
 ];
 
 export const CV_PROMPT_IDEAS = [

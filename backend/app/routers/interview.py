@@ -183,6 +183,7 @@ def next_question(body: TranscriptIn, user=Depends(current_user)):
     )
     schema, system = (PortfolioNext, PORTFOLIO_SYSTEM) if portfolio else (NextQuestion, INTERVIEW_SYSTEM)
     out, err = ai.parse(schema, system, content, max_tokens=1000)
+    ai.track(user["id"], "interview_next", err)
     return err or out.model_dump()
 
 
@@ -197,6 +198,7 @@ def draft(body: TranscriptIn, user=Depends(current_user)):
     if body.kind == "portfolio":
         out, err = ai.parse(PortfolioDraft, PORTFOLIO_DRAFT_SYSTEM, f"Interview transcript:\n\n{_transcript_text(body.transcript)}",
                             max_tokens=10000, effort="medium")
+        ai.track(user["id"], "interview_draft", err)
         if err:
             return err
         d = out.model_dump()
@@ -209,6 +211,7 @@ def draft(body: TranscriptIn, user=Depends(current_user)):
         }}
     out, err = ai.parse(CaseDraft, DRAFT_SYSTEM, f"Interview transcript:\n\n{_transcript_text(body.transcript)}",
                         max_tokens=6000, effort="medium")
+    ai.track(user["id"], "interview_draft", err)
     if err:
         return err
     d = out.model_dump()

@@ -12,6 +12,7 @@ SITE_TEMPLATES = {
     "casebook": "light, case-study-led with device frames and design process; UI/UX and product designers",
     "sentinel": "dark navy security dashboard with radar and certifications; cyber security professionals",
     "reel": "dark cinematic showreel player hero; motion designers, animators, filmmakers, video editors",
+    "blocks": "light, playful 3D: extruded name, floating skill cubes, flip cards; developers, students, creatives",
 }
 
 CV_TEMPLATES = {
@@ -38,7 +39,14 @@ CASE_TEMPLATES = {
     "impact": "numbers first with a big headline result and before/after; growth, product, ops",
     "deck": "scrolling slides, each section a numbered slide; presentations and pitches",
     "brief": "Swiss minimal, six numbered sections on a strict grid, red accent; compact",
+    "depth": "dark 3D: layered hero, curved panels, process as cube towers, cover-flow gallery; product, engineering, brand",
 }
+
+# The 3D templates, and their extra settings (see frontend sites/brand.js).
+THREE_D_TEMPLATES = {"blocks", "depth"}
+DEPTHS = ["flat", "subtle", "normal", "deep"]
+TILTS = ["pointer", "off"]
+FLOATS = ["on", "off"]
 
 # key -> (label, heading font or None)
 FONT_PAIRS = {
