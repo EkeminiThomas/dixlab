@@ -10,8 +10,8 @@ import zipfile
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
 
-from ..config import MAX_FILE_BYTES, MAX_STORAGE_BYTES_PER_USER, MAX_UPLOAD_BYTES, MAX_VIDEO_BYTES, UPLOAD_DIR
-from .. import events, scan
+from ..config import MAX_FILE_BYTES, MAX_UPLOAD_BYTES, MAX_VIDEO_BYTES, UPLOAD_DIR
+from .. import config, events, plans, scan
 from ..db import get_db
 from ..security import current_user, now_ms
 
@@ -109,12 +109,14 @@ def _free_unused(db, user_id: str) -> int:
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def upload(file: UploadFile = File(...), user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
     unsupported = "Upload an image (JPG, PNG, WebP, GIF), a video (MP4, WebM, MOV) or a document (PDF, Word, PowerPoint, Excel)."
-    room = MAX_STORAGE_BYTES_PER_USER - _used(db, user["id"])
+    cap = plans.storage_limit(db, user["id"])  # depends on the plan (Free 100 MB, Pro 2 GB, Premium 10 GB)
+    room = cap - _used(db, user["id"])
     if room < MAX_VIDEO_BYTES and _free_unused(db, user["id"]):  # nearly full: first clear out files nothing uses
         db.commit()
-        room = MAX_STORAGE_BYTES_PER_USER - _used(db, user["id"])
-    full = (f"Your storage is full ({_mb(MAX_STORAGE_BYTES_PER_USER)}). Remove images or videos you no longer need "
-            "from your projects, or delete a project, then try again.")
+        room = cap - _used(db, user["id"])
+    upgrade = " Or upgrade your plan for more space." if config.PLAN_LIMITS and plans.plan_of(db, user["id"]) != "premium" else ""
+    full = (f"Your storage is full ({_mb(cap)}). Remove images or videos you no longer need "
+            f"from your projects, or delete a project, then try again.{upgrade}")
     if room <= 0:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, full)
     head = await file.read(16)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { img } from '../assets.js';
 import { Icon, useUser, useAmbient } from '../components/ui.jsx';
@@ -7,6 +7,7 @@ import DashSide from '../components/DashSide.jsx';
 import {
   isSignedIn, updateName, changePassword, deleteAccount, resendVerification,
   twoFactorStatus, twoFactorSetup, twoFactorEnable, twoFactorDisable, twoFactorNewCodes,
+  usePlan, refreshPlan, loadCatalog, cancelPlan, manageCard, requestRefund, formatPrice,
 } from '../api.js';
 
 /** Your account: name, email confirmation, password, and deleting the account. */
@@ -26,6 +27,7 @@ export default function Account() {
           </div>
         </header>
         <div className="acct">
+          <PlanCard />
           <NameCard user={user} />
           <EmailCard user={user} />
           <PasswordCard />
@@ -54,6 +56,101 @@ function useAction() {
   };
   const note = state.error ? <p className="form-error" role="alert">{state.error}</p> : state.ok ? <p className="acct__ok" role="status">{state.ok}</p> : null;
   return [state, run, note];
+}
+
+const dateText = (ms) => new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+const mb = (bytes) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.max(0, Math.round(bytes / 1024 ** 2))} MB`);
+
+function Meter({ label, used, max, format = (n) => n }) {
+  const pct = max == null ? 0 : Math.min(100, Math.round((used / Math.max(1, max)) * 100));
+  return (
+    <div className="plan-meter">
+      <div className="plan-meter__row"><span>{label}</span><b>{format(used)}{max == null ? ' · unlimited' : ` of ${format(max)}`}</b></div>
+      {max != null && <div className={`plan-meter__bar ${pct >= 100 ? 'is-full' : ''}`}><i style={{ width: `${pct}%` }} /></div>}
+    </div>
+  );
+}
+
+/** Your plan, what you've used, renewals, cancelling, card updates and refunds. */
+function PlanCard() {
+  const { plan, catalog } = usePlan();
+  const [state, run, note] = useAction();
+  const [confirm, setConfirm] = useState(null); // 'cancel' | reference
+  useEffect(() => { refreshPlan(); loadCatalog(); }, []);
+  if (!plan) return <Card title="Plan & billing" lead="Loading your plan…" />;
+
+  const status = plan.source === 'trial' ? `Free trial · ends ${dateText(plan.trialEndsAt)}`
+    : plan.source === 'override' ? 'Given by Dixlab'
+    : plan.source === 'subscription'
+      ? plan.status === 'prepaid' ? `Paid until ${dateText(plan.periodEnd)} · renew by paying again`
+        : plan.status === 'past_due' ? 'Payment failed · Bachs will retry. Update your card to keep your plan.'
+        : plan.cancelAtPeriodEnd ? `Cancelled · ends ${dateText(plan.periodEnd)}` : `${plan.interval === 'yearly' ? 'Yearly' : 'Monthly'} · renews ${dateText(plan.periodEnd)}`
+      : 'Free forever';
+  const L = plan.limits;
+  const used = plan.usage;
+  const cur = (p) => (p.currency ? formatPrice(p.amount, p.currency) : '');
+
+  return (
+    <Card title="Plan & billing" lead="Your plan, what you’ve used this month, and your payments.">
+      <div className="plan-now">
+        <div>
+          <p className={`plan-now__name plan-now__name--${plan.plan}`}>{plan.name}</p>
+          <p className="plan-now__status">{status}</p>
+        </div>
+        <div className="acct__row">
+          <Link className="app-btn app-btn--primary" to="/pricing">{plan.status === 'prepaid' ? 'Renew or change' : plan.plan === 'premium' ? 'See plans' : 'Upgrade'}</Link>
+          {plan.canManageCard && <button className="app-btn app-btn--ghost" disabled={state.busy} onClick={() => run(manageCard)}>Manage billing</button>}
+          {((plan.source === 'subscription' && plan.renews) || plan.source === 'trial') && (
+            <button className="app-btn app-btn--ghost" onClick={() => setConfirm('cancel')}>{plan.source === 'trial' ? 'End trial' : 'Cancel plan'}</button>
+          )}
+        </div>
+      </div>
+      {confirm === 'cancel' && (
+        <div className="plan-confirm" role="alert">
+          <p>{plan.source === 'trial' ? 'End your Pro trial now? You’ll go back to Free, and you can’t start another trial.'
+            : `Cancel ${plan.name}? You keep it until ${dateText(plan.periodEnd)}, then move to Free. Nothing is deleted.`}</p>
+          <div className="acct__row">
+            <button className="app-btn app-btn--primary" disabled={state.busy} onClick={() => run(async () => { await cancelPlan(); setConfirm(null); }, plan.source === 'trial' ? 'Your trial has ended.' : 'Your plan won’t renew.')}>Yes, {plan.source === 'trial' ? 'end it' : 'cancel'}</button>
+            <button className="app-btn app-btn--ghost" onClick={() => setConfirm(null)}>Keep my plan</button>
+          </div>
+        </div>
+      )}
+      {plan.enforced && (
+        <div className="plan-meters">
+          {L.perType
+            ? [['cv', 'CVs'], ['portfolio', 'Portfolios'], ['case', 'Case studies']].map(([k, label]) => (
+              <Meter key={k} label={label} used={used.projects[k] || 0} max={L.perType[k]} />))
+            : <Meter label={L.projects === 1 ? 'Projects (one category on Free)' : 'Projects'} used={used.projects.total} max={L.projects} />}
+          <Meter label="Storage" used={used.storageBytes} max={L.storageMb * 1024 * 1024} format={mb} />
+          <Meter label={plan.source === 'subscription' ? 'AI units this billing period' : 'AI units this month'} used={used.ai.units} max={used.ai.allowance} />
+        </div>
+      )}
+      {plan.payments.length > 0 && (
+        <div className="plan-pay">
+          <p className="plan-pay__k">Payments</p>
+          <ul>
+            {plan.payments.map((p) => (
+              <li key={p.reference}>
+                <span>{p.paidAt ? dateText(p.paidAt) : '—'}</span>
+                <span>{(catalog?.plans.find((x) => x.id === p.plan)?.name || p.plan)} · {p.interval}</span>
+                <b>{cur(p)}</b>
+                <span className="plan-pay__state">
+                  {p.refundStatus ? (p.refundStatus === 'processed' ? 'Refunded' : 'Refund on its way')
+                    : p.status === 'failed' ? 'Failed'
+                    : p.refundable ? (confirm === p.reference
+                      ? <><button className="acct__link-btn" disabled={state.busy} onClick={() => run(async () => { await requestRefund(p.reference); setConfirm(null); }, 'Refund requested. It reaches your card in 5–10 working days.')}>Confirm refund</button> · <button className="acct__link-btn" onClick={() => setConfirm(null)}>Keep</button></>
+                      : <button className="acct__link-btn" onClick={() => setConfirm(p.reference)}>Request refund</button>)
+                    : 'Paid'}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {confirm && confirm !== 'cancel' && <p className="acct__note">A refund ends your plan straight away and moves you to Free.</p>}
+        </div>
+      )}
+      {note}
+    </Card>
+  );
 }
 
 function NameCard({ user }) {

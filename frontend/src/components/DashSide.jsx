@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo, AppSparkles13, useProjects, useUser, initials } from './ui.jsx';
-import { logOut, resendVerification, isSignedIn } from '../api.js';
+import { logOut, resendVerification, isSignedIn, usePlan } from '../api.js';
 
 const ITEMS = [
   ['all', 'Everything'],
@@ -17,6 +17,7 @@ const ITEMS = [
 export default function DashSide({ active, onFilter }) {
   const nav = useNavigate();
   const user = useUser();
+  const { plan } = usePlan();
   const counts = { all: 0, portfolio: 0, cv: 0, case: 0 };
   useProjects().forEach((p) => { counts.all += 1; counts[p.type] = (counts[p.type] || 0) + 1; });
 
@@ -61,6 +62,21 @@ export default function DashSide({ active, onFilter }) {
           <span className="dash__avatar">{initials(user.name)}</span>
           <div>
             <p className="dash__user-name">{user.name}</p>
+            {plan?.enforced && (
+              <Link to="/pricing" className={`dash__plan dash__plan--${plan.plan}`} title={plan.source === 'trial' ? 'Free Pro trial' : `${plan.name} plan`}>
+                {plan.name}{plan.source === 'trial' ? ' trial' : ''}{plan.plan !== 'premium' && <span>Upgrade</span>}
+              </Link>
+            )}
+            {plan?.enforced && plan.usage?.ai && (() => {
+              const { units, allowance } = plan.usage.ai;
+              const left = Math.max(0, allowance - units);
+              const level = left === 0 ? 'is-out' : left <= allowance * 0.2 ? 'is-low' : '';
+              return (
+                <Link to="/account" className={`dash__units ${level}`} title="AI units reset at the start of each billing period">
+                  {left === 0 ? 'No AI units left' : `${left} of ${allowance} AI units left`}
+                </Link>
+              );
+            })()}
             <span className="dash__user-links">
               <Link to="/account" className={`dash__logout ${active === 'account' ? 'is-on' : ''}`}>Account</Link>
               <button className="dash__logout" onClick={onLogOut}>Log out</button>

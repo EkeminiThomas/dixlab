@@ -12,11 +12,12 @@ import { blankSiteProject, blankSiteRole, projectToSite } from '../components/si
 import { ScaledDoc, CvDoc, CV_TEMPLATES } from '../components/cv/index.jsx';
 import { projectToCv, blankCvRole, blankCvEdu } from '../components/cv/data.js';
 import CvViewer from '../components/cv/CvViewer.jsx';
-import { pushProject, fetchProject, uploadImage, isSignedIn, useSyncStatus } from '../api.js';
+import { pushProject, fetchProject, uploadImage, isSignedIn, useSyncStatus, usePlan, pdfAllowed, openUpgrade } from '../api.js';
 import PublishDialog from '../components/Publish.jsx';
 import { draftKeysFor } from '../components/case/interview.js';
 import MediaField from '../components/MediaField.jsx';
 import FileField from '../components/FileField.jsx';
+import AiAssist from '../components/AiAssist.jsx';
 import ProfilePhotoField from '../components/ProfilePhotoField.jsx';
 import { uploadMedia, ACCEPT } from '../components/media.js';
 import { CasePreview, CASE_TEMPLATES } from '../components/case/index.jsx';
@@ -170,10 +171,16 @@ export default function Editor() {
   const sid = steps[cur].id;
   const customAt = steps.findIndex((s) => s.id === 'custom');
   const pickable = Object.keys(TEMPLATES).filter((k) => fits(d.type, k)).map((k) => [k, TEMPLATES[k]]);
+  const { plan } = usePlan();
   const setType = (k) => update({ type: k, template: fits(k, d.template) ? d.template : DEFAULT_TEMPLATE[k] });
 
   // A CV prints on its own, at real A4 size, named after the person.
   const exportPdf = () => {
+    if (!pdfAllowed(d.type, plan)) {
+      openUpgrade({ code: 'pdf_locked', needed: 'starter',
+        message: `On Free, PDF export is for case studies. Starter and above export ${isCv ? 'CVs' : 'portfolios'} to PDF too.` });
+      return;
+    }
     if (!isCv) { window.print(); return; }
     const title = document.title;
     document.title = `${(d.name || 'My').trim()} CV`;
@@ -254,6 +261,7 @@ export default function Editor() {
                     <span aria-hidden>Start the interview →</span>
                   </Link>
                 )}
+                {isSite && <AiAssist kind="portfolio" project={d} onApply={update} />}
                 {d.type === 'portfolio' && (
                   <ProfilePhotoField value={d.photo || ''} name={d.name} onChange={(url) => setField('photo', url)} siteTemplate={isSite} />
                 )}
@@ -609,6 +617,7 @@ export default function Editor() {
                   <p className="section-label"><AppStickyNote /><span>Your details</span></p>
                   <h2 className="ed__h2">The essentials, right at the top of the page.</h2>
                 </div>
+                <AiAssist kind="cv" project={d} onApply={update} />
                 <div className="ed__pair">
                   <label className="field"><span className="field__label">Full name</span><input className="field__input" {...bind('name')} placeholder="Alex Morgan" autoComplete="name" /></label>
                   <label className="field"><span className="field__label">Headline</span><input className="field__input" {...bind('role')} placeholder="Software engineer" /></label>

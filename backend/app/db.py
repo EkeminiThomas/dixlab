@@ -85,6 +85,48 @@ CREATE TABLE IF NOT EXISTS email_tokens (
 CREATE INDEX IF NOT EXISTS idx_email_tokens_user ON email_tokens(user_id, purpose);
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_user ON uploads(user_id);
+CREATE TABLE IF NOT EXISTS subscriptions (
+    user_id               TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    plan                  TEXT NOT NULL,          -- starter | pro | premium
+    interval              TEXT NOT NULL,          -- monthly | yearly
+    currency              TEXT,                   -- NGN | USD
+    status                TEXT NOT NULL,          -- active | past_due (renewing); non_renewing | prepaid | cancelled (ends at period end)
+    current_period_end    INTEGER,                -- ms; access lasts until then
+    customer_ref          TEXT,                   -- the payment provider's customer (Bachs cust_...)
+    subscription_ref      TEXT,                   -- the provider's subscription (Bachs sub_...)
+    created_at            INTEGER NOT NULL,
+    updated_at            INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS payments (
+    reference        TEXT PRIMARY KEY,            -- our reference (dx_...), or the provider's invoice id for renewals
+    user_id          TEXT,                        -- not a foreign key: billing records outlive deleted accounts (tax)
+    email            TEXT,
+    plan             TEXT,
+    interval         TEXT,
+    amount           INTEGER NOT NULL DEFAULT 0,  -- cents
+    currency         TEXT,
+    status           TEXT NOT NULL,               -- pending | success | failed
+    refund_status    TEXT,                        -- pending | processed | failed
+    checkout_ref     TEXT,                        -- Bachs chk_...
+    charge_ref       TEXT,                        -- Bachs charge id (what refunds need)
+    invoice_ref      TEXT,                        -- Bachs inv_...
+    subscription_ref TEXT,                        -- Bachs sub_...
+    paid_at          INTEGER,
+    created_at       INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id, created_at);
+CREATE TABLE IF NOT EXISTS billing_events (
+    key        TEXT PRIMARY KEY,                  -- sha256 of the webhook body: each event is applied once
+    type       TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ai_usage (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    month   TEXT NOT NULL,                        -- YYYY-MM (UTC)
+    feature TEXT NOT NULL,                        -- draft | change
+    count   INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, month, feature)
+);
 CREATE TABLE IF NOT EXISTS recovery_codes (
     user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     code_hash TEXT NOT NULL,              -- sha256 of a one-time two-step backup code
@@ -116,10 +158,16 @@ MIGRATIONS = {
         "totp_pending": "TEXT",         # a secret being set up, not yet confirmed
         "totp_enabled_at": "INTEGER",
         "totp_last_step": "INTEGER",    # last 30-second step used, so a code works only once
+        "plan_override": "TEXT",        # a plan given by an admin (python -m app.admin_cli set-plan)
+        "trial_used_at": "INTEGER",     # ms; one free trial per account
+        "trial_ends_at": "INTEGER",     # ms
     },
     "sessions": {
         "last_used_at": "INTEGER",      # seconds; sessions unused for SESSION_IDLE_DAYS end
     },
+    # Billing tables from the first (Paystack) draft get the provider-neutral columns.
+    "subscriptions": {"customer_ref": "TEXT", "subscription_ref": "TEXT", "currency": "TEXT"},
+    "payments": {"checkout_ref": "TEXT", "charge_ref": "TEXT", "invoice_ref": "TEXT", "subscription_ref": "TEXT"},
 }
 # When a column first appears, fill it for existing rows.
 BACKFILL = {
@@ -140,6 +188,9 @@ def init_db() -> None:
                     conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
                     if (table, col) in BACKFILL:
                         conn.execute(BACKFILL[(table, col)])
+        # Indexes on migrated columns, once they exist.
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_checkout ON payments(checkout_ref)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_subscriptions_ref ON subscriptions(subscription_ref)")
 
 
 def get_db() -> Iterator[sqlite3.Connection]:

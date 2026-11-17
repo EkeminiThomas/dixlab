@@ -16,7 +16,7 @@ _DATA_IMAGE = re.compile(r"^data:image/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$
 # Keys holding a link people click.
 LINK_KEYS = {"link", "href", "url", "website", "linkedin", "github", "portfolio", "behance", "dribbble", "twitter", "instagram"}
 # Keys holding an image, video or file address the page loads.
-MEDIA_KEYS = {"src", "photo", "poster", "avatar", "image", "thumbnail"}
+MEDIA_KEYS = {"src", "photo", "poster", "avatar", "image", "thumbnail", "bgimage"}  # keys are compared lower-cased
 
 
 def _compact(value: str) -> str:

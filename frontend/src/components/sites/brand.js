@@ -65,13 +65,27 @@ export function brandProps(brand = {}) {
   };
   if (brand.accent) { style['--brand-accent'] = brand.accent; style['--brand-on'] = onColor(brand.accent); }
   if (font) { style['--brand-head'] = font.head; style['--brand-body'] = font.body; }
+  const bg = safeBg(brand.bgImage);
+  if (bg) {
+    // Only Dixlab's own uploads or inline images, and nothing that could break out of url("…").
+    style['--brand-bg'] = `url("${bg}")`;
+    style['--brand-bg-k'] = (BG_STRENGTHS[brand.bgStrength] || BG_STRENGTHS.medium)[1];
+  }
   return {
-    className: `brand ${font ? 'brand--font' : ''}`,
+    className: `brand ${font ? 'brand--font' : ''} ${bg ? 'brand--bg' : ''}`,
     'data-motion': motion,
     'data-float': brand.float === 'off' ? 'off' : 'on',
+    ...(bg ? { 'data-bg': BG_PLACES[brand.bgPlace] ? brand.bgPlace : 'hero' } : {}),
     style,
   };
 }
 
+/* Background image (portfolios): blended into the template's own background
+   colour at a chosen strength, so text keeps its contrast. */
+export const BG_STRENGTHS = { soft: ['Soft', 0.2], medium: ['Medium', 0.38], strong: ['Strong', 0.65] };
+export const BG_PLACES = { hero: 'Top of the page', page: 'Behind everything' };
+const BG_SRC = /^(?:\/uploads\/[a-f0-9]{32}\.(?:jpe?g|png|webp|gif)|data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+|blob:[A-Za-z0-9:/._-]+)$/;
+export const safeBg = (src) => (typeof src === 'string' && BG_SRC.test(src) ? src : '');
+
 export const isBranded = (b = {}) => Boolean((b.font && b.font !== 'default') || b.accent || (b.motion && b.motion !== 'none')
-  || (b.depth && b.depth !== 'normal') || b.tilt === 'off' || b.float === 'off');
+  || (b.depth && b.depth !== 'normal') || b.tilt === 'off' || b.float === 'off' || b.bgImage);

@@ -8,7 +8,11 @@ import './case.css';
 import './three.css'; // 3D templates: Blocks (portfolio) and Depth (case study)
 import './theme-pro.css'; // Resend-inspired dark theme (swap back to './theme.css' for the original look)
 import './product.css';
-import { syncProjects, refreshUser } from './api.js';
+import './pricing.css';
+import { syncProjects, refreshUser, refreshPlan, loadCatalog } from './api.js';
+import { UpgradeHost } from './components/Upgrade.jsx';
+import Pricing from './pages/Pricing.jsx';
+import BillingCallback from './pages/BillingCallback.jsx';
 import Landing from './pages/Landing.jsx';
 import SignUp from './pages/SignUp.jsx';
 import LogIn from './pages/LogIn.jsx';
@@ -37,13 +41,18 @@ const AdminSystem = lazy(() => import('./pages/admin/System.jsx'));
 // Bring this browser up to date with the account, and again whenever we come back online.
 refreshUser();
 syncProjects();
+loadCatalog();
+refreshPlan();
 window.addEventListener('online', () => syncProjects());
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
+      <UpgradeHost />
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/pricing" element={<Pricing />} />
+        <Route path="/billing/callback" element={<BillingCallback />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<LogIn />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -6,11 +6,21 @@ from pathlib import Path
 _tmp = Path(tempfile.mkdtemp())
 os.environ["DIXLAB_DB"] = str(_tmp / "test.db")
 os.environ["DIXLAB_UPLOADS"] = str(_tmp / "uploads")
-os.environ.pop("ANTHROPIC_API_KEY", None)
+# Set to empty (not removed) so the backend's real settings file can't fill them in:
+# tests must never call Anthropic or Bachs with real keys.
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["GROQ_API_KEY"] = ""
+os.environ["DIXLAB_AI_PROVIDER"] = ""
 os.environ["DIXLAB_ADMIN_EMAILS"] = "boss@example.com"  # legacy setting: must grant nothing
 # The suite signs up many accounts from one test client; brute-force limits get their own test.
 os.environ["DIXLAB_SIGNUPS_PER_IP"] = "10000"
 os.environ["DIXLAB_LOGIN_ATTEMPTS_PER_IP"] = "10000"
+# Plans are off for the general tests (they create many projects); the plan tests turn them on.
+os.environ["DIXLAB_PLAN_LIMITS"] = "false"
+for _k in [k for k in os.environ if k.startswith(("PAYSTACK_", "BACHS_"))]:
+    os.environ.pop(_k)
+for _k in ("BACHS_API_KEY", "BACHS_WEBHOOK_SECRET"):
+    os.environ[_k] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -478,7 +488,8 @@ def test_storage_quota_project_limit_views_and_suspended_files(monkeypatch):
     from app.config import DB_PATH
     from app.routers import projects as projects_mod, uploads as uploads_mod, publish as publish_mod
     c = client(); h = sign_up(c, "quota@example.com")
-    monkeypatch.setattr(uploads_mod, "MAX_STORAGE_BYTES_PER_USER", 3 * 1024 * 1024)
+    from app import config as cfg
+    monkeypatch.setattr(cfg, "MAX_STORAGE_BYTES_PER_USER", 3 * 1024 * 1024)  # the cap when plan limits are off
     blob = lambda mb: PNG[:8] + bytes(mb * 1024 * 1024)
     post = lambda data: c.post("/api/uploads", files={"file": ("a.png", data, "image/png")}, headers=h)
     first = post(blob(2)); assert first.status_code == 201
@@ -917,3 +928,11 @@ def test_production_checks(monkeypatch):
     errors, warnings = prodcheck.findings()
     assert errors == [] and any("/docs" in w for w in warnings)
     prodcheck.run_on_startup()  # warnings only: it starts
+
+
+def test_background_images_must_be_dixlabs_own():
+    from app import safety
+    own = "/uploads/" + "a" * 32 + ".jpg"
+    for bad in ("https://tracker.example/x.png", "javascript:alert(1)", "//evil.example/x.png"):
+        assert safety.clean({"brand": {"bgImage": bad}})["brand"]["bgImage"] == ""
+    assert safety.clean({"brand": {"bgImage": own}})["brand"]["bgImage"] == own

@@ -3,7 +3,11 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+import json
+import os
+from pathlib import Path
+
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import API_DOCS, CORS_ORIGINS, LEGACY_ADMIN_EMAILS, PRODUCTION
@@ -11,7 +15,7 @@ from . import events
 from .db import init_db
 from .ratelimit import is_https
 from .security import CSRF_HEADER, SESSION_COOKIE
-from .routers import account, admin, auth, customize, interview, messages, projects, publish, twofactor, uploads
+from .routers import account, admin, assist, auth, billing, customize, interview, messages, projects, publish, twofactor, uploads
 
 log = logging.getLogger("dixlab")
 
@@ -51,9 +55,11 @@ app.include_router(projects.router)
 app.include_router(uploads.router)
 app.include_router(customize.router)
 app.include_router(interview.router)
+app.include_router(assist.router)
 app.include_router(publish.router)
 app.include_router(messages.router)
 app.include_router(admin.router)
+app.include_router(billing.router)
 app.include_router(uploads.files)
 
 DOWNLOAD_ONLY = (".docx", ".pptx", ".xlsx")
@@ -134,3 +140,28 @@ async def record_errors(request: Request, call_next):
 @app.get("/api/health", tags=["meta"])
 def health():
     return {"ok": True}
+
+
+# --- The built frontend (frontend/dist), served from the same domain as the API ---
+# One service on hosts like Pxxl: `npm run build` in frontend/, then the API serves
+# the site too, so the session cookie just works. Skipped when dist/ isn't there
+# (local development uses the Vite dev server instead).
+FRONTEND_DIST = Path(os.getenv("DIXLAB_FRONTEND_DIST", "") or Path(__file__).resolve().parents[2] / "frontend" / "dist").resolve()
+
+if (FRONTEND_DIST / "index.html").is_file():
+    try:
+        PAGE_HEADERS = json.loads((FRONTEND_DIST / "headers.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        PAGE_HEADERS = {}
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def frontend(path: str):
+        if path.startswith(("api/", "uploads/")) or path in ("api", "uploads"):
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
+        target = (FRONTEND_DIST / path).resolve()
+        is_file = path and target.is_relative_to(FRONTEND_DIST) and target.is_file()
+        if is_file and target.name not in ("headers.json", "_headers", "vercel.json"):
+            cache = "public, max-age=31536000, immutable" if path.startswith("assets/") else "public, max-age=3600"
+            return FileResponse(target, headers={**PAGE_HEADERS, "Cache-Control": cache})
+        # Unknown paths (/p/..., /interview/..., /admin) are app routes: send the app.
+        return FileResponse(FRONTEND_DIST / "index.html", headers={**PAGE_HEADERS, "Cache-Control": "no-cache"})

@@ -33,6 +33,8 @@ export const isSignedIn = () => Boolean(read(SIGNED_IN_KEY) || read(LEGACY_TOKEN
 const BASE_HEADERS = { 'X-Dixlab-Request': '1' };
 
 /** fetch() wrapper: JSON in and out, the session cookie, readable errors. */
+const AI_PATHS = ['/api/customize', '/api/interview/draft', '/api/assist/'];
+
 export async function request(path, { method = 'GET', body, form } = {}) {
   const headers = { ...BASE_HEADERS };
   const legacy = read(LEGACY_TOKEN_KEY);
@@ -51,13 +53,147 @@ export async function request(path, { method = 'GET', body, form } = {}) {
     const offline = !data && res.status >= 500;
     const message = typeof data?.detail === 'string' ? data.detail
       : Array.isArray(data?.detail) ? 'Check the details and try again.'
-      : data?.error || (offline ? 'Can’t reach the Dixlab server.' : 'Something went wrong. Please try again.');
+      : data?.detail?.message || data?.error || (offline ? 'Can’t reach the Dixlab server.' : 'Something went wrong. Please try again.');
     if (res.status === 401 && isSignedIn() && !path.startsWith('/api/auth/login')) signOutLocally(); // session expired or revoked
     const err = new ApiError(message, res.status, offline);
     err.body = data;
+    // A plan limit (e.g. Free's one project, or a Premium template at publish): offer an upgrade.
+    // AI limits answer 402 too, but the app quietly uses its built-in version instead.
+    if (res.status === 402 && data?.detail?.code) openUpgrade(data.detail);
+    // Out of AI units: the app still falls back to its built-in helper, but says why.
+    // A feature on a higher plan (CV tailoring): say which.
+    if (res.status === 402 && (data?.code === 'ai_quota' || data?.code === 'ai_plan')) {
+      const next = PLAN_ORDER[Math.min(PLAN_ORDER.indexOf(plan?.plan || 'free') + 1, PLAN_ORDER.length - 1)];
+      openUpgrade({ code: data.code, message: data.error, needed: data.needed || next });
+    }
     throw err;
   }
+  if (method === 'POST' && AI_PATHS.some((p) => path.startsWith(p))) refreshPlan(); // units used: update the counter
   return data;
+}
+
+/* ---------- Plans and billing ---------- */
+
+/** Ask the app to show its upgrade dialog ({ code, message, needed }). */
+export function openUpgrade(detail = {}) {
+  try { window.dispatchEvent(new CustomEvent('dixlab:upgrade', { detail })); } catch { /* no window (tests) */ }
+}
+
+let catalog = null;          // GET /api/billing/plans (public)
+let catalogLoad = null;
+let plan = null;             // GET /api/billing/me (signed in)
+const planSubs = new Set();
+let planVersion = 0;
+const notifyPlan = () => { planVersion += 1; planSubs.forEach((fn) => fn()); };
+
+export function loadCatalog() {
+  catalogLoad ??= request('/api/billing/plans').then((c) => { catalog = c; notifyPlan(); return c; }).catch(() => { catalogLoad = null; return null; });
+  return catalogLoad;
+}
+export async function refreshPlan() {
+  if (!isSignedIn()) { plan = null; notifyPlan(); return null; }
+  try { plan = await request('/api/billing/me'); } catch { /* keep what we had */ }
+  notifyPlan();
+  return plan;
+}
+const setPlan = (next) => { plan = next; notifyPlan(); return next; };
+/** { catalog, plan } kept fresh across the app. plan is null when signed out. */
+export function usePlan() {
+  useSyncExternalStore((fn) => { planSubs.add(fn); return () => planSubs.delete(fn); }, () => planVersion);
+  return { catalog, plan };
+}
+
+/** Whether the signed-in plan includes PDF export for this kind of project (Free: case studies only). */
+export function pdfAllowed(type, p = plan) {
+  const types = p?.enforced ? p.limits?.pdfTypes : null;
+  return !types || types.includes(type);
+}
+
+export const PLAN_ORDER = ['free', 'starter', 'pro', 'premium'];
+export const PLAN_RANK = { free: 0, starter: 1, pro: 2, premium: 3 };
+export const PLAN_NAMES = { free: 'Free', starter: 'Starter', pro: 'Pro', premium: 'Premium' };
+
+/** The lowest plan that includes a template: 'free' (basic), 'starter' (premium) or 'pro' (advanced). */
+export function templateTier(key, cat = catalog) {
+  if (!cat) return 'free';
+  if (cat.templates.free.includes(key)) return 'free';
+  return cat.templates.starter.includes(key) ? 'starter' : 'pro';
+}
+
+/** Price as text, e.g. "$3.99" or "₦3,000". Amounts are in the smallest unit (cents, kobo). */
+export function formatPrice(amount, currency = 'USD') {
+  const value = amount / 100;
+  try {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency, currencyDisplay: 'narrowSymbol', maximumFractionDigits: Number.isInteger(value) ? 0 : 2 }).format(value);
+  } catch { return `${currency} ${value.toFixed(2)}`; }
+}
+
+/* Billing currency: Nigeria pays in naira, everyone else in dollars. The first
+   guess comes from the time zone and language; people can switch before paying. */
+const CURRENCY_KEY = 'dixlab.currency';
+function guessCurrency() {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    const langs = navigator.languages || [navigator.language || ''];
+    if (tz === 'Africa/Lagos' || langs.some((l) => /-NG$/i.test(l))) return 'NGN';
+  } catch { /* fall through */ }
+  return 'USD';
+}
+export function getCurrency() {
+  const saved = read(CURRENCY_KEY);
+  return saved === 'NGN' || saved === 'USD' ? saved : guessCurrency();
+}
+export function setCurrency(currency) { write(CURRENCY_KEY, currency); notifyPlan(); }
+
+const TYPE_NAMES = { portfolio: ['portfolio', 'portfolios'], cv: ['CV', 'CVs'], case: ['case study', 'case studies'] };
+const typeLimit = (p, type) => p?.limits.perType?.[type] ?? null; // null: unlimited (fair use)
+/**
+ * Is there room on the plan for another project of this type? Returns null when
+ * there is (or the plan isn't known), else the upgrade dialog's details. Same
+ * rules as the server, checked first so nobody starts work they can't save.
+ */
+export function projectRoom(type, projects) {
+  if (!isSignedIn() || !plan?.enforced) return null;
+  const mine = projects.filter((p) => !p.sample);
+  const { projects: total, perType } = plan.limits;
+  if (total != null && mine.length >= total) {
+    return { code: 'plan_limit', needed: 'starter',
+      message: 'Free includes one project: a CV, a portfolio or a case study. Upgrade to Starter to make all three, with more of each.' };
+  }
+  const max = perType?.[type];
+  const used = mine.filter((p) => p.type === type).length;
+  if (max != null && used >= max) {
+    const [one, many] = TYPE_NAMES[type];
+    const next = PLAN_ORDER.slice(PLAN_ORDER.indexOf(plan.plan) + 1).find((id) => {
+      const lim = typeLimit(catalog?.plans.find((x) => x.id === id), type);
+      return lim == null || lim > used;
+    }) || 'premium';
+    return { code: 'plan_limit', needed: next,
+      message: `${plan.name} includes ${max} ${max === 1 ? one : many}. Upgrade to ${PLAN_NAMES[next]} for more, or delete one you no longer need.` };
+  }
+  return null;
+}
+
+export const startTrial = () => request('/api/billing/trial', { method: 'POST' }).then(setPlan);
+/**
+ * Pay for a plan. New subscribers go to Bachs's checkout page (this resolves only
+ * if the redirect couldn't happen). Someone already paying is switched on their
+ * existing subscription instead: resolves to { changed: true, when: 'now' | 'next_renewal' }.
+ */
+export async function checkout(planId, interval, currency = getCurrency()) {
+  const res = await request('/api/billing/checkout', { method: 'POST', body: { plan: planId, interval, currency } });
+  if (res.changed) { setPlan(res.billing); return res; }
+  if (res.url) window.location.assign(res.url);
+  return res;
+}
+/** After Bachs's checkout (?checkout_id=...): confirm it and switch the plan on. */
+export const verifyPayment = (checkoutId) =>
+  request(`/api/billing/verify?checkout_id=${encodeURIComponent(checkoutId)}`).then((r) => { setPlan(r.billing); return r; });
+export const cancelPlan = () => request('/api/billing/cancel', { method: 'POST' }).then(setPlan);
+export const requestRefund = (reference) => request('/api/billing/refund', { method: 'POST', body: { reference } }).then(setPlan);
+export async function manageCard() {
+  const { url } = await request('/api/billing/manage');
+  if (url) window.location.assign(url);
 }
 
 /* ---------- Sync status (for "Saved to your account" etc.) ---------- */
@@ -85,6 +221,7 @@ async function startSession({ user }) {
   saveUser(user);
   setStatus('idle');
   await syncProjects();
+  refreshPlan();
   return user;
 }
 
@@ -137,6 +274,12 @@ export async function deleteAccount(password) {
 /** Where someone lands after logging in: admins go to the admin dashboard. */
 export const homeFor = (user) => (user?.isAdmin ? '/admin' : '/dashboard');
 
+/** A ?next= page to return to after logging in, only if it's a page on Dixlab itself. */
+export function nextPage(search = window.location.search) {
+  const next = new URLSearchParams(search).get('next') || '';
+  return /^\/(?![/\\])/.test(next) ? next : null;
+}
+
 export async function logOut() {
   try { if (isSignedIn()) await request('/api/auth/logout', { method: 'POST' }); } catch { /* signing out locally anyway */ }
   signOutLocally();
@@ -150,6 +293,8 @@ function signOutLocally() {
   clearProjects();
   saveUser(null);
   setStatus('local');
+  plan = null;
+  notifyPlan();
 }
 
 /** Refresh the signed-in user's profile (name, email) from the server. */
@@ -300,6 +445,8 @@ export const sendContact = (slug, { name, email, message, website = '' }) =>
 /* ---------- Interview (AI); see components/case/interview.js for the offline version ---------- */
 
 export const interviewNext = (transcript, hint, kind = 'case') => request('/api/interview/next', { method: 'POST', body: { transcript, hint, kind } });
+export const assistTailorCv = (body) => request('/api/assist/tailor-cv', { method: 'POST', body });
+export const assistProfiles = (body) => request('/api/assist/profiles', { method: 'POST', body });
 export const interviewDraft = (transcript, kind = 'case') => request('/api/interview/draft', { method: 'POST', body: { transcript, kind } });
 
 /**

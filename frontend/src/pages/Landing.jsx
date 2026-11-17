@@ -53,6 +53,7 @@ export default function Landing() {
           <a href="#why">Why Dixlab</a>
           <a href="#how">How it works</a>
           <a href="#templates">Templates</a>
+          <Link to="/pricing">Pricing</Link>
         </nav>
         <div className="lnav__actions">
           <Link to="/login" className="lnav__login">Log in</Link>
@@ -334,7 +335,7 @@ export default function Landing() {
             <p className="footer__tagline">Turn Your Work Into Opportunities.</p>
           </div>
           <div className="footer__links">
-            <div><p>Explore</p><a href="#why">Why Dixlab</a><a href="#how">How it works</a><a href="#templates">Templates</a></div>
+            <div><p>Explore</p><a href="#why">Why Dixlab</a><a href="#how">How it works</a><a href="#templates">Templates</a><Link to="/pricing">Pricing</Link></div>
             <div><p>Create</p><Link to="/signup">Portfolios</Link><Link to="/signup">CVs</Link><Link to="/signup">Case studies</Link></div>
             <div><p>Connect</p><a href="mailto:hello@dixlab.app">Get in touch</a><a href="https://www.linkedin.com" target="_blank" rel="noreferrer">LinkedIn ↗</a><a href="https://www.instagram.com" target="_blank" rel="noreferrer">Instagram ↗</a></div>
           </div>

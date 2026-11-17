@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { img } from '../assets.js';
 import { Icon, AppArrow, TEMPLATES, useProjects, createProject, timeAgo, useAmbient, deleteProject, ConfirmDelete, TrashIcon } from '../components/ui.jsx';
 import DashSide from '../components/DashSide.jsx';
+import { PlanBadge } from '../components/Upgrade.jsx';
+import { projectRoom, openUpgrade } from '../api.js';
 import { ScaledDoc, CV_TEMPLATES, CV_NICHES, cvNicheLabels } from '../components/cv/index.jsx';
 import { projectToCv } from '../components/cv/data.js';
 import CvViewer from '../components/cv/CvViewer.jsx';
@@ -24,8 +26,11 @@ export default function Cvs() {
   const list = Object.entries(CV_TEMPLATES).filter(([, t]) => niche === 'all' || t.niches.includes(niche));
   const nicheInfo = CV_NICHES.find((n) => n.id === niche);
   const remove = () => { deleteProject(doomed.id); setDoomed(null); };
+  // Plans: is there room for another cv? If not, offer an upgrade instead.
+  const blocked = () => { const room = projectRoom('cv', all); if (room) openUpgrade(room); return Boolean(room); };
 
   const use = (key) => {
+    if (blocked()) return;
     const p = createProject('cv', key);
     nav(`/editor/${p.id}`);
   };
@@ -64,7 +69,7 @@ export default function Cvs() {
               </button>
               <div className="ptpl__info">
                 <div className="ptpl__text">
-                  <div className="ptpl__title"><h3>{t.name}</h3><span>{t.desc}</span></div>
+                  <div className="ptpl__title"><h3>{t.name}</h3><PlanBadge template={key} /><span>{t.desc}</span></div>
                   <p>{t.blurb}</p>
                   <p className="ptpl__best"><span>Best for</span> {cvNicheLabels(t.niches).join(' · ')}</p>
                   <ul className="ptpl__tags">{t.tags.map((g) => <li key={g} className={g === 'New' ? 'is-new' : g === 'ATS-friendly' ? 'is-ats' : ''}>{g}</li>)}</ul>

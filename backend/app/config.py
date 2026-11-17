@@ -97,5 +97,46 @@ PWNED_PASSWORD_CHECK = _flag("DIXLAB_PWNED_PASSWORD_CHECK", False)
 # says it's clean; if clamd can't be reached the upload is refused.
 CLAMAV = os.getenv("DIXLAB_CLAMAV", "").strip()
 
+# ---------- Plans and billing (Bachs) ----------
+# Free, Starter, Pro and Premium limits (see app/plans.py). Turn off to give every
+# account everything, e.g. for a private test server.
+PLAN_LIMITS = _flag("DIXLAB_PLAN_LIMITS", True)
+TRIAL_DAYS = int(os.getenv("DIXLAB_TRIAL_DAYS", "14"))   # free Pro trial, once per account, no card
+REFUND_DAYS = int(os.getenv("DIXLAB_REFUND_DAYS", "14"))  # full refund on request within this many days of a charge
+
+# Localised prices: Nigeria pays in naira, everyone else in US dollars. Each price
+# is set on its own (not converted), in the currency's smallest unit (kobo, cents).
+# Yearly is about 20% less than twelve months. USD prices must match your Bachs products.
+CURRENCIES = ("NGN", "USD")
+_PRICE_DEFAULTS = {
+    ("starter", "monthly", "NGN"): 300000, ("starter", "yearly", "NGN"): 2880000,
+    ("pro", "monthly", "NGN"): 600000, ("pro", "yearly", "NGN"): 5760000,
+    ("premium", "monthly", "NGN"): 1200000, ("premium", "yearly", "NGN"): 11520000,
+    ("starter", "monthly", "USD"): 399, ("starter", "yearly", "USD"): 3830,
+    ("pro", "monthly", "USD"): 799, ("pro", "yearly", "USD"): 7670,
+    ("premium", "monthly", "USD"): 1499, ("premium", "yearly", "USD"): 14390,
+}
+PRICES = {key: int(os.getenv(f"DIXLAB_PRICE_{key[0]}_{key[1]}_{key[2]}".upper(), str(value)))
+          for key, value in _PRICE_DEFAULTS.items()}
+# Bachs bills recurring subscriptions on USD cards today. Until NGN recurring is
+# enabled on your Bachs account, NGN payments are one-off: each pays for one month
+# or one year, and renewing is manual. Set to true once Bachs enables it (and add
+# the NGN products below).
+NGN_RECURRING = _flag("DIXLAB_NGN_RECURRING", False)
+# Bachs (bachs.io): the secret API key (server only, never the browser): sk_sandbox_...
+# while testing, sk_live_... on the real server. The API address follows the key.
+BACHS_API_KEY = os.getenv("BACHS_API_KEY", "").strip()
+BACHS_BASE_URL = (os.getenv("BACHS_BASE_URL", "").strip().rstrip("/")
+                  or ("https://sandbox-api.bachs.io" if BACHS_API_KEY.startswith("sk_sandbox_") else "https://api.bachs.io"))
+# The signing secret of the webhook endpoint you add in the Bachs Developer Portal.
+BACHS_WEBHOOK_SECRET = os.getenv("BACHS_WEBHOOK_SECRET", "").strip()
+# The product id (prod_...) of each plan and billing period, created in Bachs as
+# recurring USD products (Bachs fixes a product's interval, so one per period).
+# NGN products are only used once DIXLAB_NGN_RECURRING is on.
+BACHS_PRODUCTS = {
+    (plan, interval, cur): os.getenv(f"BACHS_PRODUCT_{plan}_{interval}{'' if cur == 'USD' else '_NGN'}".upper(), "").strip()
+    for plan in ("starter", "pro", "premium") for interval in ("monthly", "yearly") for cur in ("USD", "NGN")
+}
+
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

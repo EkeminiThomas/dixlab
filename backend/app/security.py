@@ -134,6 +134,9 @@ def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> 
     now = now_ms()
     if not row["last_seen_at"] or now - row["last_seen_at"] > SEEN_EVERY_MS:
         db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (now, row["id"]))
+        # Commit now: otherwise the write lock is held for the whole request, and a slow
+        # one (an AI call) blocks every other write, including its own usage count.
+        db.commit()
     return {"id": row["id"], "name": row["name"], "email": row["email"], "is_admin": is_admin(row),
             "email_verified": row["email_verified_at"] is not None,
             "two_factor": row["totp_enabled_at"] is not None}

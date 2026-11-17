@@ -17,3 +17,4 @@ backend/uploads/
 
 # Rendered videos
 video/out/
+video/public/th/*.mp4

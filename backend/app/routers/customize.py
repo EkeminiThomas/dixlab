@@ -156,7 +156,7 @@ def customize(body: CustomizeIn, user=Depends(current_user)):
     prompt = body.prompt.strip()
     if not prompt:
         return ai.error(400, "Describe the change you want.")
-    blocked = ai.guard(user["id"])
+    blocked = ai.guard(user["id"], "customize")
     if blocked:
         return blocked
     schema, system, catalog = KINDS[body.kind]

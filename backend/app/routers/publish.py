@@ -9,7 +9,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
-from .. import events, safety
+from .. import events, plans, safety
 from ..db import get_db
 from ..ratelimit import Limiter, client_ip
 from ..security import current_user, now_ms, optional_user_id
@@ -46,6 +46,8 @@ def publish(project_id: str, user=Depends(current_user), db: sqlite3.Connection 
     if not proj:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Save the project first, then publish it.")
     project = json.loads(proj["data"])
+    # Drafts can use any template (try before you buy); publishing needs a plan that includes it.
+    plans.check_template(db, user["id"], str(project.get("template") or ""))
     snapshot = json.dumps(_public(project), ensure_ascii=False)
     now = now_ms()
     row = db.execute("SELECT * FROM publications WHERE user_id = ? AND project_id = ?", (user["id"], project_id)).fetchone()
@@ -95,4 +97,7 @@ def public_page(slug: str, request: Request, db: sqlite3.Connection = Depends(ge
         db.execute("INSERT INTO page_views_daily (slug, day, views) VALUES (?, ?, 1) "
                    "ON CONFLICT(slug, day) DO UPDATE SET views = views + 1", (slug, day))
     # Cleaned again on the way out, so pages published before a rule change are covered too.
-    return {"project": safety.clean(json.loads(row["data"])), "publishedAt": row["updated_at"]}
+    project = safety.clean(json.loads(row["data"]))
+    # Visitors can download a CV as a PDF only when the owner's plan includes it.
+    return {"project": project, "publishedAt": row["updated_at"],
+            "pdf": plans.pdf_allowed(db, row["user_id"], str(project.get("type") or ""))}

@@ -27,6 +27,13 @@ export async function uploadMedia(file, onProgress) {
   return { type: 'image', src };
 }
 
+/** A portfolio background image: resized to at most 2000px wide, then uploaded. Resolves to its URL. */
+export async function uploadBackground(file) {
+  if (!file?.type?.startsWith('image/')) throw new Error('Choose an image: a JPG, PNG or WebP.');
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) throw new Error(`That image is over ${MAX_IMAGE_MB} MB. Try a smaller one.`);
+  return uploadImage(await readImage(file, 2000, 0.8));
+}
+
 /**
  * A profile photo: centre-cropped to a square and resized in the browser,
  * then uploaded (or kept in this browser when signed out). Resolves to its URL.

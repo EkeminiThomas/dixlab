@@ -171,7 +171,7 @@ Rules:
 
 @router.post("/next")
 def next_question(body: TranscriptIn, user=Depends(current_user)):
-    blocked = ai.guard(user["id"])
+    blocked = ai.guard(user["id"], "interview_next")
     if blocked:
         return blocked
     portfolio = body.kind == "portfolio"
@@ -192,13 +192,13 @@ def draft(body: TranscriptIn, user=Depends(current_user)):
     answered = [t for t in body.transcript if t.a.strip()]
     if len(answered) < 3:
         return ai.error(400, "Answer at least three questions first.")
-    blocked = ai.guard(user["id"])
+    blocked = ai.guard(user["id"], f"interview_draft_{body.kind}")  # a case study costs more than a portfolio
     if blocked:
         return blocked
     if body.kind == "portfolio":
         out, err = ai.parse(PortfolioDraft, PORTFOLIO_DRAFT_SYSTEM, f"Interview transcript:\n\n{_transcript_text(body.transcript)}",
                             max_tokens=10000, effort="medium")
-        ai.track(user["id"], "interview_draft", err)
+        ai.track(user["id"], "interview_draft", err, usage=f"interview_draft_{body.kind}")
         if err:
             return err
         d = out.model_dump()
@@ -211,7 +211,7 @@ def draft(body: TranscriptIn, user=Depends(current_user)):
         }}
     out, err = ai.parse(CaseDraft, DRAFT_SYSTEM, f"Interview transcript:\n\n{_transcript_text(body.transcript)}",
                         max_tokens=6000, effort="medium")
-    ai.track(user["id"], "interview_draft", err)
+    ai.track(user["id"], "interview_draft", err, usage=f"interview_draft_{body.kind}")
     if err:
         return err
     d = out.model_dump()

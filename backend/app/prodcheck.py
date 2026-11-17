@@ -9,7 +9,7 @@ import logging
 import sys
 from urllib.parse import urlparse
 
-from . import config, mailer
+from . import bachs, config, mailer
 
 log = logging.getLogger("dixlab")
 
@@ -35,6 +35,15 @@ def findings() -> tuple[list[str], list[str]]:
         warnings.append("DIXLAB_ADMIN_REQUIRE_2FA is off: admins can use the dashboard without two-step login.")
     if not config.CLAMAV:
         warnings.append("DIXLAB_CLAMAV isn't set: uploads are checked for type and active content, but not virus-scanned.")
+    if config.BACHS_API_KEY.startswith("sk_sandbox_"):
+        errors.append("BACHS_API_KEY is a sandbox key: nobody could really pay. Use your live key (sk_live_...).")
+    if config.PLAN_LIMITS and not bachs.configured():
+        missing = [f"BACHS_PRODUCT_{p}_{i}{'' if c == 'USD' else '_NGN'}".upper()
+                   for (p, i, c), code in config.BACHS_PRODUCTS.items() if not code and bachs.recurring(c)]
+        warnings.append("Payments aren't set up (" + ", ".join((["BACHS_API_KEY"] if not config.BACHS_API_KEY else []) + missing)
+                        + "): people can't upgrade from Free, except with the free trial.")
+    if bachs.configured() and not config.BACHS_WEBHOOK_SECRET:
+        warnings.append("BACHS_WEBHOOK_SECRET isn't set: renewals, cancellations and refunds from Bachs won't reach Dixlab.")
     if config.SESSION_IDLE_DAYS > 30 or config.SESSION_DAYS > 90:
         warnings.append("Sessions last a long time (DIXLAB_SESSION_DAYS / DIXLAB_SESSION_IDLE_DAYS); consider shorter.")
     return errors, warnings

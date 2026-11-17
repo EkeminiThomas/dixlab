@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AppSparkles15, AppSparkles13, TEMPLATES } from '../ui.jsx';
 import { SITE_TEMPLATES } from './index.jsx';
-import { FONT_PAIRS, ACCENTS, MOTIONS, SPEEDS, DEPTHS, TILTS, FLOATS, isBranded } from './brand.js';
+import { FONT_PAIRS, ACCENTS, MOTIONS, SPEEDS, DEPTHS, TILTS, FLOATS, BG_PLACES, BG_STRENGTHS, safeBg, isBranded } from './brand.js';
+import { uploadBackground, MAX_IMAGE_MB } from '../media.js';
 import { interpretPrompt, PROMPT_IDEAS, CV_PROMPT_IDEAS, CASE_PROMPT_IDEAS, THREE_PROMPT_IDEAS } from './promptCustomize.js';
 import { CV_SIZES } from '../cv/index.jsx';
 
@@ -64,6 +65,8 @@ export default function Customize({ project, onPatch, template, kind = 'site' })
         </div>
         <small className="field__hint">Used for highlights, buttons and key blocks. Text on coloured blocks switches to black or white for contrast.</small>
       </fieldset>
+
+      {kind === 'site' && SITE_TEMPLATES[template] && <BackgroundField brand={brand} set={set} onChange={onChange} />}
 
       {isDoc && (
         <fieldset className="ed__set">
@@ -141,6 +144,84 @@ export default function Customize({ project, onPatch, template, kind = 'site' })
         <button type="button" className="ed__browse cz__reset" onClick={() => onChange({})}>Reset to template defaults</button>
       )}
     </>
+  );
+}
+
+/* ---------- Background image (portfolios) ---------- */
+
+function BackgroundField({ brand, set, onChange }) {
+  const input = useRef(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [over, setOver] = useState(false);
+  const src = safeBg(brand.bgImage);
+  const place = BG_PLACES[brand.bgPlace] ? brand.bgPlace : 'hero';
+  const strength = BG_STRENGTHS[brand.bgStrength] ? brand.bgStrength : 'medium';
+
+  const pick = async (files) => {
+    const file = files?.[0];
+    if (!file) return;
+    setError(''); setBusy(true);
+    try {
+      set('bgImage', await uploadBackground(file));
+    } catch (e) {
+      setError(e.message || 'Couldn’t add that image.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const remove = () => {
+    const { bgImage, bgPlace, bgStrength, ...rest } = brand; // eslint-disable-line no-unused-vars
+    onChange(rest);
+  };
+
+  return (
+    <fieldset className="ed__set cz__bg">
+      <legend>Background image</legend>
+      <div className="cz__bg-row">
+        <button
+          type="button"
+          className={`cz__bg-drop ${over ? 'is-over' : ''} ${src ? 'has-image' : ''}`}
+          style={src ? { backgroundImage: `url("${src}")` } : undefined}
+          onClick={() => input.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => { e.preventDefault(); setOver(false); pick(e.dataTransfer.files); }}
+          disabled={busy}
+          aria-label={src ? 'Replace the background image' : 'Add a background image'}
+        >
+          {busy ? <span className="cz__spin" aria-hidden /> : !src && <span>+ Add an image<small>or drop one here</small></span>}
+        </button>
+        <div className="cz__bg-actions">
+          <button type="button" className="ppf__btn" onClick={() => input.current?.click()} disabled={busy}>
+            {busy ? 'Uploading…' : src ? 'Replace image' : 'Upload image'}
+          </button>
+          {src && !busy && <button type="button" className="ppf__btn ppf__btn--quiet" onClick={remove}>Remove</button>}
+          <small className="field__hint">JPG, PNG or WebP up to {MAX_IMAGE_MB} MB. Wide photos or textures work best.</small>
+        </div>
+      </div>
+      {src && <>
+        <div className="cz__3d-row">
+          <span className="cz__3d-label">Where</span>
+          <div className="pills">
+            {Object.entries(BG_PLACES).map(([k, label]) => (
+              <button key={k} type="button" className={`pill-btn ${place === k ? 'is-active' : ''}`} aria-pressed={place === k} onClick={() => set('bgPlace', k)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <div className="cz__3d-row">
+          <span className="cz__3d-label">Strength</span>
+          <div className="pills">
+            {Object.entries(BG_STRENGTHS).map(([k, [label]]) => (
+              <button key={k} type="button" className={`pill-btn ${strength === k ? 'is-active' : ''}`} aria-pressed={strength === k} onClick={() => set('bgStrength', k)}>{label}</button>
+            ))}
+          </div>
+        </div>
+        <small className="field__hint">The image is blended into the template’s own background colour, so your text stays readable. Cards and panels keep their colour and sit on top.</small>
+      </>}
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <input ref={input} type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={(e) => { pick(e.target.files); e.target.value = ''; }} />
+    </fieldset>
   );
 }
 

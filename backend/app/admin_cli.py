@@ -4,6 +4,7 @@
     python -m app.admin_cli revoke someone@example.com
     python -m app.admin_cli list
     python -m app.admin_cli reset-2fa someone@example.com   (lost phone and recovery codes)
+    python -m app.admin_cli set-plan someone@example.com premium   (give a plan: free | starter | pro | premium | none)
 
 Admin rights only come from here (or from an existing admin in the dashboard),
 never from signing up with a particular email: Dixlab doesn't verify email
@@ -16,7 +17,8 @@ from .db import connect, init_db
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 1 or argv[0] not in ("grant", "revoke", "list", "reset-2fa") or (argv[0] != "list" and len(argv) != 2):
+    wanted = {"list": 1, "set-plan": 3}
+    if len(argv) < 1 or argv[0] not in ("grant", "revoke", "list", "reset-2fa", "set-plan") or len(argv) != wanted.get(argv[0], 2):
         print(__doc__.strip())
         return 2
     init_db()
@@ -30,6 +32,17 @@ def main(argv: list[str]) -> int:
         if not row:
             print(f"No account with the email {email}. Sign up in the app first, then run this again.")
             return 1
+        if argv[0] == "set-plan":
+            from .plans import PLANS
+            plan = argv[2].strip().lower()
+            if plan not in (*PLANS, "none"):
+                print("Plan must be one of: free, pro, premium, none (none removes a plan you gave).")
+                return 2
+            db.execute("UPDATE users SET plan_override = ? WHERE id = ?", (None if plan == "none" else plan, row["id"]))
+            events.log(db, "admin.set_plan", row["id"], None, plan=plan, via="terminal")
+            print(f"{email} now has {'no plan given by an admin (their own plan applies)' if plan == 'none' else PLANS[plan]['name']}."
+                  + (" A paid plan or trial above it still applies." if plan == "free" else ""))
+            return 0
         if argv[0] == "reset-2fa":
             # Only do this after confirming who's asking (e.g. a reply from the account's email).
             db.execute("UPDATE users SET totp_secret = NULL, totp_pending = NULL, totp_enabled_at = NULL, "

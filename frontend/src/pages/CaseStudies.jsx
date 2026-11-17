@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { img } from '../assets.js';
 import { Icon, AppArrow, TEMPLATES, useProjects, createProject, timeAgo, useAmbient, deleteProject, ConfirmDelete, TrashIcon } from '../components/ui.jsx';
 import DashSide from '../components/DashSide.jsx';
+import { PlanBadge } from '../components/Upgrade.jsx';
+import { projectRoom, openUpgrade } from '../api.js';
 import { ScaledCase, CasePreview, CASE_TEMPLATES, CASE_NICHES, caseNicheLabels } from '../components/case/index.jsx';
 import { projectToCase } from '../components/case/data.js';
 import TemplateViewer from '../components/sites/Viewer.jsx';
@@ -24,12 +26,16 @@ export default function CaseStudies() {
   const list = Object.entries(CASE_TEMPLATES).filter(([, t]) => niche === 'all' || t.niches.includes(niche));
   const nicheInfo = CASE_NICHES.find((n) => n.id === niche);
   const remove = () => { deleteProject(doomed.id); setDoomed(null); };
+  // Plans: is there room for another case? If not, offer an upgrade instead.
+  const blocked = () => { const room = projectRoom('case', all); if (room) openUpgrade(room); return Boolean(room); };
 
   const use = (key) => {
+    if (blocked()) return;
     const p = createProject('case', key);
     nav(`/editor/${p.id}`);
   };
   const interview = () => {
+    if (blocked()) return;
     const p = createProject('case', 'snapshot');
     nav(`/interview/${p.id}`);
   };
@@ -83,7 +89,7 @@ export default function CaseStudies() {
               </button>
               <div className="ptpl__info">
                 <div className="ptpl__text">
-                  <div className="ptpl__title"><h3>{t.name}</h3><span>{t.desc}</span></div>
+                  <div className="ptpl__title"><h3>{t.name}</h3><PlanBadge template={key} /><span>{t.desc}</span></div>
                   <p>{t.blurb}</p>
                   <p className="ptpl__best"><span>Best for</span> {caseNicheLabels(t.niches).join(' · ')}</p>
                   <ul className="ptpl__tags">{t.tags.map((g) => <li key={g} className={g === 'New' ? 'is-new' : ''}>{g}</li>)}</ul>

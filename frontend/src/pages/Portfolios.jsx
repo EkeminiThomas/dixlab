@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { img } from '../assets.js';
 import { Icon, AppArrow, TEMPLATES, useProjects, createProject, timeAgo, useAmbient, deleteProject, ConfirmDelete, TrashIcon } from '../components/ui.jsx';
 import DashSide from '../components/DashSide.jsx';
+import { PlanBadge } from '../components/Upgrade.jsx';
+import { projectRoom, openUpgrade } from '../api.js';
 import { ScaledSite, SITE_TEMPLATES, NICHES, nicheLabels } from '../components/sites/index.jsx';
 import TemplateViewer from '../components/sites/Viewer.jsx';
 import { projectToSite } from '../components/sites/shared.jsx';
@@ -22,14 +24,18 @@ export default function Portfolios() {
     [all]
   );
   const remove = () => { deleteProject(doomed.id); setDoomed(null); };
+  // Plans: is there room for another portfolio? If not, offer an upgrade instead.
+  const blocked = () => { const room = projectRoom('portfolio', all); if (room) openUpgrade(room); return Boolean(room); };
   const list = Object.entries(SITE_TEMPLATES).filter(([, t]) => niche === 'all' || t.niches.includes(niche));
   const nicheInfo = NICHES.find((n) => n.id === niche);
 
   const use = (key) => {
+    if (blocked()) return;
     const p = createProject('portfolio', key);
     nav(`/editor/${p.id}`);
   };
   const interview = () => {
+    if (blocked()) return;
     const p = createProject('portfolio', 'folio');
     nav(`/interview/${p.id}`);
   };
@@ -83,7 +89,7 @@ export default function Portfolios() {
               </button>
               <div className="ptpl__info">
                 <div className="ptpl__text">
-                  <div className="ptpl__title"><h3>{t.name}</h3><span>{t.desc}</span></div>
+                  <div className="ptpl__title"><h3>{t.name}</h3><PlanBadge template={key} /><span>{t.desc}</span></div>
                   <p>{t.blurb}</p>
                   <p className="ptpl__best"><span>Best for</span> {nicheLabels(t.niches).join(' · ')}</p>
                   <ul className="ptpl__tags">{t.tags.map((g) => <li key={g} className={g === 'New' ? 'is-new' : ''}>{g}</li>)}</ul>

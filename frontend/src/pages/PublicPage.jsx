@@ -24,7 +24,7 @@ export default function PublicPage() {
   useEffect(() => {
     let live = true;
     fetchPublic(slug)
-      .then(({ project }) => { if (live) setState({ project }); })
+      .then(({ project, pdf }) => { if (live) setState({ project, pdf: pdf !== false }); })
       .catch((e) => { if (live) setState({ error: e.status === 404 ? 'missing' : 'offline' }); });
     return () => { live = false; };
   }, [slug]);
@@ -74,7 +74,7 @@ export default function PublicPage() {
       <>
         <div className="pub__cv">
           <ScaledDoc template={p.template} data={data} />
-          <button className="app-btn app-btn--primary pub__pdf" onClick={printCv}>Download PDF</button>
+          {state.pdf && <button className="app-btn app-btn--primary pub__pdf" onClick={printCv}>Download PDF</button>}
         </div>
         <div className="cvprint" aria-hidden><CvDoc template={p.template} data={data} /></div>
       </>

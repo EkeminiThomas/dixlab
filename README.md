@@ -19,7 +19,7 @@ cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env        # optional: add ANTHROPIC_API_KEY for AI customise
+cp .env.example .env        # optional: add GROQ_API_KEY (or ANTHROPIC_API_KEY) for the AI features
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -62,6 +62,13 @@ Vite forwards `/api` and `/uploads` to the backend, so the browser only ever tal
 | `GET` | `/api/messages` | Messages inbox and the sidebar unread count |
 | `PATCH` / `DELETE` | `/api/messages/{id}` | Mark a message read, delete it |
 | `GET` | `/api/admin/*` | Admin dashboard (admins only): overview, users, pages, messages, storage, activity, system |
+| `GET` | `/api/billing/plans` | Pricing page: plans, NGN and USD prices, which templates each plan includes (no login) |
+| `GET` | `/api/billing/me` | Your plan, usage this month and payments (Your account, sidebar, upgrade dialog) |
+| `POST` | `/api/billing/trial` | "Try Pro free for 14 days" (once per account, no card) |
+| `POST` | `/api/billing/checkout` | "Get Starter / Pro / Premium" (with currency NGN or USD): returns Bachs's checkout page, or switches an existing subscription |
+| `GET` | `/api/billing/verify` | `/billing/callback?checkout_id=…`, where Bachs sends people back after paying |
+| `POST` | `/api/billing/webhook` | Bachs's server: checkouts, subscriptions, invoices, refunds (signature checked) |
+| `POST` | `/api/billing/cancel`, `/api/billing/refund` · `GET` `/api/billing/manage` | Your account: cancel, refund within 14 days, Bachs billing portal |
 | `GET` | `/api/health` | Health check |
 
 Everything except `/api/auth/signup`, `/api/auth/login`, `/api/public/*` and `/api/health` needs `Authorization: Bearer <token>`.
@@ -70,7 +77,7 @@ Everything except `/api/auth/signup`, `/api/auth/login`, `/api/public/*` and `/a
 
 - **Signed out:** everything works in the browser, as before, with sample projects to explore.
 - **Signed in:** projects are cached in the browser and every change is saved to your account. On start-up, after logging in, and when the connection returns, the browser and the server are reconciled, and changes made offline are uploaded.
-- **AI customise** runs on the server (`ANTHROPIC_API_KEY` in `backend/.env`). If it isn't configured, you're signed out, or the backend is down, the Customize tab falls back to the built-in keyword matcher ("Quick match").
+- **AI** runs on the server with Groq (`GROQ_API_KEY`, model `openai/gpt-oss-120b`, strict JSON schemas) or Claude (`ANTHROPIC_API_KEY`), set in `backend/.env`; Groq wins when both are set unless `DIXLAB_AI_PROVIDER` says otherwise. AI customise If it isn't configured, you're signed out, or the backend is down, the Customize tab falls back to the built-in keyword matcher ("Quick match").
 
 ## The core flow
 
@@ -99,11 +106,14 @@ python -m pytest
 - **Passwords:** at least 8 characters, and common passwords or ones that are just the person's email or name are refused. Optionally, `DIXLAB_PWNED_PASSWORD_CHECK=true` also refuses passwords from known data breaches via Have I Been Pwned (only the first 5 characters of the password's SHA-1 hash are sent).
 - **Uploads:** PDFs with scripts or other active content, and Office files with macros, embedded programs, remote templates or zip bombs, are refused. For virus scanning, run ClamAV (`clamd`) and set `DIXLAB_CLAMAV=127.0.0.1:3310`. Uploads are then refused if the scanner can't be reached.
 - **Sessions** end 30 days after login (`DIXLAB_SESSION_DAYS`) or after 7 days unused (`DIXLAB_SESSION_IDLE_DAYS`). They use an HttpOnly, SameSite=Lax cookie (`dixlab_session`), marked Secure over HTTPS. Serve the frontend and the API from the **same domain** (the dev server's proxy does this locally) so the cookie is sent. Changes made with the cookie need the `X-Dixlab-Request: 1` header, which the frontend always sends. API clients can still use `Authorization: Bearer` (ask for a token with `X-Dixlab-Want-Token: 1` when logging in).
+- **Plans (Free, Starter, Pro, Premium):** Free is one asset in one category (a CV, a portfolio or a case study), basic templates, PDF export, 10 AI units a month and 100 MB. Starter (₦3,000 / $3.99 a month) is 3 CVs, 2 portfolios and 5 case studies, premium templates, 100 AI units and 1 GB. Pro (₦6,000 / $7.99) is unlimited CVs (fair use), 5 portfolios, 15 case studies, every template including 3D, a custom domain, 300 AI units and 5 GB. Premium (₦12,000 / $14.99) is unlimited, 800 AI units and 10 GB. AI tasks cost units (a case study 15, a portfolio or CV draft 10, a change 5); units reset each billing period, and running out never deletes work. Yearly is about 20% off. Drafts can use any template; publishing needs a plan that includes it. Going down a plan never deletes anything. Limits live in `backend/app/plans.py`; `DIXLAB_PLAN_LIMITS=false` turns them off. Give someone a plan by hand: `python -m app.admin_cli set-plan them@example.com premium` (`none` to remove).
+- **AI assistant (editor):** "Tailor to a job" (CVs, Pro and Premium, 20 units) reshapes the headline, summary, skills and bullets around a pasted job link or description, using only facts already in the CV, and lists the requirements it doesn't show yet. "From my profiles" (CVs and portfolios, 15 units) reads GitHub (including its public API for repositories), LinkedIn, X or a personal site and drafts the CV or portfolio. Pages are read by the server (`backend/app/webread.py`): public addresses only, with every redirect re-checked, so a pasted link can't reach private machines or cloud metadata; 10-second timeout, 1.5 MB, text only, no cookies. In production, also block private address ranges at the firewall. GitHub is read through its public API (60 requests an hour per server IP without a token). Text is trimmed so a request fits Groq's free tier. LinkedIn and X need a login, so people paste text from them instead. Nothing changes until the person presses Apply, which can be undone. Code: `backend/app/routers/assist.py`, `frontend/src/components/AiAssist.jsx`.
+- **Payments (Bachs, bachs.io):** prices are set separately in naira (Nigeria) and US dollars (everywhere else); the pricing page suggests one from the visitor's locale and they can switch before paying. Set `BACHS_API_KEY`, the six USD `BACHS_PRODUCT_*` ids (Starter, Pro, Premium × monthly, yearly) and `BACHS_WEBHOOK_SECRET`, and add `https://<API domain>/api/billing/webhook` as a webhook destination in the Bachs Developer Portal. Dollar plans are Bachs subscriptions that renew automatically. Naira plans are a one-off payment for a month or a year (status `prepaid`), renewed by paying again, until Bachs confirms naira recurring billing (`DIXLAB_NGN_RECURRING`). Every payment's amount and currency is checked against the price; a mismatch is held for review and unlocks nothing. `DIXLAB_PUBLIC_URL` must be a public https address (Bachs refuses localhost return links). Without these, the pricing page and the free trial work, but "Get Starter" says payments aren't set up.
 - **Per-account limits:** 1 GB of uploads (`DIXLAB_STORAGE_MB_PER_USER`) and 100 projects (`DIXLAB_MAX_PROJECTS_PER_USER`). When someone is nearly full, their unused uploads are cleared first.
 - **Get in touch emails:** set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM` in `backend/.env` (see `.env.example`). Without them, messages are kept in each owner's Messages inbox only. The owner's address is never shown to visitors. Behind a reverse proxy, the per-visitor rate limit sees the proxy's IP; put a limit at the proxy too.
 
 - Data lives in SQLite (`backend/data/dixlab.db`) and images in `backend/uploads/`. Back both up, or point `DIXLAB_DB` and `DIXLAB_UPLOADS` somewhere durable.
 - Serve `frontend/dist` behind the same domain as the API, or set `DIXLAB_CORS_ORIGINS` to the frontend's origin.
 - Uploaded images and published pages are served publicly at unguessable URLs. Published pages never include account details, interview transcripts or unpublished edits.
-- Keep `ANTHROPIC_API_KEY` in `backend/.env` (git-ignored) or your host's secret settings. It is only read by the server and never sent to the browser.
+- Keep `GROQ_API_KEY` / `ANTHROPIC_API_KEY` in `backend/.env` (git-ignored) or your host's secret settings. It is only read by the server and never sent to the browser.
 - In production, serve the frontend so unknown paths (like `/p/...` and `/interview/...`) fall back to `index.html`.

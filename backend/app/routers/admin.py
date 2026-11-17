@@ -464,7 +464,7 @@ def system(admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db
         "versions": {"python": sys.version.split()[0], "fastapi": fastapi.__version__, "sqlite": sqlite3.sqlite_version,
                      "platform": platform.platform(terse=True)},
         "services": {
-            "ai": {"configured": ai.configured(), "model": ai.MODEL, "last24h": ai_24[0] or 0, "failed24h": ai_24[1] or 0},
+            "ai": {"configured": ai.configured(), "provider": ai.provider(), "model": ai.model(), "last24h": ai_24[0] or 0, "failed24h": ai_24[1] or 0},
             "email": {"configured": mailer.configured()},
         },
         "storage": {"databaseBytes": db_bytes, "uploadFiles": files, "uploadBytes": disk},

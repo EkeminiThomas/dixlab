@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { logIn, homeFor } from '../api.js';
+import { logIn, homeFor, nextPage } from '../api.js';
 import { AuthLayout, Field, SubmitButton } from './AuthAside.jsx';
 
 export default function LogIn() {
@@ -20,7 +20,7 @@ export default function LogIn() {
     setError('');
     try {
       const user = await logIn({ email: email.trim(), password, code: needsCode ? code.trim() : undefined });
-      nav(homeFor(user));
+      nav(nextPage() || homeFor(user));
     } catch (err) {
       if (err.body?.code === 'two_factor_required') {
         setNeedsCode(true);

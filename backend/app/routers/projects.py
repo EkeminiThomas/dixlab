@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..config import MAX_PROJECT_BYTES, MAX_PROJECTS_PER_USER, UPLOAD_DIR
-from .. import events, safety
+from .. import events, plans, safety
 from ..db import get_db
 from ..security import current_user, now_ms
 
@@ -58,6 +58,8 @@ def save_project(project_id: str, body: ProjectIn, user=Depends(current_user), d
     if len(data.encode()) > MAX_PROJECT_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "This project is too large to save. Try removing some images.")
     is_new = not db.execute("SELECT 1 FROM projects WHERE user_id = ? AND id = ?", (user["id"], project_id)).fetchone()
+    if is_new:
+        plans.check_new_project(db, user["id"], body.type)  # 402 when the plan has no room (Free: one project)
     if is_new and db.execute("SELECT COUNT(*) FROM projects WHERE user_id = ?", (user["id"],)).fetchone()[0] >= MAX_PROJECTS_PER_USER:
         raise HTTPException(status.HTTP_409_CONFLICT,
                             f"You’ve reached the limit of {MAX_PROJECTS_PER_USER} projects. Delete one you don’t need, then try again.")

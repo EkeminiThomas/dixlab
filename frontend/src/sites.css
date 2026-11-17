@@ -953,3 +953,21 @@ span.git__input { color: var(--g-muted); }
   .exhibit__piece .shot { height: 460px; }
   .exhibit__piece--1 .shot { height: 600px; }
 }
+
+/* ---------- Background image (Customize → Background image) ----------
+   One layer behind every portfolio template: drawn under the template's
+   content and over its own background colour, at the chosen strength, so it
+   blends into the template's palette and text keeps its contrast. Cards and
+   panels with their own colour sit on top of it. */
+.brand--bg > .site { isolation: isolate; }
+.brand--bg > .site::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: var(--brand-bg) center / cover no-repeat;
+  opacity: var(--brand-bg-k, 0.38);
+}
+/* "Top of the page": the hero area, fading out as the page continues. */
+.brand--bg[data-bg="hero"] > .site::before {
+  bottom: auto; height: min(100%, 920px);
+  -webkit-mask-image: linear-gradient(#000 55%, transparent);
+          mask-image: linear-gradient(#000 55%, transparent);
+}

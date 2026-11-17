@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { signUp, homeFor } from '../api.js';
+import { signUp, homeFor, nextPage } from '../api.js';
 import { AuthLayout, Field, SubmitButton } from './AuthAside.jsx';
 
 export default function SignUp() {
@@ -18,7 +18,7 @@ export default function SignUp() {
     setError('');
     try {
       const user = await signUp({ name: form.name.trim(), email: form.email.trim(), password: form.password });
-      nav(homeFor(user));
+      nav(nextPage() || homeFor(user));
     } catch (err) {
       setError(err.offline ? 'Can’t reach the Dixlab server. Make sure the backend is running, then try again.' : err.message);
       setBusy(false);
