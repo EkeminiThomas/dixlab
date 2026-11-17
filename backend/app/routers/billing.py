@@ -74,6 +74,8 @@ def my_billing(user=Depends(current_user), db: sqlite3.Connection = Depends(get_
 @router.post("/trial")
 def start_trial(user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
     """A free Pro trial, once per account, no card."""
+    if config.TRIAL_DAYS <= 0:
+        raise HTTPException(status.HTTP_409_CONFLICT, "There’s no free trial at the moment.")
     info = plans.current(db, user["id"])
     if not info["trialAvailable"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "You’ve already used your free trial.")

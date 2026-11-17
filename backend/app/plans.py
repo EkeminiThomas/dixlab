@@ -97,7 +97,7 @@ def current(db: sqlite3.Connection, user_id: str) -> dict:
     now = now_ms()
     info = {"plan": "free", "source": "free", "status": None, "interval": None, "currency": None, "periodEnd": None,
             "renews": False, "cancelAtPeriodEnd": False, "trialEndsAt": None,
-            "trialAvailable": bool(u) and not u["trial_used_at"]}
+            "trialAvailable": bool(u) and not u["trial_used_at"] and config.TRIAL_DAYS > 0}
     if sub and sub["plan"] in PAID and sub["current_period_end"]:
         grace = GRACE_MS if sub["status"] == "past_due" else 0
         if now < sub["current_period_end"] + grace:

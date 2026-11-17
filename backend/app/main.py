@@ -28,7 +28,9 @@ async def lifespan(_: FastAPI):
     events.prune()
     ratelimit.prune()
     from . import mailer
-    if mailer.placeholder_host():
+    if mailer.sendliberty():
+        log.warning("Email: sending through SendLiberty as %s", mailer.SENDLIBERTY_FROM)
+    elif mailer.placeholder_host():
         log.warning("SMTP_HOST is the example value (%s), not a real mail server, so it's ignored. "
                     "Set real SMTP_* values, or comment them out (DIXLAB_MAIL_TO_LOG=true prints emails locally).", mailer.SMTP_HOST)
     if LEGACY_ADMIN_EMAILS:

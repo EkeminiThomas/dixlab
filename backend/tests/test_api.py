@@ -25,7 +25,7 @@ os.environ["DIXLAB_LOGIN_ATTEMPTS_PER_IP"] = "10000"
 os.environ["DIXLAB_PLAN_LIMITS"] = "false"
 for _k in [k for k in os.environ if k.startswith(("PAYSTACK_", "BACHS_"))]:
     os.environ.pop(_k)
-for _k in ("BACHS_API_KEY", "BACHS_WEBHOOK_SECRET"):
+for _k in ("BACHS_API_KEY", "BACHS_WEBHOOK_SECRET", "SENDLIBERTY_API_KEY", "SENDLIBERTY_FROM"):
     os.environ[_k] = ""
 
 from fastapi.testclient import TestClient  # noqa: E402
@@ -942,3 +942,26 @@ def test_background_images_must_be_dixlabs_own():
     for bad in ("https://tracker.example/x.png", "javascript:alert(1)", "//evil.example/x.png"):
         assert safety.clean({"brand": {"bgImage": bad}})["brand"]["bgImage"] == ""
     assert safety.clean({"brand": {"bgImage": own}})["brand"]["bgImage"] == own
+
+
+def test_email_can_go_through_sendliberty(monkeypatch):
+    import httpx
+    from app import mailer
+    monkeypatch.setattr(mailer, "SENDLIBERTY_API_KEY", "sl_test")
+    monkeypatch.setattr(mailer, "SENDLIBERTY_FROM", "Dixlab <dixlab.app@gmail.com>")
+    assert mailer.configured() and mailer.can_send()
+    sent = []
+
+    def post(url, json=None, headers=None, timeout=None):
+        sent.append((url, json, headers))
+        return httpx.Response(200, json={"id": "msg_1"})
+
+    monkeypatch.setattr(mailer.httpx, "post", post)
+    assert mailer.send("ada@example.com", "123456 is your code", "Hi <Ada>,\nOpen http://x.test/verify#t=1", reply_to=("Bo", "bo@example.com"))
+    url, body, headers = sent[0]
+    assert url == "https://sendliberty.com/api/send" and headers["Authorization"] == "Bearer sl_test"
+    assert body["from"] == "Dixlab <dixlab.app@gmail.com>" and body["to"] == "ada@example.com" and body["replyTo"] == "Bo <bo@example.com>"
+    assert "&lt;Ada&gt;" in body["html"] and '<a href="http://x.test/verify#t=1">' in body["html"] and body["text"].startswith("Hi <Ada>")
+    assert not mailer.send("ada@example.com\r\nBcc: x@y.z", "s", "b")          # no header injection
+    monkeypatch.setattr(mailer.httpx, "post", lambda *a, **k: httpx.Response(401, json={"error": "Invalid API key"}))
+    assert mailer.send("ada@example.com", "s", "b") is False

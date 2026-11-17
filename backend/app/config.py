@@ -48,6 +48,10 @@ SMTP_USER = os.getenv("SMTP_USER", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER).strip()
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() not in ("0", "false", "no")
+# Or send through SendLiberty (sendliberty.com): its HTTP API sends from a connected Gmail / Google Workspace account.
+SENDLIBERTY_API_KEY = os.getenv("SENDLIBERTY_API_KEY", "").strip()
+SENDLIBERTY_FROM = os.getenv("SENDLIBERTY_FROM", "").strip()      # the connected Gmail address, e.g. Dixlab <you@gmail.com>
+SENDLIBERTY_URL = os.getenv("SENDLIBERTY_URL", "https://sendliberty.com/api/send").strip()
 CONTACT_PER_10_MIN = int(os.getenv("DIXLAB_CONTACT_PER_10_MIN", "5"))  # per visitor, per page
 
 # Admins are granted from the terminal (python -m app.admin_cli grant <email>)
@@ -106,7 +110,9 @@ CLAMAV = os.getenv("DIXLAB_CLAMAV", "").strip()
 # Free, Starter, Pro and Premium limits (see app/plans.py). Turn off to give every
 # account everything, e.g. for a private test server.
 PLAN_LIMITS = _flag("DIXLAB_PLAN_LIMITS", True)
-TRIAL_DAYS = int(os.getenv("DIXLAB_TRIAL_DAYS", "14"))   # free Pro trial, once per account, no card
+_trial = os.getenv("DIXLAB_TRIAL_DAYS", "14").strip().lower()
+# Free Pro trial, once per account, no card. 0 / false / off turns the trial off.
+TRIAL_DAYS = 0 if _trial in ("", "0", "false", "off", "no") else max(0, int(_trial))
 REFUND_DAYS = int(os.getenv("DIXLAB_REFUND_DAYS", "14"))  # full refund on request within this many days of a charge
 
 # Localised prices: Nigeria pays in naira, everyone else in US dollars. Each price

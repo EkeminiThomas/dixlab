@@ -99,7 +99,7 @@ def _session_user(db: sqlite3.Connection, token: str | None):
     th = _token_hash(token)
     row = db.execute(
         """SELECT u.id, u.name, u.email, u.is_admin, u.suspended_at, u.last_seen_at, u.email_verified_at,
-                  u.totp_enabled_at, s.last_used_at
+                  u.totp_enabled_at, u.created_at, s.last_used_at
            FROM sessions s JOIN users u ON u.id = s.user_id
            WHERE s.token_hash = ? AND s.expires_at > ? AND COALESCE(s.last_used_at, s.created_at) > ?""",
         (th, now, now - SESSION_IDLE_DAYS * 86400),
@@ -140,7 +140,7 @@ def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> 
         # one (an AI call) blocks every other write, including its own usage count.
         db.commit()
     return {"id": row["id"], "name": row["name"], "email": row["email"], "is_admin": is_admin(row),
-            "email_verified": row["email_verified_at"] is not None, "must_verify": must_verify(row),
+            "email_verified": row["email_verified_at"] is not None, "must_verify": must_verify(row), "created_at": row["created_at"],
             "two_factor": row["totp_enabled_at"] is not None}
 
 

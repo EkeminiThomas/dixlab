@@ -59,7 +59,8 @@ def _user(row) -> dict:
         admin, verified, two = is_admin(row), row["email_verified_at"] is not None, row["totp_enabled_at"] is not None
         must = must_verify(row)
     return {"id": row["id"], "name": row["name"], "email": row["email"], "isAdmin": bool(admin),
-            "emailVerified": bool(verified), "mustVerify": bool(must), "twoFactor": bool(two)}
+            "emailVerified": bool(verified), "mustVerify": bool(must), "twoFactor": bool(two),
+            "createdAt": row.get("created_at") if isinstance(row, dict) else (row["created_at"] if "created_at" in row.keys() else None)}
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)
