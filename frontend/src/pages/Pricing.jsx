@@ -110,7 +110,7 @@ export default function Pricing() {
         {busy === id ? 'Opening checkout…' : `${verb} ${PLAN_NAMES[id]}`}
       </button>
     );
-    if (id === 'pro' && plan?.trialAvailable !== false && (!signedIn || plan?.plan === 'free')) {
+    if (id === 'pro' && (catalog?.trialDays ?? 14) > 0 && plan?.trialAvailable !== false && (!signedIn || plan?.plan === 'free')) {
       return (
         <div className="prc__ctas">
           {main}

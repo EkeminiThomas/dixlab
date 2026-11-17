@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { img } from '../assets.js';
-import { Icon, useUser, useAmbient } from '../components/ui.jsx';
+import { Icon, useUser, useAmbient, initials } from '../components/ui.jsx';
 import DashSide from '../components/DashSide.jsx';
 import {
   isSignedIn, updateName, changePassword, deleteAccount, resendVerification,
@@ -10,10 +10,26 @@ import {
   usePlan, refreshPlan, loadCatalog, cancelPlan, manageCard, requestRefund, formatPrice,
 } from '../api.js';
 
-/** Your account: name, email confirmation, password, and deleting the account. */
+const SECTIONS = [['details', 'Details'], ['password', 'Password'], ['security', 'Two-step login'], ['billing', 'Plan & billing'], ['delete', 'Delete account']];
+
+/** Your profile: your details, email confirmation, password, two-step login, plan, and deleting the account. */
 export default function Account() {
   const user = useUser();
+  const { hash } = useLocation();
   useAmbient();
+  // Links like /account#password (from the profile menu) scroll to that section and highlight it.
+  useEffect(() => {
+    const id = hash.replace('#', '');
+    if (!id) return undefined;
+    const t = setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('is-flash');
+      setTimeout(() => el.classList.remove('is-flash'), 1600);
+    }, 60);
+    return () => clearTimeout(t);
+  }, [hash]);
   if (!isSignedIn()) return <Navigate to="/login" replace />;
   return (
     <div className="dash">
@@ -21,17 +37,18 @@ export default function Account() {
       <main className="dash__main">
         <header className="dash__head">
           <div>
-            <p className="section-label"><Icon src={img.markerApp} size={6} /><span>Account</span></p>
-            <h1 className="dash__title">Your account</h1>
-            <p className="dash__lead">Your details, your password, and your data.</p>
+            <p className="section-label"><Icon src={img.markerApp} size={6} /><span>Profile</span></p>
+            <h1 className="dash__title">Your profile</h1>
+            <p className="dash__lead">Your details, your password, your plan, and your data.</p>
           </div>
         </header>
         <div className="acct">
-          <PlanCard />
+          <ProfileSummary user={user} />
           <NameCard user={user} />
           <EmailCard user={user} />
           <PasswordCard />
           <TwoFactorCard user={user} />
+          <PlanCard />
           <DeleteCard user={user} />
         </div>
       </main>
@@ -39,9 +56,35 @@ export default function Account() {
   );
 }
 
-function Card({ title, lead, danger, children }) {
+/** At a glance: who you are, your plan and since when, plus quick links to every section. */
+function ProfileSummary({ user }) {
+  const { plan } = usePlan();
   return (
-    <section className={`acct__card ${danger ? 'is-danger' : ''}`}>
+    <section id="profile" className="acct__card prof" tabIndex={-1}>
+      <div className="prof__top">
+        <span className="prof__avatar" aria-hidden>{initials(user.name || 'You')}</span>
+        <div className="prof__who">
+          <h2>{user.name || 'Add your name'}</h2>
+          <p>{user.email}</p>
+          <div className="prof__tags">
+            {user.emailVerified ? <span className="acct__pill is-good"><span aria-hidden>✓</span>Email confirmed</span>
+              : <span className="acct__pill is-warn"><span aria-hidden>!</span>Email not confirmed</span>}
+            {plan && <span className={`prof__plan prof__plan--${plan.plan}`}>{plan.name}{plan.source === 'trial' ? ' trial' : ''} plan</span>}
+            <span className="prof__meta">Two-step login {user.twoFactor ? 'on' : 'off'}</span>
+            {user.createdAt && <span className="prof__meta">Member since {new Date(user.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>}
+          </div>
+        </div>
+      </div>
+      <nav className="prof__nav" aria-label="Profile sections">
+        {SECTIONS.map(([id, label]) => <a key={id} href={`#${id}`} className={id === 'delete' ? 'is-danger' : ''}>{label}</a>)}
+      </nav>
+    </section>
+  );
+}
+
+function Card({ id, title, lead, danger, children }) {
+  return (
+    <section id={id} tabIndex={id ? -1 : undefined} className={`acct__card ${danger ? 'is-danger' : ''}`}>
       <div className="acct__head"><h2>{title}</h2>{lead && <p>{lead}</p>}</div>
       <div className="acct__body">{children}</div>
     </section>
@@ -77,7 +120,7 @@ function PlanCard() {
   const [state, run, note] = useAction();
   const [confirm, setConfirm] = useState(null); // 'cancel' | reference
   useEffect(() => { refreshPlan(); loadCatalog(); }, []);
-  if (!plan) return <Card title="Plan & billing" lead="Loading your plan…" />;
+  if (!plan) return <Card id="billing" title="Plan & billing" lead="Loading your plan…" />;
 
   const status = plan.source === 'trial' ? `Free trial · ends ${dateText(plan.trialEndsAt)}`
     : plan.source === 'override' ? 'Given by Dixlab'
@@ -91,7 +134,7 @@ function PlanCard() {
   const cur = (p) => (p.currency ? formatPrice(p.amount, p.currency) : '');
 
   return (
-    <Card title="Plan & billing" lead="Your plan, what you’ve used this month, and your payments.">
+    <Card id="billing" title="Plan & billing" lead="Your plan, what you’ve used this month, and your payments.">
       <div className="plan-now">
         <div>
           <p className={`plan-now__name plan-now__name--${plan.plan}`}>{plan.name}</p>
@@ -157,7 +200,7 @@ function NameCard({ user }) {
   const [name, setName] = useState(user.name || '');
   const [state, run, note] = useAction();
   return (
-    <Card title="Name" lead="Shown in the app and used as the default on your portfolios.">
+    <Card id="details" title="Name" lead="Shown in the app and on your portfolios and CVs. Changing it updates projects that still show your old name.">
       <form className="acct__row" onSubmit={(e) => { e.preventDefault(); if (name.trim()) run(() => updateName(name.trim()), 'Saved.'); }}>
         <input className="field__input" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} aria-label="Your name" autoComplete="name" />
         <button className="app-btn app-btn--ghost" disabled={state.busy || !name.trim() || name.trim() === user.name}>Save</button>
@@ -198,7 +241,7 @@ function PasswordCard() {
       'Password changed. Any other devices you were logged in on have been signed out.');
   };
   return (
-    <Card title="Password" lead="Changing it signs you out on every other device.">
+    <Card id="password" title="Password" lead="Changing it signs you out on every other device.">
       <form className="acct__form" onSubmit={submit} noValidate>
         <label className="field"><span className="field__label">Current password</span><input className="field__input" type="password" value={f.current} onChange={set('current')} autoComplete="current-password" /></label>
         <label className="field"><span className="field__label">New password</span><input className="field__input" type="password" value={f.password} onChange={set('password')} autoComplete="new-password" /></label>
@@ -249,7 +292,7 @@ function TwoFactorCard({ user }) {
     : 'Add a second step to logging in: a code from an authenticator app (Google Authenticator, 1Password, Authy…), so a stolen password isn’t enough.';
 
   return (
-    <Card title="Two-step login" lead={lead}>
+    <Card id="security" title="Two-step login" lead={lead}>
       {mode === 'idle' && (on ? (
         <>
           <p className="acct__status"><span className="acct__pill is-good"><span aria-hidden>✓</span>On</span>
@@ -325,7 +368,7 @@ function DeleteCard({ user }) {
   const [state, run, note] = useAction();
   const ready = typed.trim().toUpperCase() === 'DELETE' && password;
   return (
-    <Card danger title="Delete your account" lead="Permanently removes your account, every portfolio, CV and case study, your published pages and links, your messages, and every file you uploaded. This can’t be undone.">
+    <Card id="delete" danger title="Delete your account" lead="Permanently removes your account, every portfolio, CV and case study, your published pages and links, your messages, and every file you uploaded. This can’t be undone.">
       {!open ? (
         <button className="app-btn acct__danger" onClick={() => setOpen(true)}>Delete my account…</button>
       ) : (

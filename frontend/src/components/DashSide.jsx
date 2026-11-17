@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo, AppSparkles13, useProjects, useUser, initials } from './ui.jsx';
 import { logOut, resendVerification, isSignedIn, usePlan } from '../api.js';
@@ -59,9 +59,9 @@ export default function DashSide({ active, onFilter }) {
         </div>
         )}
         <div className="dash__user">
-          <span className="dash__avatar">{initials(user.name)}</span>
+          {isSignedIn() ? <UserMenu user={user} onLogOut={onLogOut} /> : <span className="dash__avatar">{initials(user.name || 'You')}</span>}
           <div>
-            <p className="dash__user-name">{user.name}</p>
+            <p className="dash__user-name">{user.name || (isSignedIn() ? 'Your profile' : 'Not signed in')}</p>
             {plan?.enforced && (
               <Link to="/pricing" className={`dash__plan dash__plan--${plan.plan}`} title={plan.source === 'trial' ? 'Free Pro trial' : `${plan.name} plan`}>
                 {plan.name}{plan.source === 'trial' ? ' trial' : ''}{plan.plan !== 'premium' && <span>Upgrade</span>}
@@ -78,13 +78,46 @@ export default function DashSide({ active, onFilter }) {
               );
             })()}
             <span className="dash__user-links">
-              <Link to="/account" className={`dash__logout ${active === 'account' ? 'is-on' : ''}`}>Account</Link>
-              <button className="dash__logout" onClick={onLogOut}>Log out</button>
+              {isSignedIn()
+                ? <><Link to="/account" className={`dash__logout ${active === 'account' ? 'is-on' : ''}`}>Profile</Link>
+                  <button className="dash__logout" onClick={onLogOut}>Log out</button></>
+                : <Link to="/login" className="dash__logout">Log in</Link>}
             </span>
           </div>
         </div>
       </div>
     </aside>
+  );
+}
+
+/** The avatar opens a small menu: view your profile, change your password, delete your account, log out. */
+function UserMenu({ user, onLogOut }) {
+  const nav = useNavigate();
+  const [open, setOpen] = useState(false);
+  const box = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (e) => { if (e.type === 'keydown' ? e.key === 'Escape' : !box.current?.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', close); };
+  }, [open]);
+  const go = (hash) => { setOpen(false); nav(`/account${hash}`); };
+  return (
+    <div className="umenu" ref={box}>
+      <button type="button" className="dash__avatar umenu__btn" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}
+        title="Your profile">{initials(user.name || 'You')}</button>
+      {open && (
+        <div className="umenu__pop" role="menu">
+          <div className="umenu__who"><b>{user.name || 'Your profile'}</b><span>{user.email}</span></div>
+          <button role="menuitem" onClick={() => go('#profile')}>View profile</button>
+          <button role="menuitem" onClick={() => go('#password')}>Change password</button>
+          <button role="menuitem" onClick={() => go('#billing')}>Plan &amp; billing</button>
+          <button role="menuitem" className="is-danger" onClick={() => go('#delete')}>Delete account</button>
+          <button role="menuitem" onClick={() => { setOpen(false); onLogOut(); }}>Log out</button>
+        </div>
+      )}
+    </div>
   );
 }
 

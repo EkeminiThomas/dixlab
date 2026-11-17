@@ -30,7 +30,7 @@ export default function Dashboard() {
   const [q, setQ] = useState('');
   useAmbient();
   const user = useUser();
-  const first = user.name.split(' ')[0];
+  const first = (user.name || '').trim().split(' ')[0] || 'there';
 
   const shown = useMemo(
     () => [...projects]

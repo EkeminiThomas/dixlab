@@ -11,7 +11,7 @@
    can't add it, so they can't act in your name).
    ========================================================================== */
 import { useSyncExternalStore } from 'react';
-import { loadProjects, saveProjects, saveUser, loadUser, clearProjects } from './components/ui.jsx';
+import { loadProjects, saveProjects, saveUser, loadUser, clearProjects, DEMO_NAME } from './components/ui.jsx';
 
 const LEGACY_TOKEN_KEY = 'dixlab.token'; // old sessions kept the token here; moved to the cookie on load
 const SIGNED_IN_KEY = 'dixlab.session'; // just a flag: the real session is the HttpOnly cookie
@@ -213,6 +213,26 @@ export function useSyncStatus() {
 
 /* ---------- Accounts ---------- */
 
+/**
+ * Projects made before signing up (or before a rename) can still carry the sample
+ * name "Alex Morgan" or the person's old name: give them the account's name.
+ */
+function adoptName(user, old = []) {
+  const name = (user?.name || '').trim();
+  if (!name) return;
+  const from = new Set(['', DEMO_NAME.toLowerCase(), ...old.map((n) => String(n || '').trim().toLowerCase())]);
+  const changed = [];
+  const next = loadProjects().map((p) => {
+    if (p.sample || !from.has(String(p.name ?? '').trim().toLowerCase()) || p.name === name) return p;
+    const q = { ...p, name, updatedAt: Date.now() };
+    changed.push(q);
+    return q;
+  });
+  if (!changed.length) return;
+  saveProjects(next);
+  changed.forEach((p) => pushProject(p));
+}
+
 async function startSession({ user }) {
   // Never mix another account's cached work into this one.
   const owner = read(OWNER_KEY);
@@ -223,6 +243,7 @@ async function startSession({ user }) {
   saveUser(user);
   setStatus('idle');
   await syncProjects();
+  adoptName(user);
   refreshPlan();
   return user;
 }
@@ -275,8 +296,10 @@ export const forgotPassword = (email) => request('/api/auth/password/forgot', { 
 export const resetPassword = (token, password) => request('/api/auth/password/reset', { method: 'POST', body: { token, password } });
 export const changePassword = (current, password) => request('/api/auth/password/change', { method: 'POST', body: { current, password } });
 export async function updateName(name) {
+  const before = loadUser().name;
   const { user } = await request('/api/auth/me', { method: 'PATCH', body: { name } });
   saveUser(user);
+  adoptName(user, [before]); // projects still showing the old name follow the new one
   return user;
 }
 /** Permanently delete the signed-in account, then forget it in this browser. */
@@ -325,6 +348,7 @@ export async function refreshUser() {
     }
     const { user } = await request('/api/auth/me');
     saveUser(user);
+    adoptName(user);
     return user;
   } catch { return null; }
 }

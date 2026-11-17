@@ -340,8 +340,12 @@ export function useProjects() {
   return useMemo(() => loadProjects(), [v]);
 }
 
+/** The sample persona's name in templates and older drafts; never the real user's. */
+export const DEMO_NAME = 'Alex Morgan';
+
 export function loadUser() {
-  try { return JSON.parse(localStorage.getItem(USER_KEY)) || { name: 'Alex Morgan' }; } catch { return { name: 'Alex Morgan' }; }
+  // No account stored (signed out): an empty name, so the sample persona never becomes "you".
+  try { return JSON.parse(localStorage.getItem(USER_KEY)) || { name: '' }; } catch { return { name: '' }; }
 }
 
 export function saveUser(user) {
