@@ -4,7 +4,13 @@ import tempfile
 from pathlib import Path
 
 _tmp = Path(tempfile.mkdtemp())
+# Never read the real backend settings file: no real keys, no real email, no production mode.
+os.environ["DIXLAB_SKIP_DOTENV"] = "1"
+os.environ.pop("DIXLAB_ENV", None)
+# Most tests sign up and carry on; the email-confirmation tests turn this on.
+os.environ["DIXLAB_REQUIRE_VERIFIED_EMAIL"] = "false"
 os.environ["DIXLAB_DB"] = str(_tmp / "test.db")
+os.environ["DIXLAB_FRONTEND_DIST"] = str(_tmp / "no-frontend")  # API only: don't serve the built site here
 os.environ["DIXLAB_UPLOADS"] = str(_tmp / "uploads")
 # Set to empty (not removed) so the backend's real settings file can't fill them in:
 # tests must never call Anthropic or Bachs with real keys.

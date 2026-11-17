@@ -131,6 +131,8 @@ def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> 
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Please log in again.", headers={"WWW-Authenticate": "Bearer"})
     if row["suspended_at"]:
         raise HTTPException(status.HTTP_403_FORBIDDEN, SUSPENDED)
+    if must_verify(row) and not _verify_exempt(request.url.path):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, {"code": "email_unverified", "message": UNVERIFIED})
     now = now_ms()
     if not row["last_seen_at"] or now - row["last_seen_at"] > SEEN_EVERY_MS:
         db.execute("UPDATE users SET last_seen_at = ? WHERE id = ?", (now, row["id"]))
@@ -138,8 +140,28 @@ def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> 
         # one (an AI call) blocks every other write, including its own usage count.
         db.commit()
     return {"id": row["id"], "name": row["name"], "email": row["email"], "is_admin": is_admin(row),
-            "email_verified": row["email_verified_at"] is not None,
+            "email_verified": row["email_verified_at"] is not None, "must_verify": must_verify(row),
             "two_factor": row["totp_enabled_at"] is not None}
+
+
+# ---------- email confirmation required ----------
+
+UNVERIFIED = "Confirm your email to continue. We sent a 6-digit code to your inbox."
+# What an unconfirmed account may still do: see who it is, confirm, fix a mistyped
+# address, rename or delete itself, and log out.
+_VERIFY_EXEMPT = ("/api/auth/me", "/api/auth/logout", "/api/auth/verify", "/api/auth/email")
+
+
+def _verify_exempt(path: str) -> bool:
+    return any(path == p or path.startswith(p + "/") for p in _VERIFY_EXEMPT)
+
+
+def must_verify(row) -> bool:
+    """True while this account must still confirm its email. Only enforced when
+    the server can send email; otherwise nobody could ever confirm."""
+    from . import config, mailer  # read at call time (settings can change in tests)
+    verified = row["email_verified_at"] if "email_verified_at" in row.keys() else True
+    return bool(config.REQUIRE_VERIFIED_EMAIL and not verified and mailer.can_send())
 
 
 ADMIN_NEEDS_2FA = "Turn on two-step login in Your account before using the admin dashboard."

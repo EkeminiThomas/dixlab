@@ -10,7 +10,7 @@ from .. import events, passwords
 from ..config import LOGIN_ATTEMPTS_PER_IP, LOGIN_FAILS_PER_EMAIL, SIGNUPS_PER_IP
 from ..ratelimit import Limiter, client_ip
 from ..db import get_db
-from ..security import (SUSPENDED, _bearer, bearer_token, clear_session_cookie, create_session, current_user,
+from ..security import (SUSPENDED, must_verify, _bearer, bearer_token, clear_session_cookie, create_session, current_user,
                         delete_session, hash_password, is_admin, now_ms, set_session_cookie, verify_password)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -54,10 +54,12 @@ def _session_reply(request: Request, response: Response, token: str, user: dict)
 def _user(row) -> dict:
     if isinstance(row, dict):
         admin, verified, two = row["is_admin"], row.get("email_verified", True), row.get("two_factor", False)
+        must = row.get("must_verify", False)
     else:
         admin, verified, two = is_admin(row), row["email_verified_at"] is not None, row["totp_enabled_at"] is not None
+        must = must_verify(row)
     return {"id": row["id"], "name": row["name"], "email": row["email"], "isAdmin": bool(admin),
-            "emailVerified": bool(verified), "twoFactor": bool(two)}
+            "emailVerified": bool(verified), "mustVerify": bool(must), "twoFactor": bool(two)}
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED)

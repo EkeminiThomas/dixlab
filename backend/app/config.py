@@ -5,7 +5,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent  # backend/
-load_dotenv(BASE_DIR / ".env")
+# The test suite sets DIXLAB_SKIP_DOTENV so the real settings (keys, SMTP, production mode) never apply to it.
+if not os.getenv("DIXLAB_SKIP_DOTENV"):
+    load_dotenv(BASE_DIR / ".env")
 
 def _path(env: str, default: Path) -> Path:
     """Relative paths in .env are relative to backend/, wherever the server is started from."""
@@ -72,6 +74,9 @@ TRUST_PROXY_SET = bool(os.getenv("DIXLAB_TRUST_PROXY_HOPS", "").strip())
 # frontend lives, for the links in those emails.
 PUBLIC_URL = os.getenv("DIXLAB_PUBLIC_URL", "http://localhost:5173").rstrip("/")
 VERIFY_LINK_HOURS = int(os.getenv("DIXLAB_VERIFY_LINK_HOURS", "48"))
+VERIFY_CODE_MINUTES = int(os.getenv("DIXLAB_VERIFY_CODE_MINUTES", "15"))
+# New accounts must confirm their email before using the app (enforced only when email can be sent).
+REQUIRE_VERIFIED_EMAIL = _flag("DIXLAB_REQUIRE_VERIFIED_EMAIL", True)
 RESET_LINK_MINUTES = int(os.getenv("DIXLAB_RESET_LINK_MINUTES", "60"))
 # Local testing without an email server: print account emails (with their
 # links) in the backend's terminal. Never on a real server: anyone who can
