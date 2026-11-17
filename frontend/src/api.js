@@ -11,7 +11,7 @@
    can't add it, so they can't act in your name).
    ========================================================================== */
 import { useSyncExternalStore } from 'react';
-import { loadProjects, saveProjects, saveUser, clearProjects } from './components/ui.jsx';
+import { loadProjects, saveProjects, saveUser, loadUser, clearProjects } from './components/ui.jsx';
 
 const LEGACY_TOKEN_KEY = 'dixlab.token'; // old sessions kept the token here; moved to the cookie on load
 const SIGNED_IN_KEY = 'dixlab.session'; // just a flag: the real session is the HttpOnly cookie
@@ -55,6 +55,8 @@ export async function request(path, { method = 'GET', body, form } = {}) {
       : Array.isArray(data?.detail) ? 'Check the details and try again.'
       : data?.detail?.message || data?.error || (offline ? 'Can’t reach the Dixlab server.' : 'Something went wrong. Please try again.');
     if (res.status === 401 && isSignedIn() && !path.startsWith('/api/auth/login')) signOutLocally(); // session expired or revoked
+    // The account must confirm its email first: the app's pages send it to "Confirm your email".
+    if (res.status === 403 && data?.detail?.code === 'email_unverified' && !loadUser().mustVerify) saveUser({ ...loadUser(), mustVerify: true });
     const err = new ApiError(message, res.status, offline);
     err.body = data;
     // A plan limit (e.g. Free's one project, or a Premium template at publish): offer an upgrade.
@@ -252,6 +254,18 @@ export const twoFactorNewCodes = (password, code) => request('/api/auth/2fa/reco
 /* ---------- Account self-service ---------- */
 
 export const resendVerification = () => request('/api/auth/verify/send', { method: 'POST' });
+/** The 6-digit code from the confirmation email. */
+export async function verifyCode(code) {
+  const res = await request('/api/auth/verify/code', { method: 'POST', body: { code } });
+  await refreshUser();
+  return res;
+}
+/** Fix a mistyped address before it's confirmed (a new code is sent there). */
+export async function changeUnverifiedEmail(email, password) {
+  const res = await request('/api/auth/email', { method: 'POST', body: { email, password } });
+  await refreshUser();
+  return res;
+}
 export async function verifyEmail(token) {
   const res = await request('/api/auth/verify', { method: 'POST', body: { token } });
   if (isSignedIn()) await refreshUser();
@@ -272,7 +286,7 @@ export async function deleteAccount(password) {
 }
 
 /** Where someone lands after logging in: admins go to the admin dashboard. */
-export const homeFor = (user) => (user?.isAdmin ? '/admin' : '/dashboard');
+export const homeFor = (user) => (user?.mustVerify ? '/confirm-email' : user?.isAdmin ? '/admin' : '/dashboard');
 
 /** A ?next= page to return to after logging in, only if it's a page on Dixlab itself. */
 export function nextPage(search = window.location.search) {

@@ -18,7 +18,9 @@ export default function SignUp() {
     setError('');
     try {
       const user = await signUp({ name: form.name.trim(), email: form.email.trim(), password: form.password });
-      nav(nextPage() || homeFor(user));
+      // New accounts confirm their email first (the code was just sent); then on to where they were going.
+      if (user.mustVerify) nav(`/confirm-email${nextPage() ? `?next=${encodeURIComponent(nextPage())}` : ''}`, { state: { sent: true } });
+      else nav(nextPage() || homeFor(user));
     } catch (err) {
       setError(err.offline ? 'Can’t reach the Dixlab server. Make sure the backend is running, then try again.' : err.message);
       setBusy(false);

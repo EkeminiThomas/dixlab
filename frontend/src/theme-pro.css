@@ -945,3 +945,12 @@ body::after {
 .up__tools button { flex: 1; padding: 4px 0; border-radius: 6px; border: 1px solid var(--line); background: none; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
 .up__tools button:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); }
 .up__tools button:disabled { opacity: 0.35; cursor: default; }
+
+/* ---------- Confirm your email ---------- */
+.cfm__email { color: var(--ink); font-weight: 600; word-break: break-all; }
+.cfm__code { font-family: var(--mono); font-size: 22px; letter-spacing: 0.35em; text-align: center; }
+.cfm__note { margin: 0; padding: 10px 12px; border-radius: 10px; background: rgba(124, 232, 192, 0.1); color: var(--ink); font-size: 13.5px; }
+.cfm__row { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cfm__link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13.5px; text-decoration: underline;
+  text-underline-offset: 3px; text-decoration-color: var(--line-strong); cursor: pointer; }
+.cfm__link:disabled { color: var(--faint); text-decoration: none; cursor: default; }

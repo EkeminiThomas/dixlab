@@ -20,7 +20,8 @@ export default function LogIn() {
     setError('');
     try {
       const user = await logIn({ email: email.trim(), password, code: needsCode ? code.trim() : undefined });
-      nav(nextPage() || homeFor(user));
+      if (user.mustVerify) nav(`/confirm-email${nextPage() ? `?next=${encodeURIComponent(nextPage())}` : ''}`);
+      else nav(nextPage() || homeFor(user));
     } catch (err) {
       if (err.body?.code === 'two_factor_required') {
         setNeedsCode(true);

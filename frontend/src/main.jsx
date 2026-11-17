@@ -1,6 +1,6 @@
 import React, { lazy, Suspense } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import './styles.css';
 import './sites.css';
 import './cv.css';
@@ -9,7 +9,8 @@ import './three.css'; // 3D templates: Blocks (portfolio) and Depth (case study)
 import './theme-pro.css'; // Resend-inspired dark theme (swap back to './theme.css' for the original look)
 import './product.css';
 import './pricing.css';
-import { syncProjects, refreshUser, refreshPlan, loadCatalog } from './api.js';
+import { syncProjects, refreshUser, refreshPlan, loadCatalog, isSignedIn } from './api.js';
+import { useUser } from './components/ui.jsx';
 import { UpgradeHost } from './components/Upgrade.jsx';
 import Pricing from './pages/Pricing.jsx';
 import BillingCallback from './pages/BillingCallback.jsx';
@@ -27,6 +28,7 @@ import Account from './pages/Account.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
 import VerifyEmail from './pages/VerifyEmail.jsx';
+import ConfirmEmail from './pages/ConfirmEmail.jsx';
 // The admin dashboard loads only when an admin opens it.
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout.jsx'));
 const AdminOverview = lazy(() => import('./pages/admin/Overview.jsx'));
@@ -37,6 +39,16 @@ const AdminMessages = lazy(() => import('./pages/admin/AdminMessages.jsx'));
 const AdminStorage = lazy(() => import('./pages/admin/Storage.jsx'));
 const AdminActivity = lazy(() => import('./pages/admin/Activity.jsx'));
 const AdminSystem = lazy(() => import('./pages/admin/System.jsx'));
+
+/** The app's own pages: an account that still has to confirm its email goes to "Confirm your email" first. */
+function RequireVerified() {
+  const user = useUser();
+  const loc = useLocation();
+  if (isSignedIn() && user?.mustVerify) {
+    return <Navigate to={`/confirm-email?next=${encodeURIComponent(loc.pathname + loc.search)}`} replace />;
+  }
+  return <Outlet />;
+}
 
 // Bring this browser up to date with the account, and again whenever we come back online.
 refreshUser();
@@ -58,6 +70,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/confirm-email" element={<ConfirmEmail />} />
+        <Route element={<RequireVerified />}>
         <Route path="/account" element={<Account />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/portfolio" element={<Portfolios />} />
@@ -74,9 +88,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
           <Route path="activity" element={<AdminActivity />} />
           <Route path="system" element={<AdminSystem />} />
         </Route>
-        <Route path="/p/:slug/*" element={<PublicPage />} />
         <Route path="/editor" element={<Editor />} />
         <Route path="/editor/:id" element={<Editor />} />
+        </Route>
+        <Route path="/p/:slug/*" element={<PublicPage />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>
