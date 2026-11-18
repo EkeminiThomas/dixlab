@@ -184,3 +184,12 @@ a.adm-ev__who:hover { text-decoration: underline; }
 .adm-msg--2fa { flex-wrap: wrap; }
 .adm-msg--2fa > span { flex: 1 1 260px; }
 .adm-msg--2fa .app-btn { text-decoration: none; }
+
+/* User page: give a plan */
+.adm-plan { display: grid; gap: 10px; }
+.adm-plan__now { margin: 0; font-size: 14px; color: var(--ink); }
+.adm-plan__now span { color: var(--muted); }
+.adm-plan__form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.adm-plan__hint { color: var(--faint); font-size: 12px; }
+.adm-btn--primary { background: var(--ink); color: var(--paper, #000); border-color: var(--ink); }
+.adm-btn--primary:hover:not(:disabled) { opacity: 0.9; }

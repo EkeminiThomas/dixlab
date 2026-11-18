@@ -17,7 +17,7 @@ export default function UserDetail() {
 
   return (
     <Status state={load}>
-      {({ user: u, projects, uploads, sessions, messages, activity }) => {
+      {({ user: u, projects, uploads, sessions, messages, activity, plan }) => {
         const self = u.id === me.id;
         const actions = {
           suspend: { title: `Suspend ${u.name}?`, body: 'They’ll be signed out everywhere, can’t log in, and their published pages and contact forms go offline until you unsuspend them. Nothing is deleted.', confirmLabel: 'Suspend account', danger: true, reasonLabel: 'Reason (kept in the activity log)', onConfirm: ({ reason }) => admin.suspend(u.id, reason).then(() => done('Account suspended.')) },
@@ -55,6 +55,7 @@ export default function UserDetail() {
               <Kpi label="Messages received" value={messages} />
               <Kpi label="Storage used" value={uploads.bytes} format={bytes} hint={`${fmt(uploads.count)} files`} />
             </div>
+            {plan && <PlanPanel user={u} plan={plan} self={self} onSaved={(p) => done(p.given ? `${self ? 'You now have' : 'They now have'} ${p.name} for free.` : 'The plan you gave was removed.')} />}
             <div className="adm-grid adm-grid--2-1">
               <Panel title="Projects">
                 {projects.length ? (
@@ -82,5 +83,42 @@ export default function UserDetail() {
         );
       }}
     </Status>
+  );
+}
+
+
+const GIVE = [['free', 'Free'], ['starter', 'Starter'], ['pro', 'Pro'], ['premium', 'Premium']];
+const SOURCE = { subscription: 'paid subscription', trial: 'free trial', override: 'given by an admin', free: 'default' };
+
+/** Give someone a plan for free (yourself, a teammate, a tester), or take it back. */
+function PlanPanel({ user, plan, self, onSaved }) {
+  const [pick, setPick] = useState(plan.given || 'pro');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const save = async (value) => {
+    setBusy(true); setError('');
+    try { onSaved(await admin.setPlan(user.id, value)); } catch (e) { setError(e.message); }
+    setBusy(false);
+  };
+  return (
+    <Panel title="Plan">
+      <div className="adm-plan">
+        <p className="adm-plan__now">
+          <b>{plan.name}</b> <span>· {SOURCE[plan.source] || plan.source}</span>
+          {plan.given && plan.source !== 'override' && <span> · a {plan.given} plan you gave is below their paid plan</span>}
+        </p>
+        <div className="adm-plan__form">
+          <label className="adm-select"><span className="sr-only">Plan to give</span>
+            <select value={pick} onChange={(e) => setPick(e.target.value)} disabled={busy}>
+              {GIVE.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+          </label>
+          <button className="adm-btn adm-btn--primary" disabled={busy} onClick={() => save(pick)}>{busy ? 'Saving…' : `Give ${self ? 'myself' : 'them'} this plan`}</button>
+          {plan.given && <button className="adm-btn" disabled={busy} onClick={() => save('none')}>Remove the plan I gave</button>}
+        </div>
+        <small className="adm-plan__hint">Free of charge, no payment needed, and it doesn’t expire. If they pay for a higher plan, that one applies. Recorded in the activity log.</small>
+        {error && <p className="form-error" role="alert">{error}</p>}
+      </div>
+    </Panel>
   );
 }

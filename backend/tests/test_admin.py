@@ -160,3 +160,26 @@ def test_the_first_admin_can_come_from_a_setting(monkeypatch):
         with _sq.connect(DB_PATH) as db:
             db.execute("UPDATE users SET is_admin = 0 WHERE email = 'first.admin@example.com'")
             db.executemany("UPDATE users SET is_admin = 1 WHERE id = ?", [(i,) for i in admins])
+
+
+def test_admins_can_give_a_plan_from_the_dashboard(monkeypatch):
+    from app import config
+    from app.admin import cli as admin_cli
+    monkeypatch.setattr(config, "PLAN_LIMITS", True)
+    c = client()
+    boss = sign_up(c, "plan-boss@example.com")
+    maker = sign_up(c, "plan-maker@example.com")
+    assert admin_cli.main(["grant", "plan-boss@example.com"]) == 0
+    me = c.get("/api/auth/me", headers=boss).json()["user"]["id"]
+    maker_id = c.get("/api/auth/me", headers=maker).json()["user"]["id"]
+    # Regular users can't give plans.
+    assert c.patch(f"/api/admin/users/{maker_id}/plan", json={"plan": "premium"}, headers=maker).status_code == 403
+    # An admin gives themselves Pro: no payment, shows on their plan straight away.
+    r = c.patch(f"/api/admin/users/{me}/plan", json={"plan": "pro"}, headers=boss)
+    assert r.status_code == 200 and r.json()["plan"] == "pro" and r.json()["source"] == "override"
+    assert c.get("/api/billing/me", headers=boss).json()["plan"] == "pro"
+    assert c.get(f"/api/admin/users/{me}", headers=boss).json()["plan"]["given"] == "pro"
+    assert c.patch(f"/api/admin/users/{me}/plan", json={"plan": "gold"}, headers=boss).status_code == 422
+    # Taking it back returns them to their own plan.
+    assert c.patch(f"/api/admin/users/{me}/plan", json={"plan": "none"}, headers=boss).json()["plan"] == "free"
+    admin_cli.main(["revoke", "plan-boss@example.com"])

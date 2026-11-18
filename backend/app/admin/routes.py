@@ -12,12 +12,14 @@ import sqlite3
 import sys
 import time
 
+from typing import Literal
+
 import fastapi
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from .. import accounts, ai, events, mailer
+from .. import accounts, ai, events, mailer, plans
 from ..config import DB_PATH, UPLOAD_DIR
 from ..db import get_db
 from ..security import now_ms
@@ -236,8 +238,11 @@ def user_detail(user_id: str, admin=Depends(require_admin), db: sqlite3.Connecti
     sessions = db.execute("SELECT COUNT(*) FROM sessions WHERE user_id = ? AND expires_at > ?", (user_id, int(time.time()))).fetchone()[0]
     msgs = db.execute("SELECT COUNT(*) FROM messages WHERE user_id = ?", (user_id,)).fetchone()[0]
     activity = [_event_row(r) for r in db.execute(f"{EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.id DESC LIMIT 30", (user_id,))]
+    info = plans.current(db, user_id)
+    plan = {"plan": info["plan"], "name": plans.PLANS[info["plan"]]["name"], "source": info["source"],
+            "given": db.execute("SELECT plan_override FROM users WHERE id = ?", (user_id,)).fetchone()["plan_override"]}
     return {"user": _user_row(row), "projects": projects, "uploads": {"count": up[0], "bytes": up[1]},
-            "sessions": sessions, "messages": msgs, "activity": activity}
+            "sessions": sessions, "messages": msgs, "activity": activity, "plan": plan}
 
 
 class ReasonIn(BaseModel):
@@ -282,6 +287,22 @@ def set_admin(user_id: str, body: AdminIn, admin=Depends(require_admin), db: sql
     db.execute("UPDATE users SET is_admin = ? WHERE id = ?", (1 if body.isAdmin else 0, user_id))
     events.log(db, "admin.grant" if body.isAdmin else "admin.revoke", user_id, admin["id"])
     return {"ok": True}
+
+
+class PlanIn(BaseModel):
+    plan: Literal["free", "starter", "pro", "premium", "none"]
+
+
+@router.patch("/users/{user_id}/plan")
+def set_plan(user_id: str, body: PlanIn, admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db)):
+    """Give someone a plan for free (yourself, teammates, testers), or "none" to take it back.
+    Their own paid plan or trial still applies if it's higher."""
+    _get_user(db, user_id)
+    db.execute("UPDATE users SET plan_override = ? WHERE id = ?", (None if body.plan == "none" else body.plan, user_id))
+    events.log(db, "admin.set_plan", user_id, admin["id"], plan=body.plan)
+    info = plans.current(db, user_id)
+    return {"plan": info["plan"], "name": plans.PLANS[info["plan"]]["name"], "source": info["source"],
+            "given": None if body.plan == "none" else body.plan}
 
 
 class ConfirmIn(BaseModel):

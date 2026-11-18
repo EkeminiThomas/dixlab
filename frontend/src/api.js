@@ -529,6 +529,7 @@ export const admin = {
   unsuspend: (id) => request(`/api/admin/users/${enc(id)}/unsuspend`, { method: 'POST' }),
   signOutUser: (id) => request(`/api/admin/users/${enc(id)}/signout`, { method: 'POST' }),
   setAdmin: (id, isAdmin) => request(`/api/admin/users/${enc(id)}/admin`, { method: 'PATCH', body: { isAdmin } }),
+  setPlan: (id, plan) => request(`/api/admin/users/${enc(id)}/plan`, { method: 'PATCH', body: { plan } }),
   deleteUser: (id, email) => request(`/api/admin/users/${enc(id)}`, { method: 'DELETE', body: { email } }),
   pages: (params) => request(`/api/admin/pages${qs(params)}`),
   takedown: (slug, reason = '') => request(`/api/admin/pages/${enc(slug)}/takedown`, { method: 'POST', body: { reason } }),
