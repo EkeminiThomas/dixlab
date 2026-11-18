@@ -17,10 +17,19 @@ from .. import events
 from ..db import connect, init_db
 
 
+USAGE = """Usage:
+    python -m app.admin grant you@example.com
+    python -m app.admin revoke someone@example.com
+    python -m app.admin list
+    python -m app.admin reset-2fa someone@example.com   (lost phone and recovery codes)
+    python -m app.admin set-plan someone@example.com premium   (free | starter | pro | premium | none)"""
+
+
 def main(argv: list[str]) -> int:
     wanted = {"list": 1, "set-plan": 3}
     if len(argv) < 1 or argv[0] not in ("grant", "revoke", "list", "reset-2fa", "set-plan") or len(argv) != wanted.get(argv[0], 2):
-        print(__doc__.strip())
+        # Its own text, not __doc__: Python can drop docstrings (python -OO), and then this would crash.
+        print(USAGE)
         return 2
     init_db()
     with connect() as db:
