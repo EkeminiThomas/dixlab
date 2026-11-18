@@ -136,7 +136,17 @@ CREATE TABLE IF NOT EXISTS recovery_codes (
 """
 
 
+def using_turso() -> bool:
+    from . import config  # read at call time, so tests can switch it
+    return bool(config.TURSO_DATABASE_URL and config.TURSO_AUTH_TOKEN)
+
+
 def connect() -> sqlite3.Connection:
+    """The database: Turso when TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are set,
+    otherwise the local SQLite file (DIXLAB_DB). Both behave like sqlite3."""
+    if using_turso():
+        from . import config, turso
+        return turso.connect(config.TURSO_DATABASE_URL, config.TURSO_AUTH_TOKEN)  # type: ignore[return-value]
     # One connection per request, but FastAPI may open it in a worker thread and
     # use it in the event loop (async routes), so allow cross-thread use.
     conn = sqlite3.connect(DB_PATH, timeout=10, check_same_thread=False)

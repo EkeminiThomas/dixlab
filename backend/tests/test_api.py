@@ -27,10 +27,19 @@ for _k in [k for k in os.environ if k.startswith(("PAYSTACK_", "BACHS_"))]:
     os.environ.pop(_k)
 for _k in ("BACHS_API_KEY", "BACHS_WEBHOOK_SECRET", "SENDLIBERTY_API_KEY", "SENDLIBERTY_FROM"):
     os.environ[_k] = ""
+# Normally the local SQLite file. With DIXLAB_TEST_TURSO=1 the whole suite runs through
+# app/turso.py against a fake Turso server (tests/turso_fake.py) backed by that same file.
+_TURSO = bool(os.getenv("DIXLAB_TEST_TURSO"))
+os.environ["TURSO_DATABASE_URL"] = "libsql://fake-dixlab.turso.test" if _TURSO else ""
+os.environ["TURSO_AUTH_TOKEN"] = "test-turso-token" if _TURSO else ""
 
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.main import app  # noqa: E402
+
+if _TURSO:
+    import turso_fake  # noqa: E402
+    FAKE_TURSO = turso_fake.install(os.environ["DIXLAB_DB"])
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -633,7 +642,8 @@ def test_pwned_check_uses_k_anonymity(monkeypatch):
         raise OSError("down")
     monkeypatch.setattr(passwords.urllib.request, "urlopen", fake_open)
     monkeypatch.setattr(passwords, "PWNED_PASSWORD_CHECK", True)
-    assert "breach" in passwords.problem("plum orchard 7")
+    problem = passwords.problem("plum orchard 7")
+    assert problem is not None and "breach" in problem
     assert seen["url"].endswith("/range/" + full[:5])  # only the 5-character prefix leaves the server
     monkeypatch.setattr(passwords.urllib.request, "urlopen", down)
     assert passwords.problem("plum orchard 7") is None  # an outage never blocks sign-up

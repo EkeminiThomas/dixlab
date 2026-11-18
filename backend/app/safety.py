@@ -6,6 +6,7 @@ or same-site addresses, and images/videos/files may only come from Dixlab's
 own uploads (or an inline image). Anything else, such as `javascript:` links
 or images on other sites that could track visitors, is removed."""
 import re
+from typing import Any
 
 # Browsers ignore whitespace and control characters inside a URL scheme
 # ("java\tscript:" still runs), so compare without them.
@@ -54,7 +55,7 @@ def _scrub_text(value: str) -> str:
     return "" if m and m.group(1) in ("javascript", "vbscript") else value
 
 
-def clean(obj, key: str | None = None):
+def clean(obj: Any, key: str | None = None) -> Any:  # same shape out as in (a dict stays a dict)
     """Return a copy of `obj` with unsafe links and media addresses removed."""
     if isinstance(obj, dict):
         return {k: clean(v, k) for k, v in obj.items()}

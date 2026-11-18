@@ -44,6 +44,11 @@ def findings() -> tuple[list[str], list[str]]:
                         + "): people can't upgrade from Free, except with the free trial.")
     if bachs.configured() and not config.BACHS_WEBHOOK_SECRET:
         warnings.append("BACHS_WEBHOOK_SECRET isn't set: renewals, cancellations and refunds from Bachs won't reach Dixlab.")
+    from .db import using_turso
+    if not using_turso():
+        warnings.append(f"The database is a local file ({config.DB_PATH}). On hosts without a persistent disk "
+                        "(free tiers, containers) it's wiped on every restart: set TURSO_DATABASE_URL and "
+                        "TURSO_AUTH_TOKEN, or mount a persistent disk there.")
     if config.SESSION_IDLE_DAYS > 30 or config.SESSION_DAYS > 90:
         warnings.append("Sessions last a long time (DIXLAB_SESSION_DAYS / DIXLAB_SESSION_IDLE_DAYS); consider shorter.")
     return errors, warnings

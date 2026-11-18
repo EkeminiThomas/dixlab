@@ -472,7 +472,17 @@ def activity(type: str = Query("", max_length=40, pattern=r"^[a-z_.]*$"), user: 
 
 @router.get("/system")
 def system(admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db)):
-    db_bytes = sum(os.path.getsize(p) for p in (str(DB_PATH), f"{DB_PATH}-wal", f"{DB_PATH}-shm") if os.path.exists(p))
+    from ..db import using_turso
+    # On Turso the database isn't a file here: estimate from the server's page count.
+    if using_turso():
+        try:
+            pages = db.execute("PRAGMA page_count").fetchone()[0]
+            size = db.execute("PRAGMA page_size").fetchone()[0]
+            db_bytes = int(pages) * int(size)
+        except Exception:
+            db_bytes = 0
+    else:
+        db_bytes = sum(os.path.getsize(p) for p in (str(DB_PATH), f"{DB_PATH}-wal", f"{DB_PATH}-shm") if os.path.exists(p))
     files, disk = _dir_size(UPLOAD_DIR)
     errors = [_event_row(r) for r in db.execute(f"{EVENT_SELECT} WHERE e.type = 'error' ORDER BY e.id DESC LIMIT 20")]
     err_24 = db.execute("SELECT COUNT(*) FROM events WHERE type = 'error' AND created_at >= ?", (_since(1),)).fetchone()[0]
@@ -489,7 +499,7 @@ def system(admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db
             "ai": {"configured": ai.configured(), "provider": ai.provider(), "model": ai.model(), "last24h": ai_24[0] or 0, "failed24h": ai_24[1] or 0},
             "email": {"configured": mailer.configured()},
         },
-        "storage": {"databaseBytes": db_bytes, "uploadFiles": files, "uploadBytes": disk},
+        "storage": {"databaseBytes": db_bytes, "database": "turso" if using_turso() else "sqlite file", "uploadFiles": files, "uploadBytes": disk},
         "tables": tables,
         "admins": {"count": db.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1").fetchone()[0]},
         "errors": {"last24h": err_24, "recent": errors},
