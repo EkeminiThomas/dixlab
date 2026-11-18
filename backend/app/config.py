@@ -148,6 +148,8 @@ BACHS_WEBHOOK_SECRET = os.getenv("BACHS_WEBHOOK_SECRET", "").strip()
 # The product id (prod_...) of each plan and billing period, created in Bachs as
 # recurring USD products (Bachs fixes a product's interval, so one per period).
 # NGN products are only used once DIXLAB_NGN_RECURRING is on.
+# Lets a production server run with a sandbox key on purpose, to test payments before launch.
+BACHS_TEST_MODE = _flag("DIXLAB_BACHS_TEST_MODE", False)
 BACHS_PRODUCTS = {
     (plan, interval, cur): os.getenv(f"BACHS_PRODUCT_{plan}_{interval}{'' if cur == 'USD' else '_NGN'}".upper(), "").strip()
     for plan in ("starter", "pro", "premium") for interval in ("monthly", "yearly") for cur in ("USD", "NGN")

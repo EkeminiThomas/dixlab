@@ -369,3 +369,14 @@ def test_pdf_export_is_on_every_plan(monkeypatch):
     assert c.get(f"/api/public/{slug}").json()["pdf"] is True
     # ...but Free is still one asset.
     assert c.put("/api/projects/pcs", json=_proj("pcs", "case"), headers=h).status_code == 402
+
+
+def test_a_sandbox_key_in_production_needs_test_mode_on_purpose(monkeypatch):
+    from app import prodcheck
+    monkeypatch.setattr(cfg, "BACHS_API_KEY", "sk_sandbox_abc")
+    monkeypatch.setattr(cfg, "BACHS_TEST_MODE", False)
+    errors, _ = prodcheck.findings()
+    assert any("sandbox key" in e for e in errors)
+    monkeypatch.setattr(cfg, "BACHS_TEST_MODE", True)
+    errors, warnings = prodcheck.findings()
+    assert not any("sandbox" in e for e in errors) and any("TEST MODE" in w for w in warnings)

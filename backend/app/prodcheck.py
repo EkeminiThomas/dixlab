@@ -36,7 +36,12 @@ def findings() -> tuple[list[str], list[str]]:
     if not config.CLAMAV:
         warnings.append("DIXLAB_CLAMAV isn't set: uploads are checked for type and active content, but not virus-scanned.")
     if config.BACHS_API_KEY.startswith("sk_sandbox_"):
-        errors.append("BACHS_API_KEY is a sandbox key: nobody could really pay. Use your live key (sk_live_...).")
+        if config.BACHS_TEST_MODE:
+            warnings.append("Bachs is in TEST MODE (sandbox key, DIXLAB_BACHS_TEST_MODE=true): payments are pretend. "
+                            "Switch to your live key (sk_live_...) and remove DIXLAB_BACHS_TEST_MODE before launch.")
+        else:
+            errors.append("BACHS_API_KEY is a sandbox key: nobody could really pay. Use your live key (sk_live_...), "
+                          "or set DIXLAB_BACHS_TEST_MODE=true to test payments on this server on purpose.")
     if config.PLAN_LIMITS and not bachs.configured():
         missing = [f"BACHS_PRODUCT_{p}_{i}{'' if c == 'USD' else '_NGN'}".upper()
                    for (p, i, c), code in config.BACHS_PRODUCTS.items() if not code and bachs.recurring(c)]
