@@ -98,7 +98,7 @@ def cancel_remote(db: sqlite3.Connection, user_id: str, at_period_end: bool = Fa
 
 def apply_checkout(db: sqlite3.Connection, data: dict) -> bool:
     """A finished checkout (the webhook's data, or GET /checkout-sessions/{id}). True if it changed anything."""
-    checkout_id = data.get("checkout_id")
+    checkout_id = data.get("checkout_id") or data.get("id")
     charge = data.get("charge") or {}
     paid = data.get("status") == "completed" and (data.get("payment_status") in PAID_STATES or charge.get("status") in PAID_STATES)
     if not checkout_id or not paid:

@@ -3,6 +3,7 @@ trial, Bachs checkout, the Bachs webhook, plan changes, cancelling and refunds."
 import hashlib
 import json
 import secrets
+import logging
 import sqlite3
 from typing import Literal
 
@@ -14,6 +15,7 @@ from .. import bachs, billing, config, events, plans
 from ..db import get_db
 from ..security import current_user
 
+log = logging.getLogger("dixlab")
 router = APIRouter(prefix="/api/billing", tags=["billing"])
 
 
@@ -136,9 +138,42 @@ def checkout(body: CheckoutIn, user=Depends(current_user), db: sqlite3.Connectio
     except bachs.BachsError as e:
         db.execute("UPDATE payments SET status = 'failed' WHERE reference = ?", (reference,))
         return _fail(e)
-    db.execute("UPDATE payments SET checkout_ref = ? WHERE reference = ?", (data.get("checkout_id"), reference))
+    checkout_id = _checkout_id(data)
+    if not checkout_id:
+        log.warning("Bachs created a checkout without an id we recognise (fields: %s)", ", ".join(sorted(data)))
+    db.execute("UPDATE payments SET checkout_ref = ? WHERE reference = ?", (checkout_id, reference))
     events.log(db, "billing.checkout", user["id"], plan=body.plan, interval=body.interval, currency=body.currency)
-    return {"url": data.get("checkout_url"), "checkoutId": data.get("checkout_id")}
+    return {"url": data.get("checkout_url") or data.get("url"), "checkoutId": checkout_id}
+
+
+def _checkout_id(data: dict) -> str | None:
+    return data.get("checkout_id") or data.get("id") or (data.get("checkout") or {}).get("checkout_id")
+
+
+def _claim_checkout(db, checkout_id: str, user_id: str):
+    """A checkout this account started but that isn't on record under its id: find our payment
+    from Bachs's copy (its reference, or the account in its metadata) and record the id."""
+    if not bachs.configured():
+        return None
+    try:
+        data = bachs.get_checkout(checkout_id)
+    except bachs.BachsError:
+        return None
+    meta = data.get("metadata") or {}
+    ref = data.get("reference") or meta.get("reference")
+    row = db.execute("SELECT reference, user_id FROM payments WHERE reference = ?", (ref,)).fetchone() if ref else None
+    if row and row["user_id"] != user_id:
+        return None  # someone else's checkout
+    if not row:
+        if meta.get("user_id") != user_id:
+            return None
+        row = db.execute("SELECT reference, user_id FROM payments WHERE user_id = ? AND status = 'pending' AND plan = ? "
+                         "AND interval = ? ORDER BY created_at DESC LIMIT 1",
+                         (user_id, meta.get("plan"), meta.get("interval"))).fetchone()
+        if not row:
+            return None
+    db.execute("UPDATE payments SET checkout_ref = ? WHERE reference = ?", (checkout_id, row["reference"]))
+    return db.execute("SELECT status FROM payments WHERE reference = ?", (row["reference"],)).fetchone()
 
 
 @router.get("/verify")
@@ -146,6 +181,11 @@ def verify(checkout_id: str, user=Depends(current_user), db: sqlite3.Connection 
     """Where Bachs sends the visitor back (?checkout_id=...): confirm it and switch the plan on."""
     row = db.execute("SELECT status FROM payments WHERE checkout_ref = ? AND user_id = ?", (checkout_id, user["id"])).fetchone()
     if not row:
+        # Not saved under this id (or saved under another name): ask Bachs for the checkout and match it
+        # by our own reference or the account it was made for, then carry on as normal.
+        row = _claim_checkout(db, checkout_id, user["id"])
+    if not row:
+        log.warning("Checkout %s (back from Bachs) doesn't match a payment of user %s", checkout_id, user["id"])
         raise HTTPException(status.HTTP_404_NOT_FOUND, "We couldn’t find that payment.")
     payment = "success" if row["status"] == "success" else "pending"
     if row["status"] == "pending":

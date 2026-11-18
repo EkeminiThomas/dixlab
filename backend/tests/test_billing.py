@@ -390,3 +390,34 @@ def test_a_slow_bachs_gives_a_clear_message_not_a_dropped_connection(monkeypatch
     monkeypatch.setattr(bachs.httpx, "request", slow)
     with pytest.raises(bachs.BachsError, match="taking too long"):
         bachs._call("POST", "/v1/checkout-sessions", {})
+
+
+def test_coming_back_with_an_id_we_didnt_save_still_finds_the_payment(monkeypatch):
+    """Bachs named its id differently at creation ("id", not "checkout_id"), so the payment
+    wasn't saved under it: coming back still finds it through Bachs's copy, for this account only."""
+    _plans_on(monkeypatch)
+    checkouts = {}
+
+    def fake(method, path, body=None, idempotency_key=None):
+        if method == "POST" and path == "/v1/checkout-sessions":
+            fake.ref = body["reference"]
+            return {"id": "cs_named_differently", "url": "https://sandbox-checkout.bachs.io/c/x"}
+        if method == "GET" and path.startswith("/v1/checkout-sessions/"):
+            return checkouts.get(path.rsplit("/", 1)[1], {"status": "open"})
+        return {}
+    monkeypatch.setattr(bachs, "_call", fake)
+    c = client(); h = sign_up(c, "renamed-id@example.com")
+    uid = _uid(c, h)
+    r = c.post("/api/billing/checkout", json={"plan": "starter", "interval": "monthly", "currency": "USD"}, headers=h).json()
+    assert r["checkoutId"] == "cs_named_differently" and r["url"].startswith("https://")
+    # Simulate an older record that lost its checkout id.
+    with sqlite3.connect(DB_PATH) as db:
+        db.execute("UPDATE payments SET checkout_ref = NULL WHERE reference = ?", (fake.ref,))
+    checkouts["cs_named_differently"] = {"id": "cs_named_differently", "reference": fake.ref, "status": "completed",
+                                         "payment_status": "succeeded", "amount": "3.99", "currency": "USD",
+                                         "metadata": {"user_id": uid}, "charge": {"payment_id": "pay_x", "status": "succeeded"}}
+    # Someone else can't claim it.
+    other = sign_up(c, "not-mine@example.com")
+    assert c.get("/api/billing/verify?checkout_id=cs_named_differently", headers=other).status_code == 404
+    v = c.get("/api/billing/verify?checkout_id=cs_named_differently", headers=h).json()
+    assert v["payment"] == "success" and v["billing"]["plan"] == "starter"
