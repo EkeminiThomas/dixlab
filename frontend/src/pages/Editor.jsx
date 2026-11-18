@@ -18,6 +18,7 @@ import { draftKeysFor } from '../components/case/interview.js';
 import MediaField from '../components/MediaField.jsx';
 import FileField from '../components/FileField.jsx';
 import AiAssist from '../components/AiAssist.jsx';
+import CaseAssist from '../components/CaseAssist.jsx';
 import ProfilePhotoField from '../components/ProfilePhotoField.jsx';
 import { uploadMedia, ACCEPT } from '../components/media.js';
 import { CasePreview, CASE_TEMPLATES } from '../components/case/index.jsx';
@@ -433,6 +434,7 @@ export default function Editor() {
                   <h2 className="ed__h2">Start with the headline facts.</h2>
                 </div>
                 <p className="ed__lead">Fields marked <Rec /> are what reviewers look for first. Rough answers are fine; you can polish later.</p>
+                <CaseAssist project={d} onApply={update} />
                 {!d.interview?.drafted && (
                   <Link to={`/interview/${d.id}`} className="ed__interview">
                     <span><b>Rather talk it through?</b> A ten-minute interview fills this in, in your own words.</span>
@@ -602,6 +604,42 @@ export default function Editor() {
                   <legend>Files & attachments <Opt /> <span className="up__count">{(d.files || []).length}/8</span></legend>
                   <FileField value={d.files || []} max={8} onChange={(files) => setField('files', files)} />
                   <small className="field__hint">Research reports, pitch decks, specs or data, so reviewers can dig deeper. Visitors can open or download them from your published page.</small>
+                </fieldset>
+
+                <fieldset className="ed__set">
+                  <legend>Before / after <Opt /></legend>
+                  <div className="ed__pair">
+                    <div className="field">
+                      <span className="field__label">Before</span>
+                      <MediaField value={d.compare?.before?.src ? [d.compare.before] : []} max={1} mode="single" label="before image"
+                        onChange={(items) => setField('compare', { ...(d.compare || {}), before: items[0] || null })} />
+                      <input className="field__input" value={d.compare?.beforeLabel || ''} placeholder="Label, e.g. 2024 checkout"
+                        onChange={(e) => setField('compare', { ...(d.compare || {}), beforeLabel: e.target.value })} aria-label="Before label" />
+                    </div>
+                    <div className="field">
+                      <span className="field__label">After</span>
+                      <MediaField value={d.compare?.after?.src ? [d.compare.after] : []} max={1} mode="single" label="after image"
+                        onChange={(items) => setField('compare', { ...(d.compare || {}), after: items[0] || null })} />
+                      <input className="field__input" value={d.compare?.afterLabel || ''} placeholder="Label, e.g. Redesign"
+                        onChange={(e) => setField('compare', { ...(d.compare || {}), afterLabel: e.target.value })} aria-label="After label" />
+                    </div>
+                  </div>
+                  <small className="field__hint">Two images of the same screen or space. Visitors drag the slider to compare. Use the same size and framing for both.</small>
+                </fieldset>
+
+                <fieldset className="ed__set">
+                  <legend>Embeds <Opt /> <span className="up__count">{(d.embeds || []).length}/4</span></legend>
+                  {(d.embeds || []).map((e, i) => (
+                    <div className="ed__row" key={i}>
+                      <input className="field__input" type="url" value={e.url} placeholder="https://figma.com/proto/… · youtube.com/watch?v=… · loom.com/share/…"
+                        onChange={(ev) => setField('embeds', d.embeds.map((x, j) => (j === i ? { ...x, url: ev.target.value } : x)))} aria-label={`Embed link ${i + 1}`} />
+                      <input className="field__input" value={e.title || ''} placeholder="Caption (optional)"
+                        onChange={(ev) => setField('embeds', d.embeds.map((x, j) => (j === i ? { ...x, title: ev.target.value } : x)))} aria-label={`Embed caption ${i + 1}`} />
+                      <button type="button" className="ed__del" onClick={() => setField('embeds', d.embeds.filter((_, j) => j !== i))} aria-label="Remove this embed">✕</button>
+                    </div>
+                  ))}
+                  {(d.embeds || []).length < 4 && <button type="button" className="ed__add" onClick={() => setField('embeds', [...(d.embeds || []), { url: '', title: '' }])}>+ Add an embed</button>}
+                  <small className="field__hint">Figma files and prototypes, YouTube, Loom or Vimeo play right inside your case study. Other links show as a link card. For Figma, set sharing to “Anyone with the link can view”.</small>
                 </fieldset>
 
                 <label className="field">
@@ -788,7 +826,7 @@ export default function Editor() {
           info={CASE_TEMPLATES[tpl]}
           title={d.title || 'Your case study'}
           subtitle={`${TEMPLATES[tpl].name} template · your content`}
-          render={() => <CasePreview template={tpl} data={{ ...projectToCase(d), ghost: false }} />}
+          render={() => <CasePreview template={tpl} data={{ ...projectToCase(d), ghost: false }} meta />}
           onClose={() => setExpanded(false)}
         />
       )}

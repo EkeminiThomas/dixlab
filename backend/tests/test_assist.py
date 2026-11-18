@@ -127,7 +127,7 @@ def test_profiles_draft_a_portfolio_and_explain_unreadable_links(monkeypatch):
     assert j["draft"]["projects"][0]["link"] == "https://github.com/ada/linty" and j["draft"]["tagline"] == "I build tools"
     gh, li = j["sources"]
     assert gh["read"] is True and gh["platform"] == "github"
-    assert li["read"] is False and li["platform"] == "linkedin" and "copy" in li["tip"]
+    assert li["read"] is False and li["platform"] == "linkedin" and "copy" in li["tip"].lower()
     assert not any("linkedin" in u for u in calls["fetched"])        # login walls aren't even tried
     prompt = calls["parse"][0]
     assert "linty · A fast linter · Python · 2000 stars" in prompt and "rule engine over regexes" in prompt

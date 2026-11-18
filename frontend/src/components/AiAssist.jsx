@@ -58,9 +58,9 @@ export default function AiAssist({ kind, project, onApply }) {
   const [tab, setTab] = useState(isCv ? 'job' : 'profiles');
   const [jobUrl, setJobUrl] = useState('');
   const [jobText, setJobText] = useState('');
-  const [links, setLinks] = useState(['', '', '']);
+  const [links, setLinks] = useState(START_LINKS);
   const [text, setText] = useState('');
-  const [bgLinks, setBgLinks] = useState(['', '']);  // about the person, for a job-aimed CV
+  const [bgLinks, setBgLinks] = useState(START_LINKS);  // about the person, for a job-aimed CV
   const [bgText, setBgText] = useState('');
   const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -74,7 +74,7 @@ export default function AiAssist({ kind, project, onApply }) {
   // An empty CV can't be tailored, so the job tab builds one from the person's background instead.
   const hasCv = Boolean(String(project.notes || '').trim() || list(project.skills).length
     || (project.experience || []).some((r) => String(r.role || '').trim() || String(r.desc || '').trim()));
-  const hasBg = bgLinks.some((l) => l.trim()) || bgText.trim().length >= 40;
+  const hasBg = profileUrls(bgLinks).length > 0 || bgText.trim().length >= 40;
   const hasJob = jobUrl.trim() || jobText.trim().length >= 80;
 
   const run = async (fn) => {
@@ -92,13 +92,13 @@ export default function AiAssist({ kind, project, onApply }) {
     const keep = ['role', 'notes', 'skills', 'certs', 'languages', 'experience', 'education', 'projects', 'name'];
     const res = await assistTailorCv({
       job_url: jobUrl.trim(), job_text: jobText.trim(), cv: Object.fromEntries(keep.map((k) => [k, cv[k] ?? (Array.isArray(cv[k]) ? [] : '')])),
-      background_urls: bgLinks.map((l) => l.trim()).filter(Boolean), background_text: bgText.trim(),
+      background_urls: profileUrls(bgLinks), background_text: bgText.trim(),
     });
     if (res.built) return { type: 'build', ...res };
     return { type: 'job', ...res, experience: cv.experience };
   });
   const readProfiles = () => run(async () => {
-    const res = await assistProfiles({ kind, urls: links.map((l) => l.trim()).filter(Boolean), text: text.trim() });
+    const res = await assistProfiles({ kind, urls: profileUrls(links), text: text.trim() });
     return { type: 'profiles', ...res };
   });
 
@@ -162,14 +162,10 @@ export default function AiAssist({ kind, project, onApply }) {
           {(!hasCv || more) && (
             <div className={`aia__about ${hasCv ? '' : 'is-needed'}`}>
               <p className="aia__about-t">{hasCv ? 'More about you' : <><b>Your CV is empty,</b> so we’ll build one for this job. Tell us about you:</>}</p>
-              {bgLinks.map((l, i) => (
-                <input key={i} className="field__input" value={l} inputMode="url" aria-label={`Your profile link ${i + 1}`}
-                  onChange={(e) => setBgLinks(bgLinks.map((x, j) => (j === i ? e.target.value : x)))}
-                  placeholder={['github.com/yourname or your website', 'linkedin.com/in/yourname'][i]} />
-              ))}
+              <ProfileLinks rows={bgLinks} onChange={setBgLinks} />
               <textarea className="field__input aia__text" value={bgText} onChange={(e) => setBgText(e.target.value)}
                 aria-label="Your old CV or experience"
-                placeholder="Paste your old CV, or describe your experience: where you’ve worked, what you did, what you studied, the tools you use. LinkedIn needs a login, so paste your profile’s Experience section here." />
+                placeholder="Or paste your old CV, or text from your LinkedIn or X profile: where you’ve worked, what you did, what you studied, the tools you use." />
             </div>
           )}
           <div className="aia__row">
@@ -184,18 +180,13 @@ export default function AiAssist({ kind, project, onApply }) {
       {signedIn && tab === 'profiles' && (
         <div className="aia__body">
           <p className="aia__lead">Paste your public profiles. We’ll read your work, the products you build and how you solve problems, then {isCv ? 'draft your CV' : 'write your portfolio'} from them.</p>
-          {links.map((l, i) => (
-            <input key={i} className="field__input" value={l} inputMode="url" aria-label={`Profile link ${i + 1}`}
-              onChange={(e) => setLinks(links.map((x, j) => (j === i ? e.target.value : x)))}
-              placeholder={['github.com/yourname', 'linkedin.com/in/yourname', 'x.com/yourname or yoursite.com'][i] || 'Another link'} />
-          ))}
-          {links.length < 5 && <button type="button" className="aia__add" onClick={() => setLinks([...links, ''])}>+ Add another link</button>}
+          <ProfileLinks rows={links} onChange={setLinks} />
           <label className="field">
-            <span className="field__label">Profile text <em className="field__opt">optional · recommended for LinkedIn and X</em></span>
-            <textarea className="field__input aia__text" value={text} onChange={(e) => setText(e.target.value)} placeholder="LinkedIn and X only show profiles to signed-in members, so paste your About, Experience or a few posts here." />
+            <span className="field__label">Text from LinkedIn or X <em className="field__opt">optional</em></span>
+            <textarea className="field__input aia__text" value={text} onChange={(e) => setText(e.target.value)} placeholder="LinkedIn and X only show profiles to signed-in members, so we can’t read them. Copy your About and Experience sections, or a few posts, and paste them here." />
           </label>
           <div className="aia__row">
-            <button type="button" className="app-btn app-btn--primary" disabled={busy || (!links.some((l) => l.trim()) && text.trim().length < 40)} onClick={readProfiles}>
+            <button type="button" className="app-btn app-btn--primary" disabled={busy || (!profileUrls(links).length && text.trim().length < 40)} onClick={readProfiles}>
               {busy ? <><span className="cz__spin" aria-hidden /> Reading your profiles…</> : 'Read my profiles'}
             </button>
             <small className="aia__cost">15 AI units{busy ? ' · this can take up to a minute' : ''}</small>
@@ -360,6 +351,87 @@ function CvCheck({ project, onApply }) {
       )}
       {showOk && <ul className="cvchk__list">{good.map((c) => <li key={c.id} className="is-ok"><span className="cvchk__tag">Good</span><div><b>{c.title}</b></div></li>)}</ul>}
       <small className="aia__note">Tip: “Tailor to a job” rewrites your bullets to this standard for a specific role. Export as PDF from the editor: it’s text-based, as screening systems need.</small>
+    </div>
+  );
+}
+
+
+/* ---------- Profile links: GitHub always, then "+ Add profile" for the others ---------- */
+
+const PLATFORMS = [
+  { id: 'github', label: 'GitHub', prefix: 'github.com/', placeholder: 'yourname', hint: 'Repositories and READMEs' },
+  { id: 'gitlab', label: 'GitLab', prefix: 'gitlab.com/', placeholder: 'yourname', hint: 'Projects and READMEs' },
+  { id: 'stackoverflow', label: 'Stack Overflow', prefix: 'stackoverflow.com/users/', placeholder: '1234567/yourname', hint: 'Top tags and best answers. Copy the link from your profile page.' },
+  { id: 'huggingface', label: 'Hugging Face', prefix: 'huggingface.co/', placeholder: 'yourname', hint: 'Models, datasets and Spaces' },
+  { id: 'orcid', label: 'ORCID', prefix: 'orcid.org/', placeholder: '0000-0002-1825-0097', hint: 'Employment, education, publications and awards' },
+  { id: 'credly', label: 'Credly', prefix: 'credly.com/users/', placeholder: 'your-name', hint: 'Verified certifications. Your profile must be public.' },
+  { id: 'medium', label: 'Medium', prefix: 'medium.com/@', placeholder: 'yourname', hint: 'Your articles and topics' },
+  { id: 'devto', label: 'Dev.to', prefix: 'dev.to/', placeholder: 'yourname', hint: 'Your articles and tags' },
+  { id: 'hashnode', label: 'Hashnode', prefix: '', placeholder: 'yourname.hashnode.dev', hint: 'Your blog’s address' },
+  { id: 'website', label: 'Website', prefix: '', placeholder: 'yoursite.com', hint: 'Your personal site or blog', many: true },
+];
+const BY_ID = Object.fromEntries(PLATFORMS.map((x) => [x.id, x]));
+const START_LINKS = [{ key: 'github', platform: 'github', value: '' }];
+const MAX_PROFILE_LINKS = 5;
+
+/** The full link for a row: people can type a username, or paste the whole link. */
+function toUrl({ platform, value }) {
+  const v = String(value || '').trim().replace(/^@(?=\w)/, '');
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;
+  const x = BY_ID[platform];
+  const host = x?.prefix.split('/')[0];
+  if (!x?.prefix || (host && v.toLowerCase().replace(/^www\./, '').startsWith(host))) return `https://${v}`;
+  return `https://${x.prefix}${v}`;
+}
+export const profileUrls = (rows) => rows.map(toUrl).filter(Boolean);
+
+function ProfileLinks({ rows, onChange }) {
+  const [menu, setMenu] = useState(false);
+  const available = PLATFORMS.filter((x) => x.many || !rows.some((r) => r.platform === x.id));
+  const add = (id) => {
+    onChange([...rows, { key: `${id}-${Date.now()}`, platform: id, value: '', fresh: true }]);
+    setMenu(false);
+  };
+  const set = (key, value) => onChange(rows.map((r) => (r.key === key
+    // The prefix already shows "@" for Medium: don't let people type a second one.
+    ? { ...r, value: r.platform === 'medium' ? value.replace(/^@+/, '') : value, fresh: false } : r)));
+  const remove = (key) => onChange(rows.filter((r) => r.key !== key));
+  return (
+    <div className="plinks">
+      {rows.map((r) => {
+        const x = BY_ID[r.platform];
+        return (
+          <div key={r.key} className="plinks__row">
+            <label className="plinks__field">
+              <span className="plinks__name">{x.label}</span>
+              <span className="plinks__input">
+                {x.prefix && <span className="plinks__prefix" aria-hidden>{x.prefix}</span>}
+                <input value={r.value} onChange={(e) => set(r.key, e.target.value)} placeholder={x.placeholder} inputMode="url"
+                  aria-label={`Your ${x.label} ${x.prefix ? 'username or link' : 'address'}`} autoFocus={r.fresh} spellCheck={false} />
+              </span>
+              <small>{x.hint}</small>
+            </label>
+            {r.platform !== 'github' && (
+              <button type="button" className="plinks__remove" onClick={() => remove(r.key)} aria-label={`Remove ${x.label}`}>✕</button>
+            )}
+          </div>
+        );
+      })}
+      {rows.length < MAX_PROFILE_LINKS && available.length > 0 && (
+        <div className="plinks__add">
+          <button type="button" className="aia__add" aria-expanded={menu} onClick={() => setMenu(!menu)}>+ Add profile</button>
+          {menu && (
+            <div className="plinks__menu" role="menu">
+              {available.map((x) => (
+                <button key={x.id} type="button" role="menuitem" onClick={() => add(x.id)}>
+                  <b>{x.label}</b><span>{x.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

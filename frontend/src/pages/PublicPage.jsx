@@ -67,7 +67,7 @@ export default function PublicPage() {
 
   let body;
   if (p.type === 'case' && CASE_TEMPLATES[p.template]) {
-    body = <CasePreview template={p.template} data={{ ...projectToCase(p), ghost: false }} />;
+    body = <CasePreview template={p.template} data={{ ...projectToCase(p), ghost: false }} meta />;
   } else if (p.type === 'cv' && CV_TEMPLATES[p.template]) {
     const data = { ...projectToCv(p), ghost: false };
     body = (

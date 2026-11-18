@@ -3,6 +3,7 @@ import { Chronicle, Snapshot, Blueprint, Spotlight, Framework, Lab, Showcase, Im
 import { Depth } from './Depth.jsx';
 import { CASE_SAMPLES } from './data.js';
 import { brandProps } from '../sites/brand.js';
+import { CaseMeta } from './extras.jsx';
 import { StaticSite } from '../sites/shared.jsx';
 
 export const CASE_NICHES = [
@@ -33,11 +34,12 @@ export const CASE_TEMPLATES = {
 export const caseNicheLabels = (ids = []) => ids.map((id) => CASE_NICHES.find((n) => n.id === id)?.label).filter(Boolean);
 
 /** Render a case study template with the user's branding layered on top. */
-export function CasePreview({ template, data }) {
+export function CasePreview({ template, data, meta = false }) {
   const T = (CASE_TEMPLATES[template] || CASE_TEMPLATES.chronicle).Component;
   const b = data?.brand || {};
   return (
     <div key={`${b.motion || 'none'}-${b.speed || 'normal'}-${b.replay || 0}`} {...brandProps(b)}>
+      {meta && <CaseMeta data={data} />}
       <T data={data} />
     </div>
   );

@@ -66,6 +66,7 @@ AI_COSTS = {
     "customize": 5,                   # improve content ("Describe a change")
     "assist_profiles": 15,            # read someone's public profiles to shape a CV or portfolio
     "assist_tailor_cv": 20,           # advanced workflow: tailor a CV to a job advert
+    "assist_case_links": 15,          # write a case study from project links (repo, Figma, site)
 }
 # AI features that need at least this plan, whatever units are left.
 AI_MIN_PLAN = {"assist_tailor_cv": "pro"}  # "Advanced CV tailoring" is part of Pro and Premium

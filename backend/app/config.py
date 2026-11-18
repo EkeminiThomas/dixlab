@@ -20,6 +20,9 @@ DB_PATH = _path("DIXLAB_DB", BASE_DIR / "data" / "dixlab.db")
 # the file above, so it survives restarts and redeploys on hosts without a disk.
 TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL", "").strip()   # libsql://<db>-<org>.turso.io
 TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN", "").strip()
+# Optional GitHub token (no scopes needed: public data only). Without it GitHub allows this
+# server 60 requests an hour, and reading one profile or repository takes 5-8.
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 UPLOAD_DIR = _path("DIXLAB_UPLOADS", BASE_DIR / "uploads")
 CORS_ORIGINS = [o.strip() for o in os.getenv(
     "DIXLAB_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173"

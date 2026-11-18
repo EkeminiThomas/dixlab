@@ -74,6 +74,17 @@ CREATE TABLE IF NOT EXISTS page_views_daily (
     PRIMARY KEY (slug, day)
 );
 CREATE INDEX IF NOT EXISTS idx_views_day ON page_views_daily(day);
+-- What visitors do on a published page, counted per day (no cookies, IPs or personal data):
+-- kind 'ref' (where they came from: linkedin, google, x, github, direct, other), 'open' (a project
+-- they opened, by title), 'depth' (how far they scrolled: 25/50/75/100), 'action' (cv, book, contact).
+CREATE TABLE IF NOT EXISTS page_events (
+    slug  TEXT NOT NULL,
+    day   TEXT NOT NULL,
+    kind  TEXT NOT NULL,
+    key   TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (slug, day, kind, key)
+);
 CREATE TABLE IF NOT EXISTS email_tokens (
     token_hash TEXT PRIMARY KEY,           -- sha256 of the token in the emailed link
     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

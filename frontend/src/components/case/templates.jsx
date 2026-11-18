@@ -8,6 +8,7 @@ import { useContext } from 'react';
 import { cs } from './data.js';
 import { hash, StaticSite } from '../sites/shared.jsx';
 import { fileExt, fileSize } from '../media.js';
+import { BeforeAfter, CountUp, Embeds } from './extras.jsx';
 
 const BADGE = { pdf: 'PDF', docx: 'DOC', pptx: 'PPT', xlsx: 'XLS' };
 
@@ -54,7 +55,7 @@ const Facts = ({ d, className = '' }) => d.facts.length > 0 && (
 
 const Metrics = ({ d, className = '' }) => d.metrics.length > 0 && (
   <ul className={`cs-metrics ${d.ghost.metrics ? 'is-ghost' : ''} ${className}`}>
-    {d.metrics.map((m, i) => <li key={i}><b>{m.value}</b><span>{m.label}</span></li>)}
+    {d.metrics.map((m, i) => <li key={i}><b><CountUp value={m.value} /></b><span>{m.label}</span></li>)}
   </ul>
 );
 
@@ -90,10 +91,16 @@ const More = ({ d }) => (
 
 const Gallery = ({ d, className = '', ratio = '4 / 3', min = 0 }) => {
   const items = d.gallery.length ? d.gallery : Array.from({ length: min }, () => null);
-  return items.length > 0 && (
-    <div className={`cs-gallery ${className}`}>
-      {items.map((g, i) => <Visual key={i} img={g} seed={d.title} i={i + 1} ratio={ratio} />)}
-    </div>
+  return (
+    <>
+      {d.compare && <BeforeAfter compare={d.compare} />}
+      {d.embeds?.length > 0 && <Embeds items={d.embeds} />}
+      {items.length > 0 && (
+        <div className={`cs-gallery ${className}`}>
+          {items.map((g, i) => <Visual key={i} img={g} seed={d.title} i={i + 1} ratio={ratio} />)}
+        </div>
+      )}
+    </>
   );
 };
 

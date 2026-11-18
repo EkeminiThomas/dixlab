@@ -178,6 +178,7 @@ export function projectToCase(p) {
     research: p.research, process: p.process || [], contribution: p.contribution, tradeoffs: p.tradeoffs, solution: p.solution, metrics: p.metrics || [],
     quote: p.quote, quoteBy: p.quoteBy, learned: p.learned, next: p.next, link: p.link,
     cover: p.cover || null, gallery: p.gallery || [], files: p.files || [], brand: p.brand || {}, ghost: true,
+    embeds: p.embeds || [], compare: p.compare || null,
   };
 }
 
@@ -214,6 +215,8 @@ export function cs(data = {}) {
     cover: data.cover?.src ? data.cover : null,
     gallery: (data.gallery || []).filter((g) => g.src),
     files: (data.files || []).filter((f) => f.src),
+    embeds: (data.embeds || []).filter((e) => e && String(e.url || '').trim()),
+    compare: data.compare?.before?.src && data.compare?.after?.src ? data.compare : null,
   };
   out.ghost = ghost;
   out.facts = [['Client', out.client], ['Role', out.role], ['Timeline', out.timeline], ['Team', out.team], ['Industry', out.industry]].filter(([, v]) => v);

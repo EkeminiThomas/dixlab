@@ -26,8 +26,10 @@ import httpx
 MAX_BYTES = 1_500_000
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
 MAX_REDIRECTS = 3
-USER_AGENT = "DixlabBot/1.0 (reads a page a Dixlab user pasted)"
-TEXT_TYPES = ("text/html", "text/plain", "application/xhtml+xml", "application/json")
+USER_AGENT = "DixlabBot/1.0"  # short: some sites (e.g. Dev.to) refuse longer bot names
+TEXT_TYPES = ("text/html", "text/plain", "application/xhtml+xml", "application/json",
+              "application/rss+xml", "application/atom+xml", "application/xml", "text/xml",
+              "application/vnd.github")  # GitHub serves READMEs as application/vnd.github.raw
 
 
 class Unreadable(Exception):
@@ -72,6 +74,10 @@ def check_url(url: str) -> str:
 def fetch(url: str, accept: str = "text/html,text/plain;q=0.9,*/*;q=0.1") -> tuple[str, str]:
     """(text, content type) of a public page, following a few checked redirects."""
     headers = {"User-Agent": USER_AGENT, "Accept": accept}
+    from . import config
+    if config.GITHUB_TOKEN and urlsplit(url).hostname == "api.github.com":
+        # Optional: raises GitHub's limit from 60 to 5,000 requests an hour for this server.
+        headers["Authorization"] = f"Bearer {config.GITHUB_TOKEN}"
     with httpx.Client(timeout=TIMEOUT, follow_redirects=False, trust_env=False) as client:
         for _ in range(MAX_REDIRECTS + 1):
             check_url(url)
@@ -204,42 +210,35 @@ def github_text(user: str, limit: int) -> str:
 # ---------------------------------------------------------------- what the routes use
 
 def platform(url: str) -> str:
-    host = (urlsplit(url).hostname or "").lower().removeprefix("www.")
-    if host.endswith("linkedin.com"):
-        return "linkedin"
-    if host in ("x.com", "twitter.com", "mobile.twitter.com"):
-        return "x"
-    if host == "github.com":
-        return "github"
-    return "web"
-
-
-# What to tell people when a page can't be read.
-TIPS = {
-    "linkedin": "LinkedIn only shows profiles to signed-in members, so it can’t be read. Open your profile, "
-                "copy the About and Experience sections and paste them in the text box instead.",
-    "x": "X only shows posts to signed-in members, so it can’t be read. Paste your bio and a few posts you’re proud of instead.",
-    "github": "Check the username is right and the profile is public.",
-    "web": "The page may need a login, or build itself with JavaScript. Paste the text instead.",
-}
+    from . import profile_readers
+    return profile_readers.platform(url)
 
 
 def gather(urls: list[str], budget: int = 10000) -> tuple[str, list[dict]]:
-    """Read each link. Returns (all the text, one {url, platform, read, tip} per link)."""
+    """Read each link (GitHub, GitLab, Stack Overflow, Hugging Face, ORCID, Credly, Medium,
+    Dev.to, Hashnode, any public page). Returns (all the text, one {url, platform, read, tip} per link)."""
+    from . import profile_readers
     if not urls:
         return "", []
     each = max(2000, budget // len(urls))
-    parts, sources = [], []
-    for url in urls:
-        p = platform(url)
+
+    def one(url):
+        p = profile_readers.platform(url)
         try:
-            if p in ("linkedin", "x"):
-                raise Unreadable(TIPS[p])  # login walls: don't even try
-            m = GITHUB_USER.match(url)
-            text = github_text(m.group(1), each) if m else page_text(url, each)
+            return p, profile_readers.read(url, each), None
+        except Unreadable as e:
+            return p, None, str(e).strip()
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(5, len(urls))) as pool:  # read every link at once, in the given order
+        results = list(pool.map(one, urls))
+    parts, sources = [], []
+    for url, (p, text, reason) in zip(urls, results):
+        if text is not None:
             parts.append(f"=== {url}\n{text}")
             sources.append({"url": url, "platform": p, "read": True, "tip": None})
-        except Unreadable as e:
-            tip = TIPS[p] if p in ("linkedin", "x", "github") else f"{e} {TIPS['web']}".strip()
-            sources.append({"url": url, "platform": p, "read": False, "tip": tip})
+        else:
+            tip = profile_readers.TIPS.get(p, profile_readers.TIPS["web"])
+            sources.append({"url": url, "platform": p, "read": False,
+                            "tip": tip if p in ("linkedin", "x") or reason == tip else f"{reason} {tip}".strip()})
     return "\n\n".join(parts), sources
