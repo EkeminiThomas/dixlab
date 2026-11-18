@@ -213,7 +213,7 @@ def test_bachs_checkout_webhooks_renewal_cancel_and_refund(monkeypatch):
     assert r.json()["url"].endswith(checkout_id)
     sent = calls[-1][2]
     assert sent["product_cart"] == [{"product_id": "prod_pro_m", "quantity": 1}] and sent["billing_currency"] == "USD"
-    assert sent["success_url"] == "https://dixlab.test/billing/callback" and sent["customer"]["email"] == "payer@example.com"
+    assert sent["success_url"] == f"https://dixlab.test/billing/callback/{sent['reference']}" and sent["customer"]["email"] == "payer@example.com"
     assert sent["metadata"] == {"user_id": uid, "plan": "pro", "interval": "monthly", "currency": "USD"}
     assert c.get("/api/billing/me", headers=h).json()["plan"] == "free"   # not paid yet
 
@@ -421,3 +421,43 @@ def test_coming_back_with_an_id_we_didnt_save_still_finds_the_payment(monkeypatc
     assert c.get("/api/billing/verify?checkout_id=cs_named_differently", headers=other).status_code == 404
     v = c.get("/api/billing/verify?checkout_id=cs_named_differently", headers=h).json()
     assert v["payment"] == "success" and v["billing"]["plan"] == "starter"
+
+
+def test_coming_back_through_our_own_return_link(monkeypatch):
+    """The return link carries Dixlab's reference, so the payment is found even if Bachs
+    adds no checkout id; Bachs replies wrapped in {"data": ...} are understood too."""
+    _plans_on(monkeypatch)
+    state = {}
+
+    def fake(method, path, body=None, idempotency_key=None):
+        if method == "POST" and path == "/v1/checkout-sessions":
+            state["ref"] = body["reference"]
+            state["success_url"] = body["success_url"]
+            return bachs_wrap({"checkout_id": "chk_wrapped", "checkout_url": "https://sandbox-checkout.bachs.io/c/w"})
+        if method == "GET" and path == "/v1/checkout-sessions/chk_wrapped":
+            return bachs_wrap(state.get("paid", {"checkout_id": "chk_wrapped", "status": "open"}))
+        return {}
+
+    def bachs_wrap(obj):  # what bachs._call returns after unwrapping {"data": obj}
+        return obj
+    monkeypatch.setattr(bachs, "_call", fake)
+    c = client(); h = sign_up(c, "own-link@example.com")
+    uid = _uid(c, h)
+    r = c.post("/api/billing/checkout", json={"plan": "pro", "interval": "monthly", "currency": "USD"}, headers=h).json()
+    ref = state["ref"]
+    assert state["success_url"].endswith(f"/billing/callback/{ref}") and r["checkoutId"] == "chk_wrapped"
+    # Back with no checkout id at all: known payment, not yet paid.
+    assert c.get(f"/api/billing/verify?ref={ref}", headers=h).json()["payment"] == "pending"
+    state["paid"] = {"checkout_id": "chk_wrapped", "reference": ref, "status": "completed", "payment_status": "succeeded",
+                     "amount": "7.99", "currency": "USD", "metadata": {"user_id": uid},
+                     "charge": {"payment_id": "pay_w", "status": "succeeded"}}
+    v = c.get(f"/api/billing/verify?ref={ref}&checkout_id=chk_wrapped", headers=h).json()
+    assert v["payment"] == "success" and v["billing"]["plan"] == "pro"
+    # Another account can't use someone's reference.
+    assert c.get(f"/api/billing/verify?ref={ref}", headers=sign_up(c, "nosy-ref@example.com")).status_code == 404
+
+
+def test_bachs_replies_wrapped_in_data_are_unwrapped(monkeypatch):
+    import httpx
+    monkeypatch.setattr(bachs.httpx, "request", lambda *a, **k: httpx.Response(200, json={"data": {"checkout_id": "chk_1", "status": "open"}}))
+    assert bachs._call("GET", "/v1/checkout-sessions/chk_1") == {"checkout_id": "chk_1", "status": "open"}

@@ -132,7 +132,8 @@ def checkout(body: CheckoutIn, user=Depends(current_user), db: sqlite3.Connectio
         data = bachs.create_checkout(
             currency=body.currency, product_id=product, amount_cents=None if product else config.PRICES[key],
             customer=customer, reference=reference,
-            success_url=f"{config.PUBLIC_URL}/billing/callback", cancel_url=f"{config.PUBLIC_URL}/pricing?checkout=cancelled",
+            # Our own reference in the path, so coming back always identifies the payment, whatever Bachs adds.
+            success_url=f"{config.PUBLIC_URL}/billing/callback/{reference}", cancel_url=f"{config.PUBLIC_URL}/pricing?checkout=cancelled",
             metadata={"user_id": user["id"], "plan": body.plan, "interval": body.interval, "currency": body.currency},
         )
     except bachs.BachsError as e:
@@ -157,9 +158,12 @@ def _claim_checkout(db, checkout_id: str, user_id: str):
         return None
     try:
         data = bachs.get_checkout(checkout_id)
-    except bachs.BachsError:
+    except bachs.BachsError as e:
+        log.warning("Couldn't look up checkout %s at Bachs: %s", checkout_id, e)
         return None
     meta = data.get("metadata") or {}
+    log.warning("Matching checkout %s from Bachs (fields: %s; reference=%s, metadata user matches: %s)", checkout_id,
+                ", ".join(sorted(data)), bool(data.get("reference") or meta.get("reference")), meta.get("user_id") == user_id)
     ref = data.get("reference") or meta.get("reference")
     row = db.execute("SELECT reference, user_id FROM payments WHERE reference = ?", (ref,)).fetchone() if ref else None
     if row and row["user_id"] != user_id:
@@ -177,10 +181,22 @@ def _claim_checkout(db, checkout_id: str, user_id: str):
 
 
 @router.get("/verify")
-def verify(checkout_id: str, user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
-    """Where Bachs sends the visitor back (?checkout_id=...): confirm it and switch the plan on."""
-    row = db.execute("SELECT status FROM payments WHERE checkout_ref = ? AND user_id = ?", (checkout_id, user["id"])).fetchone()
-    if not row:
+def verify(checkout_id: str = "", ref: str = "", user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
+    """Where Bachs sends the visitor back (/billing/callback/<ref>?checkout_id=...): confirm it and switch the plan on."""
+    row = None
+    if ref:
+        found = db.execute("SELECT status, checkout_ref FROM payments WHERE reference = ? AND user_id = ?", (ref, user["id"])).fetchone()
+        if found:
+            if checkout_id and not found["checkout_ref"]:
+                db.execute("UPDATE payments SET checkout_ref = ? WHERE reference = ?", (checkout_id, ref))
+            checkout_id = checkout_id or found["checkout_ref"] or ""
+            row = found
+    if not row and checkout_id:
+        row = db.execute("SELECT status FROM payments WHERE checkout_ref = ? AND user_id = ?", (checkout_id, user["id"])).fetchone()
+    if row and not checkout_id:
+        # We know the payment but not Bachs's id yet: the webhook will confirm it (it matches by our reference).
+        return {"payment": "success" if row["status"] == "success" else "pending", "billing": summary(db, user["id"])}
+    if not row and checkout_id:
         # Not saved under this id (or saved under another name): ask Bachs for the checkout and match it
         # by our own reference or the account it was made for, then carry on as normal.
         row = _claim_checkout(db, checkout_id, user["id"])
@@ -200,6 +216,9 @@ def verify(checkout_id: str, user=Depends(current_user), db: sqlite3.Connection 
         elif data.get("status") in ("expired", "cancelled") or (data.get("charge") or {}).get("status") == "failed":
             db.execute("UPDATE payments SET status = 'failed' WHERE checkout_ref = ?", (checkout_id,))
             payment = "failed"
+        else:
+            log.warning("Checkout %s isn't confirmed yet: status=%s payment_status=%s charge=%s (fields: %s)", checkout_id,
+                        data.get("status"), data.get("payment_status"), (data.get("charge") or {}).get("status"), ", ".join(sorted(data)))
     elif row["status"] == "failed":
         payment = "failed"
     return {"payment": payment, "billing": summary(db, user["id"])}

@@ -65,6 +65,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/billing/callback" element={<BillingCallback />} />
+        <Route path="/billing/callback/:ref" element={<BillingCallback />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/login" element={<LogIn />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

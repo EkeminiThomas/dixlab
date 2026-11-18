@@ -72,6 +72,8 @@ def _call(method: str, path: str, body: dict | None = None, idempotency_key: str
     if res.status_code >= 400:
         log.warning("Bachs refused %s %s: %s %s", method, path, res.status_code, str(data.get("detail") or data.get("message") or "")[:200])
         raise BachsError(data.get("detail") if isinstance(data.get("detail"), str) else f"Bachs returned an error ({res.status_code}).")
+    if isinstance(data, dict) and isinstance(data.get("data"), dict) and not ({"checkout_id", "id", "status"} & set(data)):
+        data = data["data"]  # some replies wrap the object: {"data": {...}}
     return data if isinstance(data, dict) else {}
 
 

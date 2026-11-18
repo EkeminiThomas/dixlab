@@ -192,8 +192,8 @@ export async function checkout(planId, interval, currency = getCurrency()) {
   return res;
 }
 /** After Bachs's checkout (?checkout_id=...): confirm it and switch the plan on. */
-export const verifyPayment = (checkoutId) =>
-  request(`/api/billing/verify?checkout_id=${encodeURIComponent(checkoutId)}`).then((r) => { setPlan(r.billing); return r; });
+export const verifyPayment = (checkoutId, ref = '') =>
+  request(`/api/billing/verify?checkout_id=${encodeURIComponent(checkoutId || '')}&ref=${encodeURIComponent(ref || '')}`).then((r) => { setPlan(r.billing); return r; });
 export const cancelPlan = () => request('/api/billing/cancel', { method: 'POST' }).then(setPlan);
 export const requestRefund = (reference) => request('/api/billing/refund', { method: 'POST', body: { reference } }).then(setPlan);
 export async function manageCard() {

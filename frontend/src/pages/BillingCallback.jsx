@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { Logo, loadUser } from '../components/ui.jsx';
 import { isSignedIn, verifyPayment, homeFor } from '../api.js';
 
@@ -10,7 +10,10 @@ import { isSignedIn, verifyPayment, homeFor } from '../api.js';
  */
 export default function BillingCallback() {
   const [params] = useSearchParams();
-  const reference = params.get('checkout_id') || '';
+  const { ref = '' } = useParams(); // Dixlab's own payment reference, in the return link
+  // Bachs's checkout id, under whichever name it uses.
+  const checkoutId = ['checkout_id', 'checkoutId', 'checkout_session_id', 'session_id', 'id'].map((k) => params.get(k)).find(Boolean) || '';
+  const reference = ref || checkoutId;
   const [state, setState] = useState({ status: 'checking' });
 
   useEffect(() => {
@@ -21,7 +24,7 @@ export default function BillingCallback() {
     const check = async () => {
       tries += 1;
       try {
-        const r = await verifyPayment(reference);
+        const r = await verifyPayment(checkoutId, ref);
         if (stopped) return;
         if (r.payment === 'success') return setState({ status: 'success', plan: r.billing });
         if (['failed', 'abandoned', 'reversed'].includes(r.payment)) return setState({ status: 'failed' });
@@ -35,7 +38,7 @@ export default function BillingCallback() {
     return () => { stopped = true; clearTimeout(timer); };
   }, [reference]);
 
-  if (!isSignedIn()) return <Navigate to={`/login?next=${encodeURIComponent(`/billing/callback?checkout_id=${reference}`)}`} replace />;
+  if (!isSignedIn()) return <Navigate to={`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`} replace />;
   const home = homeFor(loadUser());
   const until = state.plan?.periodEnd && new Date(state.plan.periodEnd).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
 
