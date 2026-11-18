@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { admin } from '../../api.js';
-import { Panel, Pager, Status, useLoad, ConfirmAction, fmt, ago, KIND } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { Panel, Pager, Status, useLoad, ConfirmAction, fmt, ago, KIND } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 const KINDS = [['all', 'All'], ['portfolio', 'Portfolios'], ['cv', 'CVs'], ['case', 'Case studies']];

@@ -8,7 +8,7 @@
 
 Logging in then needs `code` as well (see auth.log_in). Recovery codes are
 shown once, stored only as hashes, and each works once. Someone who loses
-both can be reset from the server: python -m app.admin_cli reset-2fa <email>."""
+both can be reset from the server: python -m app.admin reset-2fa <email>."""
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -24,6 +24,9 @@ router = APIRouter(prefix="/api/auth/2fa", tags=["account"])
 wrong_code = Limiter("two_factor_user", 5, 15 * 60)  # wrong codes per account
 TOO_MANY_CODES = "Too many wrong codes. Please wait 15 minutes and try again."
 WRONG_CODE = "That code isn’t right. Check your authenticator app and try again."
+# While turning it on: the usual causes are an old Dixlab entry in the app, or the phone's clock.
+WRONG_SETUP_CODE = ("That code isn’t right. Use the newest Dixlab entry in your authenticator app (delete older ones), "
+                    "type the code before it changes, and check your phone sets its time automatically.")
 
 
 def verify_second_factor(db: sqlite3.Connection, user_id: str, code: str) -> bool:
@@ -89,8 +92,12 @@ def setup(body: PasswordIn, user=Depends(current_user), db: sqlite3.Connection =
     if user["two_factor"]:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Two-step login is already on.")
     _check_password(db, user["id"], body.password, "That password isn’t right.")
-    secret = totp.new_secret()
-    db.execute("UPDATE users SET totp_pending = ? WHERE id = ?", (secret, user["id"]))
+    # Starting again before finishing keeps the same secret, so a QR code scanned on
+    # an earlier try still works (a new one each time left people with stale entries).
+    secret = db.execute("SELECT totp_pending FROM users WHERE id = ?", (user["id"],)).fetchone()["totp_pending"]
+    if not secret:
+        secret = totp.new_secret()
+        db.execute("UPDATE users SET totp_pending = ? WHERE id = ?", (secret, user["id"]))
     return {"secret": secret, "otpauthUrl": totp.otpauth_url(secret, user["email"])}
 
 
@@ -106,7 +113,7 @@ def enable(body: CodeIn, request: Request, user=Depends(current_user), db: sqlit
     step = totp.verify(pending, body.code)
     if step is None:
         wrong_code.hit(user["id"])
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, WRONG_CODE)
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, WRONG_SETUP_CODE)
     wrong_code.reset(user["id"])
     db.execute("UPDATE users SET totp_secret = ?, totp_pending = NULL, totp_enabled_at = ?, totp_last_step = ? WHERE id = ?",
                (pending, now_ms(), step, user["id"]))

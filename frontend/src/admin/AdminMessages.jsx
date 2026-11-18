@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { admin } from '../../api.js';
-import { Panel, Pager, Status, useLoad, ConfirmAction, fmt, ago } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { Panel, Pager, Status, useLoad, ConfirmAction, fmt, ago } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 /**

@@ -1,5 +1,5 @@
 """Admin dashboard API. Everything here needs an admin account (see
-app.admin_cli). Admins see accounts, activity and content metadata;
+app.admin.cli). Admins see accounts, activity and content metadata;
 private things stay private: no passwords, no session tokens, and no
 contents of the messages visitors send to portfolio owners."""
 import csv
@@ -20,8 +20,9 @@ from pydantic import BaseModel, Field
 from .. import accounts, ai, events, mailer
 from ..config import DB_PATH, UPLOAD_DIR
 from ..db import get_db
-from ..security import now_ms, require_admin
-from .projects import UPLOAD_RE
+from ..security import now_ms
+from .access import require_admin
+from ..routers.projects import UPLOAD_RE
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 

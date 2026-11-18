@@ -228,7 +228,7 @@ export function useLoad(fn, deps) {
     let live = true;
     setState((s) => ({ ...s, loading: true, error: '' }));
     fn().then((data) => live && setState({ data }))
-      .catch((e) => live && setState({ error: e.offline ? 'Can’t reach the Dixlab server.' : e.message }));
+      .catch((e) => live && setState({ error: e.offline ? 'Can’t reach the Dixlab server.' : e.message, code: e.body?.detail?.code }));
     return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, tick]);
@@ -236,6 +236,16 @@ export function useLoad(fn, deps) {
 }
 
 export function Status({ state, children }) {
+  // Admins without two-step login: send them to where it's turned on, not round in circles.
+  if (state.code === 'admin_needs_2fa') {
+    return (
+      <div className="adm-msg adm-msg--bad adm-msg--2fa" role="alert">
+        <span>{state.error}</span>
+        <Link to="/account#security" className="app-btn app-btn--primary">Turn on two-step login →</Link>
+        <button type="button" className="adm-link" onClick={state.reload}>I’ve turned it on</button>
+      </div>
+    );
+  }
   if (state.error) return <div className="adm-msg adm-msg--bad" role="alert">{state.error}<button type="button" className="adm-link" onClick={state.reload}>Try again</button></div>;
   if (!state.data) return <div className="adm-msg"><span className="cz__spin" aria-label="Loading" /></div>;
   return children(state.data);

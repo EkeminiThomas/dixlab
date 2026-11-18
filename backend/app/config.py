@@ -54,7 +54,7 @@ SENDLIBERTY_FROM = os.getenv("SENDLIBERTY_FROM", "").strip()      # the connecte
 SENDLIBERTY_URL = os.getenv("SENDLIBERTY_URL", "https://sendliberty.com/api/send").strip()
 CONTACT_PER_10_MIN = int(os.getenv("DIXLAB_CONTACT_PER_10_MIN", "5"))  # per visitor, per page
 
-# Admins are granted from the terminal (python -m app.admin_cli grant <email>)
+# Admins are granted from the terminal (python -m app.admin grant <email>)
 # or by another admin. DIXLAB_ADMIN_EMAILS is no longer used: emails aren't
 # verified, so anyone could have signed up first with a listed address.
 LEGACY_ADMIN_EMAILS = bool(os.getenv("DIXLAB_ADMIN_EMAILS", "").strip())

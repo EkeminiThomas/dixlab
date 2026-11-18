@@ -1,5 +1,5 @@
-import { admin } from '../../api.js';
-import { Kpi, Panel, EventRow, Status, useLoad, fmt, bytes } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { Kpi, Panel, EventRow, Status, useLoad, fmt, bytes } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 const uptime = (s) => (s >= 86400 ? `${Math.floor(s / 86400)}d ${Math.floor((s % 86400) / 3600)}h` : s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m` : `${Math.floor(s / 60)}m`);

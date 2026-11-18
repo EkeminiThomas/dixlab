@@ -1,20 +1,122 @@
-# Admin dashboard: what was built and why
+# Admin dashboard: setting up your admin login, and what's inside
 
 The admin dashboard lives at **`/admin`**. It is where the people who run Dixlab watch the product grow, see what users are doing, and handle problems, all without touching the database.
 
-## Getting in
+**Where the admin code lives:**
+- **Backend:** `backend/app/admin/`
+  - `routes.py`: the admin API
+  - `access.py`: who is an admin, and the check on every admin request
+  - `cli.py`: the terminal command
+- **Website:** `frontend/src/admin/` (the pages, `kit.jsx` and `admin.css`)
+- **Tests:** `backend/tests/test_admin.py`
 
-1. Sign up in the app with your normal email and password.
-2. In a terminal, in the `backend` folder, run:
+---
+
+## Set up your admin login
+
+You become an admin in two steps: you **create a normal account on the website**, then you **grant it admin from the server's terminal**. You can't become an admin by signing up with a particular email, or from the website at all. Only someone with access to the server can make the first admin.
+
+### Before you start
+
+| You need | Why |
+|---|---|
+| **Email that actually sends** (SMTP or SendLiberty, see below) | New accounts must confirm their email with a 6-digit code before they can use the app. |
+| **An authenticator app** on your phone (Google Authenticator, Microsoft Authenticator, Authy, 1Password…) | On the live site, admins **must** use two-step login (`DIXLAB_ADMIN_REQUIRE_2FA` is on in production). |
+| **Access to the server's terminal** | The grant command runs where the database is. |
+
+### A. On your computer (for testing)
+
+1. **Start the backend and the website.**
+   ```powershell
+   cd "C:\Users\Thomas Ekemini\dixlab\backend"
+   .venv\Scripts\activate
+   uvicorn app.main:app --reload --port 8000
    ```
-   .venv\Scripts\python -m app.admin_cli grant you@example.com
+   In a second terminal:
+   ```powershell
+   cd "C:\Users\Thomas Ekemini\dixlab\frontend"
+   npm run dev
    ```
-   `... list` shows the current admins; `... revoke` removes one (never the last).
-3. Log in. Admins land straight on the admin dashboard. From there you can make other people admins from their user page.
+2. **Sign up** at http://localhost:5173/signup with the email you want as admin.
+3. **Confirm your email.** Type the 6-digit code from the email on the "Confirm your email" screen.
+   - No real email set up? Add `DIXLAB_MAIL_TO_LOG=true` and `DIXLAB_ENV=development` to `backend/.env` and restart the backend. The email, code included, is then printed in the backend terminal.
+4. **Grant admin.** In a terminal in the `backend` folder (venv active):
+   ```powershell
+   python -m app.admin grant you@example.com
+   ```
+   It replies `you@example.com is now an admin.` Check with `python -m app.admin list`.
+5. **Log out and log in again** at http://localhost:5173/login. Admins land on **`/admin`**. In the app, the sidebar also shows **Admin dashboard**.
 
-**Why the terminal, not a sign-up setting:** Dixlab doesn't verify email addresses, so an "admin email" setting would let whoever signs up first with that address become admin. Only someone with access to the server can run the command, and every grant is recorded in the activity log.
+Two-step login is optional on your computer, because `DIXLAB_ENV` isn't `production`. Turn it on anyway if you want to test it (step B4).
 
-**The server checks admin rights on every request.** Hiding the dashboard from regular users isn't the only protection, and a regular user who opens `/admin` sees "Admins only".
+### B. On the live site (Vercel + pxxl)
+
+The website on Vercel sends every `/api` request to the backend on pxxl (`dixlab.pxxl.click`), so **your admin account lives in the pxxl backend's database**.
+
+1. **Check the backend settings on pxxl.** `backend/.env` is never uploaded, so set these in pxxl's dashboard → Environment Variables:
+   ```
+   DIXLAB_ENV=production
+   DIXLAB_PUBLIC_URL=https://<your Vercel or custom domain>
+   DIXLAB_CORS_ORIGINS=https://<your Vercel or custom domain>
+   DIXLAB_TRUST_PROXY_HOPS=1
+   DIXLAB_MAIL_TO_LOG=false
+   # email, ONE of:
+   SMTP_HOST=smtp.gmail.com
+   SMTP_PORT=587
+   SMTP_USER=you@gmail.com
+   SMTP_PASSWORD=<16-character Google app password>
+   SMTP_FROM=Dixlab <you@gmail.com>
+   #   or
+   SENDLIBERTY_API_KEY=<key from sendliberty.com → Dashboard → API keys>
+   SENDLIBERTY_FROM=Dixlab <the Gmail you connected in SendLiberty>
+   ```
+   - Redeploy or restart after changing them; settings are only read at startup.
+   - **Make sure pxxl keeps the database between deploys:** add a persistent volume or disk for `/app/backend/data` (the database) and `/app/backend/uploads`. Without one, every redeploy wipes all accounts, including your admin role.
+2. **Sign up on the live site** (`https://<your site>/signup`) and **confirm your email** with the code.
+3. **Grant admin from pxxl's server terminal** (its shell or console for the backend service). The app's folder there is `/app/backend`:
+   ```sh
+   cd /app/backend
+   python -m app.admin grant you@example.com
+   python -m app.admin list
+   ```
+4. **Turn on two-step login. This is required for admins on the live site.**
+   1. Log in, then click your avatar at the bottom of the sidebar → **View profile** → **Two-step login**.
+   2. Scan the QR code with your authenticator app and type the 6-digit code it shows.
+   3. **Save the 10 recovery codes somewhere safe** (a password manager). Each one works once if you lose your phone.
+
+   Until this is on, `/admin` says *"Turn on two-step login in Your account before using the admin dashboard."*
+5. **Log in** at `https://<your site>/login`: email, password, then the code from your authenticator app. You land on **`/admin`**.
+
+### Admin commands
+
+Run these in the `backend` folder: on your computer with the venv active, or in `/app/backend` on the server.
+
+| Command | What it does |
+|---|---|
+| `python -m app.admin grant you@example.com` | Makes an existing account an admin. Sign up first. |
+| `python -m app.admin revoke them@example.com` | Removes admin. It refuses to remove the **last** admin, so you can't lock everyone out. |
+| `python -m app.admin list` | Shows every admin. |
+| `python -m app.admin reset-2fa them@example.com` | Turns off someone's two-step login and logs them out everywhere, for a lost phone and lost recovery codes. **Confirm who's asking first**, for example by a reply from that account's email. |
+| `python -m app.admin set-plan them@example.com premium` | Gives a plan by hand: `free`, `starter`, `pro`, `premium`, or `none` to remove it. Handy for testing or for team accounts. |
+
+Every one of these is recorded in the activity log, tagged as done from the terminal. The old form `python -m app.admin_cli …` no longer exists.
+
+**Adding teammates later:** once you're in, open **Users**, click the person, then click **Make admin**. They must already have an account, and on the live site they'll also need two-step login.
+
+### If something goes wrong
+
+| What you see | What it means / what to do |
+|---|---|
+| `No account with the email …` | Sign up on that site first. Each site (your computer, the live site) has its own accounts. Check the spelling. |
+| `/admin` says **"Admins only"** | The grant didn't reach this database. Did you run it on the right server? Run `python -m app.admin list` there, then log out and in again. |
+| `/admin` asks you to **turn on two-step login** | Expected on the live site: follow step B4. |
+| You keep landing on **"Confirm your email"** | Email isn't arriving. Check the backend log for `Couldn't send email…` or `SendLiberty refused…`, check spam, and check the email settings above. |
+| You lost your phone **and** your recovery codes | Run `python -m app.admin reset-2fa you@example.com` on the server, log in with your password, and set two-step login up again. |
+| Your admin role disappears after a deploy | The database isn't on a persistent volume, so it was recreated empty. Add the volume (step B1), then sign up and grant again. |
+
+**Why the terminal, not a sign-up setting:** an "admin email" setting would hand admin to whoever registers that address first. Only someone with access to the server can run the command, and every grant is recorded in the activity log. (The old `DIXLAB_ADMIN_EMAILS` setting is ignored, and the server warns if it's still set.)
+
+**The server checks admin rights on every request** (`require_admin` in `app/admin/access.py`). Hiding the dashboard from regular users isn't the only protection: a regular user who opens `/admin` sees "Admins only", and the admin API answers 403.
 
 ---
 
@@ -96,7 +198,7 @@ The admin dashboard lives at **`/admin`**. It is where the people who run Dixlab
 |---|---|
 | API status and uptime | The server is running, and how long since it last restarted |
 | Errors in the last 24 hours | Server errors, with each one's request path and status code. Full details stay in the server log. |
-| Services | Whether AI (Claude) is configured, with requests and failures in the last 24 hours. Whether email (SMTP) is on. How many admins there are. |
+| Services | Whether AI is configured, which provider and model (Groq or Claude), with requests and failures in the last 24 hours. Whether email (SMTP or SendLiberty) is on. How many admins there are. |
 | Database and upload sizes | How fast storage is growing |
 | Record counts | Rows in each table |
 | Versions | Python, FastAPI, SQLite, operating system |
@@ -125,7 +227,7 @@ These changes were needed to power the dashboard. Each one is small and also use
 
 ## Tested
 
-- **An automated backend test** (`test_admin_dashboard`, now 13 tests in total) covers:
+- **Automated backend tests** in `backend/tests/test_admin.py` (`test_admin_dashboard` and `test_admins_need_two_step_when_required`) cover:
   - Access: signed out → 401, regular user → 403.
   - The overview numbers and charts.
   - Search, the user page, CSV export, and messages showing no content.
@@ -133,6 +235,7 @@ These changes were needed to power the dashboard. Each one is small and also use
   - The "not yourself" rules, granting and removing admin, and takedown.
   - Cleaning up unused uploads, the activity log filter, and system health.
   - Deleting an account, including the email confirmation.
+  - Two-step login for admins: blocked without it, allowed with it, and `reset-2fa` from the terminal.
 - **In Chrome**, with six test users and real activity:
   - Every section loads with no errors.
   - Chart hover and the table view work.
@@ -143,7 +246,7 @@ These changes were needed to power the dashboard. Each one is small and also use
 ## Worth adding later
 
 - **Alerts:** a real-time "users online now" count, and an email to admins when errors spike.
-- **Money**, once custom domains or plans exist: revenue, paying users, cancellations.
+- **Money:** plans and payments exist now (Bachs), so revenue, paying users per plan and cancellations are the next charts to add.
 - **More detail on views:** where visitors come from and which countries. This needs a privacy-friendly analytics approach.
 - **Admin roles:** for example "support", who can view and suspend but not delete, once there's a team.
-- **On PostgreSQL** (needed for hosting on Pxxl): the dashboard's database queries are standard, but a few use SQLite-specific functions. The date and JSON functions will need small changes during that move.
+- **On PostgreSQL**, if you move off SQLite later: the dashboard's database queries are standard, but a few use SQLite-specific functions. The date and JSON functions will need small changes during that move. Until then, keep the SQLite file on a persistent volume.

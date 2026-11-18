@@ -1,8 +1,8 @@
 import { Suspense, useEffect } from 'react';
-import '../../admin.css';
+import './admin.css';
 import { Link, NavLink, Navigate, Outlet } from 'react-router-dom';
-import { Logo, useUser, initials } from '../../components/ui.jsx';
-import { isSignedIn, refreshUser } from '../../api.js';
+import { Logo, useUser, initials } from '../components/ui.jsx';
+import { isSignedIn, refreshUser } from '../api.js';
 
 const NAV = [
   ['/admin', 'Overview', true],

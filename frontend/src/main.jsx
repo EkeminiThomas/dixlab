@@ -30,15 +30,15 @@ import ResetPassword from './pages/ResetPassword.jsx';
 import VerifyEmail from './pages/VerifyEmail.jsx';
 import ConfirmEmail from './pages/ConfirmEmail.jsx';
 // The admin dashboard loads only when an admin opens it.
-const AdminLayout = lazy(() => import('./pages/admin/AdminLayout.jsx'));
-const AdminOverview = lazy(() => import('./pages/admin/Overview.jsx'));
-const AdminUsers = lazy(() => import('./pages/admin/Users.jsx'));
-const AdminUserDetail = lazy(() => import('./pages/admin/UserDetail.jsx'));
-const AdminPages = lazy(() => import('./pages/admin/Pages.jsx'));
-const AdminMessages = lazy(() => import('./pages/admin/AdminMessages.jsx'));
-const AdminStorage = lazy(() => import('./pages/admin/Storage.jsx'));
-const AdminActivity = lazy(() => import('./pages/admin/Activity.jsx'));
-const AdminSystem = lazy(() => import('./pages/admin/System.jsx'));
+const AdminLayout = lazy(() => import('./admin/AdminLayout.jsx'));
+const AdminOverview = lazy(() => import('./admin/Overview.jsx'));
+const AdminUsers = lazy(() => import('./admin/Users.jsx'));
+const AdminUserDetail = lazy(() => import('./admin/UserDetail.jsx'));
+const AdminPages = lazy(() => import('./admin/Pages.jsx'));
+const AdminMessages = lazy(() => import('./admin/AdminMessages.jsx'));
+const AdminStorage = lazy(() => import('./admin/Storage.jsx'));
+const AdminActivity = lazy(() => import('./admin/Activity.jsx'));
+const AdminSystem = lazy(() => import('./admin/System.jsx'));
 
 /** The app's own pages: an account that still has to confirm its email goes to "Confirm your email" first. */
 function RequireVerified() {

@@ -23,7 +23,8 @@ export default function ResetPassword() {
       await resetPassword(token, password);
       setDone(true);
     } catch (err) {
-      setError(err.offline ? 'Can’t reach the Dixlab server. Please try again.' : err.message);
+      setError(err.offline ? 'Can’t reach the Dixlab server. Please try again.'
+        : err.status === 422 ? 'This link is incomplete or damaged. Ask for a new one below.' : err.message);
       setBusy(false);
     }
   };

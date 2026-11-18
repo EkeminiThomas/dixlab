@@ -8,7 +8,8 @@ import uuid
 
 from test_api import client, sign_up  # sets up the test database and environment first
 
-from app import admin_cli, bachs, config as cfg, plans as plans_mod
+from app.admin import cli as admin_cli
+from app import bachs, config as cfg, plans as plans_mod
 from app.config import DB_PATH
 
 SECRET = "whsec_test_secret"

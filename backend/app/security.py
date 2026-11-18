@@ -13,7 +13,7 @@ import time
 
 from fastapi import Depends, Header, HTTPException, Request, Response, status
 
-from .config import ADMIN_REQUIRE_2FA, PRODUCTION, SESSION_DAYS, SESSION_IDLE_DAYS
+from .config import PRODUCTION, SESSION_DAYS, SESSION_IDLE_DAYS
 from .db import get_db
 from .ratelimit import is_https
 
@@ -119,11 +119,6 @@ SEEN_EVERY_MS = 5 * 60 * 1000  # how often "last active" is refreshed
 SUSPENDED = "This account is suspended. Contact support if you think this is a mistake."
 
 
-def is_admin(row) -> bool:
-    """Admins are flagged in the database (see app.admin_cli)."""
-    return bool(row["is_admin"])
-
-
 def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> dict:
     """Dependency: the signed-in user, or 401 (403 when suspended)."""
     row = _session_user(db, request_token(request))
@@ -139,7 +134,8 @@ def current_user(request: Request, db: sqlite3.Connection = Depends(get_db)) -> 
         # Commit now: otherwise the write lock is held for the whole request, and a slow
         # one (an AI call) blocks every other write, including its own usage count.
         db.commit()
-    return {"id": row["id"], "name": row["name"], "email": row["email"], "is_admin": is_admin(row),
+    return {"id": row["id"], "name": row["name"], "email": row["email"], "is_admin": bool(row["is_admin"]),  # admin rules: app/admin/access.py
+           
             "email_verified": row["email_verified_at"] is not None, "must_verify": must_verify(row), "created_at": row["created_at"],
             "two_factor": row["totp_enabled_at"] is not None}
 
@@ -164,17 +160,6 @@ def must_verify(row) -> bool:
     return bool(config.REQUIRE_VERIFIED_EMAIL and not verified and mailer.can_send())
 
 
-ADMIN_NEEDS_2FA = "Turn on two-step login in Your account before using the admin dashboard."
-
-
-def require_admin(user: dict = Depends(current_user)) -> dict:
-    """Dependency: the signed-in user, who must be an admin (else 403), and, when
-    DIXLAB_ADMIN_REQUIRE_2FA is on, must have two-step login turned on."""
-    if not user["is_admin"]:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Admins only.")
-    if ADMIN_REQUIRE_2FA and not user["two_factor"]:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, ADMIN_NEEDS_2FA)
-    return user
 
 
 def bearer_token(request: Request) -> str | None:

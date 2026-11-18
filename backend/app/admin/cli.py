@@ -1,19 +1,20 @@
 """Manage Dixlab admins from the server's terminal.
 
-    python -m app.admin_cli grant you@example.com
-    python -m app.admin_cli revoke someone@example.com
-    python -m app.admin_cli list
-    python -m app.admin_cli reset-2fa someone@example.com   (lost phone and recovery codes)
-    python -m app.admin_cli set-plan someone@example.com premium   (give a plan: free | starter | pro | premium | none)
+    python -m app.admin grant ekeminithomas37@mail.com
+    python -m app.admin revoke someone@example.com
+    python -m app.admin list
+    python -m app.admin reset-2fa someone@example.com   (lost phone and recovery codes)
+    python -m app.admin set-plan someone@example.com premium   (give a plan: free | starter | pro | premium | none)
 
 Admin rights only come from here (or from an existing admin in the dashboard),
-never from signing up with a particular email: Dixlab doesn't verify email
-addresses, so anyone could otherwise sign up first with an admin's address.
-The account must already exist (sign up in the app first)."""
+never from signing up with a particular email: a setting like that would hand
+admin to whoever registers that address first. Only someone with access to the
+server can run this. The account must already exist (sign up in the app first).
+Full guide: docs/admin/admin-dashboard.md"""
 import sys
 
-from . import events
-from .db import connect, init_db
+from .. import events
+from ..db import connect, init_db
 
 
 def main(argv: list[str]) -> int:
@@ -33,10 +34,10 @@ def main(argv: list[str]) -> int:
             print(f"No account with the email {email}. Sign up in the app first, then run this again.")
             return 1
         if argv[0] == "set-plan":
-            from .plans import PLANS
+            from ..plans import PLANS
             plan = argv[2].strip().lower()
             if plan not in (*PLANS, "none"):
-                print("Plan must be one of: free, pro, premium, none (none removes a plan you gave).")
+                print("Plan must be one of: free, starter, pro, premium, none (none removes a plan you gave).")
                 return 2
             db.execute("UPDATE users SET plan_override = ? WHERE id = ?", (None if plan == "none" else plan, row["id"]))
             events.log(db, "admin.set_plan", row["id"], None, plan=plan, via="terminal")

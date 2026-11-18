@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { admin } from '../../api.js';
-import { Panel, Pager, EventRow, Status, useLoad } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { Panel, Pager, EventRow, Status, useLoad } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 const GROUPS = [['', 'Everything'], ['user.', 'Accounts'], ['project.', 'Projects'], ['page.', 'Publishing'], ['ai.', 'AI'], ['upload.', 'Uploads'], ['contact.', 'Messages'], ['admin.', 'Admin actions'], ['error', 'Errors']];

@@ -12,12 +12,17 @@ import { AuthLayout } from './AuthAside.jsx';
  * Returns undefined while reading, '' if there wasn't one.
  */
 export function useLinkToken() {
-  const [token, setToken] = useState(undefined);
-  useEffect(() => {
+  // Read the token once, while the page first renders and before anything changes
+  // the address. (Reading it in an effect lost it in development: React runs effects
+  // twice there, and the second run found the address already cleaned.)
+  const [token] = useState(() => {
     const fromHash = new URLSearchParams(window.location.hash.slice(1)).get('token');
     const fromQuery = new URLSearchParams(window.location.search).get('token');
-    setToken(fromHash || fromQuery || '');
-    if (fromHash || fromQuery) window.history.replaceState(null, '', window.location.pathname);
+    return fromHash || fromQuery || '';
+  });
+  useEffect(() => {
+    // Then take it out of the address bar, so it isn't kept in history or shared by accident.
+    if (window.location.hash || window.location.search) window.history.replaceState(null, '', window.location.pathname);
   }, []);
   return token;
 }

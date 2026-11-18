@@ -158,7 +158,7 @@ MIGRATIONS = {
         "totp_pending": "TEXT",         # a secret being set up, not yet confirmed
         "totp_enabled_at": "INTEGER",
         "totp_last_step": "INTEGER",    # last 30-second step used, so a code works only once
-        "plan_override": "TEXT",        # a plan given by an admin (python -m app.admin_cli set-plan)
+        "plan_override": "TEXT",        # a plan given by an admin (python -m app.admin set-plan)
         "trial_used_at": "INTEGER",     # ms; one free trial per account
         "trial_ends_at": "INTEGER",     # ms
     },

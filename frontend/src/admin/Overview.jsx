@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { admin } from '../../api.js';
-import { Kpi, Panel, ColumnChart, BarList, EventRow, Status, useLoad, fmt, KIND } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { Kpi, Panel, ColumnChart, BarList, EventRow, Status, useLoad, fmt, KIND } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 const RANGES = [[7, '7 days'], [30, '30 days'], [90, '90 days']];

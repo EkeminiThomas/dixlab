@@ -15,7 +15,8 @@ from . import events
 from .db import init_db
 from .ratelimit import is_https
 from .security import CSRF_HEADER, SESSION_COOKIE
-from .routers import account, admin, assist, auth, billing, customize, interview, messages, projects, publish, twofactor, uploads
+from .admin import routes as admin
+from .routers import account, assist, auth, billing, customize, interview, messages, projects, publish, twofactor, uploads
 
 log = logging.getLogger("dixlab")
 
@@ -35,7 +36,7 @@ async def lifespan(_: FastAPI):
                     "Set real SMTP_* values, or comment them out (DIXLAB_MAIL_TO_LOG=true prints emails locally).", mailer.SMTP_HOST)
     if LEGACY_ADMIN_EMAILS:
         log.warning("DIXLAB_ADMIN_EMAILS is no longer used and grants nothing. "
-                    "Grant admin with: python -m app.admin_cli grant you@example.com")
+                    "Grant admin with: python -m app.admin grant you@example.com")
     yield
 
 

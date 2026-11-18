@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { admin } from '../../api.js';
-import { Kpi, Panel, BarList, Status, useLoad, ConfirmAction, fmt, bytes, ago } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { Kpi, Panel, BarList, Status, useLoad, ConfirmAction, fmt, bytes, ago } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 /** Uploaded images, videos and documents: what's using space, and cleanup. */

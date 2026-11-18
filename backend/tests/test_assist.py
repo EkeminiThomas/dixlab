@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 
 from test_api import client, sign_up  # sets up the test database and environment first
 
-from app import admin_cli, ai, config as cfg, plans as plans_mod, webread
+from app.admin import cli as admin_cli
+from app import ai, config as cfg, plans as plans_mod, webread
 from app.config import DB_PATH
 from app.routers import assist
 

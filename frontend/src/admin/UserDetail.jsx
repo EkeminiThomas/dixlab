@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { admin } from '../../api.js';
-import { useUser } from '../../components/ui.jsx';
-import { Kpi, Panel, EventRow, Status, useLoad, ConfirmAction, fmt, bytes, date, ago, KIND } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { useUser } from '../components/ui.jsx';
+import { Kpi, Panel, EventRow, Status, useLoad, ConfirmAction, fmt, bytes, date, ago, KIND } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 /** One account: what they've made, their activity, and account actions. */

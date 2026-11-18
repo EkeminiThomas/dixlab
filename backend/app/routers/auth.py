@@ -11,7 +11,8 @@ from ..config import LOGIN_ATTEMPTS_PER_IP, LOGIN_FAILS_PER_EMAIL, SIGNUPS_PER_I
 from ..ratelimit import Limiter, client_ip
 from ..db import get_db
 from ..security import (SUSPENDED, must_verify, _bearer, bearer_token, clear_session_cookie, create_session, current_user,
-                        delete_session, hash_password, is_admin, now_ms, set_session_cookie, verify_password)
+                        delete_session, hash_password, now_ms, set_session_cookie, verify_password)
+from ..admin.access import is_admin
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

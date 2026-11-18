@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { admin } from '../../api.js';
-import { Panel, Pager, Status, useLoad, fmt, ago, date } from '../../components/admin/kit.jsx';
+import { admin } from '../api.js';
+import { Panel, Pager, Status, useLoad, fmt, ago, date } from './kit.jsx';
 import { AdminHead } from './AdminLayout.jsx';
 
 const STATES = [['all', 'Everyone'], ['active', 'Active'], ['suspended', 'Suspended'], ['admins', 'Admins']];

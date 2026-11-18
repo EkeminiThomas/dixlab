@@ -181,3 +181,6 @@ a.adm-ev__who:hover { text-decoration: underline; }
   .adm-kpi { padding: 12px 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .adm * { transition: none !important; } }
+.adm-msg--2fa { flex-wrap: wrap; }
+.adm-msg--2fa > span { flex: 1 1 260px; }
+.adm-msg--2fa .app-btn { text-decoration: none; }
