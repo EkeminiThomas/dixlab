@@ -18,7 +18,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 
-from .. import ai, webread
+from .. import ai, cvstandard, webread
 from ..security import current_user
 
 router = APIRouter(prefix="/api/assist", tags=["assist"])
@@ -96,7 +96,7 @@ class TailorIn(BaseModel):
 
 class RoleBullets(BaseModel):
     index: int = Field(description="The role's position in the CV's experience list, starting at 0.")
-    bullets: list[str] = Field(description="The role's bullet points, rewritten and reordered for this job. Same facts, sharper wording; most relevant first.")
+    bullets: list[str] = Field(description="3 to 5 bullets for the role, rewritten and reordered for this job: outcome first (what was delivered, for whom, the impact), a number where the CV gives one, under 30 words, strong verb first. Same facts, sharper wording; most relevant first.")
 
 
 class TailoredCv(BaseModel):
@@ -104,7 +104,7 @@ class TailoredCv(BaseModel):
     company: str = Field(description='The employer from the advert, or "".')
     role: str = Field(description="The CV headline, tuned to this job but true to the person (e.g. their real title).")
     summary: str = Field(description="A new 2-4 sentence professional summary, first person implied, aimed at this job.")
-    skills: list[str] = Field(description="Their skills, most relevant to the job first. Only skills the CV already lists or clearly shows.")
+    skills: list[str] = Field(description="At most 15 of their skills, core skills most relevant to the job first. Only skills the CV already lists or clearly shows.")
     experience: list[RoleBullets] = Field(description="Rewritten bullets for each role that has content.")
     matched: list[str] = Field(description="Requirements from the advert the CV clearly meets, short phrases.")
     gaps: list[str] = Field(description="Requirements the CV doesn't show yet, each with a short tip on what to add if it's true. Never add these to the CV.")
@@ -151,7 +151,7 @@ class ProfileRole(BaseModel):
     start: str = Field(description='Start year or "".')
     end: str = Field(description='End year, "Present", or "".')
     location: str = Field(description='City or "".')
-    bullets: list[str] = Field(description="What they did there, strongest first. Only from the sources. Empty if unknown.")
+    bullets: list[str] = Field(description="3 to 5 bullets, strongest first: outcome first (what was delivered, for whom, the impact), a number where the sources give one, under 30 words, strong verb first. Only from the sources. Empty if unknown.")
 
 
 class ProfileEdu(BaseModel):
@@ -176,7 +176,7 @@ class ProfileDraft(BaseModel):
     role: str = Field(description="A headline: what they do, e.g. 'Full-stack developer'.")
     tagline: str = Field(description="For a portfolio: a short headline about what they build, at most two short lines.")
     summary: str = Field(description="2-4 sentences: what they do, what they build, and how they work. For a portfolio, first person.")
-    skills: list[str] = Field(description="Skills, languages and tools, most prominent first.")
+    skills: list[str] = Field(description="At most 15 skills, languages and tools: core ones they use most, first.")
     experience: list[ProfileRole] = Field(description="Roles, newest first. Empty if none in the sources.")
     education: list[ProfileEdu] = Field(description="Empty if none in the sources.")
     projects: list[ProfileProject] = Field(description="Their best 2-6 projects, strongest first.")
@@ -209,7 +209,8 @@ def from_profiles(body: ProfilesIn, user=Depends(current_user)):
     if not pages and len(pasted) < 40:  # nothing to go on: not charged
         return ai.error(422, "We couldn’t read any of those links. Paste the profile text instead.", sources=sources)
     content = (f"PROFILE PAGES\n{pages}\n\n" if pages else "") + (f"TEXT THE PERSON PASTED FROM THEIR PROFILES\n{pasted}" if pasted else "")
-    out, err = ai.parse(ProfileDraft, DRAFT_SYSTEM.format(kind=kind), content, max_tokens=6000, effort="medium")
+    system = DRAFT_SYSTEM.format(kind=kind) + (cvstandard.SEP + cvstandard.STANDARD if body.kind == "cv" else "")
+    out, err = ai.parse(ProfileDraft, system, content, max_tokens=6000, effort="medium")
     ai.track(user["id"], "assist_profiles", err)
     if err:
         return err
@@ -247,7 +248,7 @@ class JobCvDraft(BaseModel):
     name: str = Field(description='Their name if the sources show it, else "".')
     role: str = Field(description="A CV headline that is true to them and points at this job.")
     summary: str = Field(description="2-4 sentences aimed at this job, built only from their real background.")
-    skills: list[str] = Field(description="Their real skills, most relevant to this job first.")
+    skills: list[str] = Field(description="At most 15 of their real skills, core skills most relevant to this job first.")
     experience: list[ProfileRole] = Field(description="Their roles, newest first, bullets chosen and worded for this job. Empty if the sources have none.")
     education: list[ProfileEdu] = Field(description="Empty if none in the sources.")
     projects: list[ProfileProject] = Field(description="Their projects most relevant to this job, up to 4. Empty if none.")
@@ -301,7 +302,7 @@ def tailor_cv(body: TailorIn, user=Depends(current_user)):
     about = "\n\n".join(x for x in (profiles, pasted) if x)
 
     if building:
-        out, err = ai.parse(JobCvDraft, BUILD_SYSTEM, f"JOB ADVERT\n{job}\n\nABOUT THE PERSON\n{about}", max_tokens=6000, effort="medium")
+        out, err = ai.parse(JobCvDraft, BUILD_SYSTEM + cvstandard.SEP + cvstandard.STANDARD, f"JOB ADVERT\n{job}\n\nABOUT THE PERSON\n{about}", max_tokens=6000, effort="medium")
         ai.track(user["id"], "assist_tailor_cv", err)
         if err:
             return err
@@ -310,7 +311,7 @@ def tailor_cv(body: TailorIn, user=Depends(current_user)):
                 "matched": d["matched"], "gaps": d["gaps"], "sources": sources}
 
     content = f"JOB ADVERT\n{job}\n\nCV\n{_cv_text(body.cv)}" + (f"\n\nMORE ABOUT THE PERSON\n{about}" if about else "")
-    out, err = ai.parse(TailoredCv, TAILOR_SYSTEM, content, max_tokens=6000, effort="medium")
+    out, err = ai.parse(TailoredCv, TAILOR_SYSTEM + cvstandard.SEP + cvstandard.STANDARD, content, max_tokens=6000, effort="medium")
     ai.track(user["id"], "assist_tailor_cv", err)
     if err:
         return err
@@ -319,3 +320,18 @@ def tailor_cv(body: TailorIn, user=Depends(current_user)):
     d["experience"] = [{"index": e["index"], "desc": "\n".join(b.strip() for b in e["bullets"] if b.strip())}
                        for e in d["experience"] if 0 <= e["index"] < count]
     return {"tailored": d, "sources": sources}
+
+
+# ---------------------------------------------------------------- check a CV (no AI)
+
+class CheckIn(BaseModel):
+    cv: dict = Field(default_factory=dict)
+
+
+@router.post("/cv-check")
+def cv_check(body: CheckIn):
+    """Score a CV against the standard hiring platforms such as Mercor screen for.
+    No AI, no units, no account needed: it's instant and runs on the fields as they are."""
+    if len(str(body.cv)) > 60_000:
+        return ai.error(413, "That CV is too long to check.")
+    return cvstandard.check(body.cv)

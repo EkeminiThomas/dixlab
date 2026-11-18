@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { assistTailorCv, assistProfiles, isSignedIn, usePlan, PLAN_RANK } from '../api.js';
+import { useEffect, useState } from 'react';
+import { assistTailorCv, assistProfiles, cvCheck, isSignedIn, usePlan, PLAN_RANK } from '../api.js';
 
 /*
  * The editor's AI assistant.
@@ -120,7 +120,7 @@ export default function AiAssist({ kind, project, onApply }) {
       <button type="button" className="aia__open" onClick={() => setOpen(true)}>
         <span className="aia__spark" aria-hidden>✦</span>
         <span><b>{isCv ? 'Let AI shape your CV' : 'Let AI build your portfolio'}</b>
-          {isCv ? ' Tailor it to a job link, or build it from your GitHub, LinkedIn or X.' : ' From your GitHub, LinkedIn, X or website: your projects, how you work, what you build.'}</span>
+          {isCv ? ' Check it against the standard hiring platforms like Mercor screen for, tailor it to a job, or build it from your GitHub, LinkedIn or X.' : ' From your GitHub, LinkedIn, X or website: your projects, how you work, what you build.'}</span>
         <span aria-hidden>Open →</span>
       </button>
     );
@@ -137,10 +137,13 @@ export default function AiAssist({ kind, project, onApply }) {
         <div className="aia__tabs" role="tablist">
           <button role="tab" aria-selected={tab === 'job'} className={tab === 'job' ? 'is-on' : ''} onClick={() => { setTab('job'); setResult(null); setError(null); }}>Tailor to a job</button>
           <button role="tab" aria-selected={tab === 'profiles'} className={tab === 'profiles' ? 'is-on' : ''} onClick={() => { setTab('profiles'); setResult(null); setError(null); }}>From my profiles</button>
+          <button role="tab" aria-selected={tab === 'check'} className={tab === 'check' ? 'is-on' : ''} onClick={() => { setTab('check'); setResult(null); setError(null); }}>Check my CV</button>
         </div>
       )}
 
-      {!signedIn && <p className="aia__note">Log in to use the AI assistant.</p>}
+      {isCv && tab === 'check' && <CvCheck project={project} onApply={onApply} />}
+
+      {!signedIn && tab !== 'check' && <p className="aia__note">Log in to use the AI assistant.</p>}
 
       {signedIn && tab === 'job' && (
         <div className="aia__body">
@@ -298,5 +301,65 @@ export default function AiAssist({ kind, project, onApply }) {
         );
       })()}
     </section>
+  );
+}
+
+/* ---------- Check my CV: the hiring-platform standard, instantly and for free ---------- */
+
+const LEVEL = { fix: ['Fix', 'is-fix'], improve: ['Improve', 'is-improve'], ok: ['Good', 'is-ok'] };
+
+function CvCheck({ project, onApply }) {
+  const [res, setRes] = useState(null);
+  const [error, setError] = useState('');
+  const [showOk, setShowOk] = useState(false);
+  // Re-check as they edit (debounced): it's free and takes milliseconds.
+  const key = JSON.stringify([project.name, project.email, project.phone, project.location, project.website, project.notes,
+    project.skills, project.experience, project.education, project.projects, project.template]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      cvCheck({ ...project, skills: list(project.skills).join(', ') }).then((r) => { setRes(r); setError(''); })
+        .catch((e) => setError(e.message));
+    }, 500);
+    return () => clearTimeout(t);
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (error) return <p className="aia__note">{error}</p>;
+  if (!res) return <p className="aia__note"><span className="cz__spin" aria-hidden /> Checking…</p>;
+  const todo = res.checks.filter((c) => c.level !== 'ok');
+  const good = res.checks.filter((c) => c.level === 'ok');
+  const layout = res.checks.find((c) => c.id === 'layout' && c.level !== 'ok');
+  return (
+    <div className="aia__body cvchk">
+      <div className="cvchk__head">
+        <div className={`cvchk__score ${res.score >= 85 ? 'is-good' : res.score >= 65 ? 'is-mid' : 'is-low'}`} aria-label={`Score ${res.score} out of 100`}>
+          <b>{res.score}</b><span>/100</span>
+        </div>
+        <div>
+          <p className="cvchk__grade">{res.grade}</p>
+          <p className="aia__lead">Checked against what expert-hiring platforms like Mercor screen for: outcome-led bullets with numbers, focused skills, 1–2 pages, a simple layout and complete contact details. Free, and it updates as you edit.</p>
+        </div>
+      </div>
+      {todo.length > 0 && (
+        <ul className="cvchk__list">
+          {todo.map((c) => (
+            <li key={c.id} className={LEVEL[c.level][1]}>
+              <span className="cvchk__tag">{LEVEL[c.level][0]}</span>
+              <div><b>{c.title}</b>{c.detail && <small>{c.detail}</small>}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {layout && (
+        <div className="aia__row">
+          <button type="button" className="app-btn app-btn--ghost" onClick={() => onApply({ template: 'plain' })}>Switch to the Plain template</button>
+          <button type="button" className="app-btn app-btn--ghost" onClick={() => onApply({ template: 'classic' })}>Switch to Classic</button>
+        </div>
+      )}
+      {good.length > 0 && (
+        <button type="button" className="aia__add" onClick={() => setShowOk(!showOk)}>{showOk ? 'Hide' : 'Show'} what’s already good ({good.length})</button>
+      )}
+      {showOk && <ul className="cvchk__list">{good.map((c) => <li key={c.id} className="is-ok"><span className="cvchk__tag">Good</span><div><b>{c.title}</b></div></li>)}</ul>}
+      <small className="aia__note">Tip: “Tailor to a job” rewrites your bullets to this standard for a specific role. Export as PDF from the editor: it’s text-based, as screening systems need.</small>
+    </div>
   );
 }
