@@ -380,3 +380,13 @@ def test_a_sandbox_key_in_production_needs_test_mode_on_purpose(monkeypatch):
     monkeypatch.setattr(cfg, "BACHS_TEST_MODE", True)
     errors, warnings = prodcheck.findings()
     assert not any("sandbox" in e for e in errors) and any("TEST MODE" in w for w in warnings)
+
+
+def test_a_slow_bachs_gives_a_clear_message_not_a_dropped_connection(monkeypatch):
+    import httpx
+    import pytest
+    def slow(*a, **k):
+        raise httpx.ReadTimeout("slow")
+    monkeypatch.setattr(bachs.httpx, "request", slow)
+    with pytest.raises(bachs.BachsError, match="taking too long"):
+        bachs._call("POST", "/v1/checkout-sessions", {})

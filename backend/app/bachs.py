@@ -7,6 +7,8 @@ import hmac
 import time
 from decimal import Decimal, InvalidOperation
 
+import logging
+
 import httpx
 
 from . import config
@@ -17,6 +19,8 @@ SIGNATURE_TOLERANCE = 300  # seconds; older webhook deliveries are refused (repl
 class BachsError(Exception):
     """Bachs couldn't do it (bad request, declined, or unreachable)."""
 
+
+log = logging.getLogger("dixlab")
 
 def recurring(currency: str) -> bool:
     """Whether this currency is billed as a renewing subscription (USD) or as one-off
@@ -51,14 +55,22 @@ def _call(method: str, path: str, body: dict | None = None, idempotency_key: str
     if idempotency_key:
         headers["Idempotency-Key"] = idempotency_key
     try:
-        res = httpx.request(method, f"{config.BACHS_BASE_URL}{path}", json=body, headers=headers, timeout=20)
+        # 15 s: Bachs (its sandbox especially) can be slow, and the website's proxies give up at about 25-30 s.
+        # Giving up first means people get a clear message instead of a dropped connection.
+        res = httpx.request(method, f"{config.BACHS_BASE_URL}{path}", json=body, headers=headers,
+                            timeout=httpx.Timeout(15.0, connect=8.0))
+    except httpx.TimeoutException as e:
+        log.warning("Bachs didn't answer in time: %s %s", method, path)
+        raise BachsError("The payment page is taking too long to open. Please try again in a moment.") from e
     except httpx.HTTPError as e:
+        log.warning("Couldn't reach Bachs: %s %s (%s)", method, path, type(e).__name__)
         raise BachsError("Couldn’t reach Bachs. Please try again in a moment.") from e
     try:
         data = res.json() if res.content else {}
     except ValueError:
         data = {}
     if res.status_code >= 400:
+        log.warning("Bachs refused %s %s: %s %s", method, path, res.status_code, str(data.get("detail") or data.get("message") or "")[:200])
         raise BachsError(data.get("detail") if isinstance(data.get("detail"), str) else f"Bachs returned an error ({res.status_code}).")
     return data if isinstance(data, dict) else {}
 

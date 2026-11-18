@@ -51,9 +51,12 @@ export async function request(path, { method = 'GET', body, form } = {}) {
   if (!res.ok) {
     // The Vite dev proxy answers with an empty 5xx when the backend isn't running.
     const offline = !data && res.status >= 500;
+    // A gateway timeout (the server was reached but took too long, e.g. a slow payment provider) isn't "unreachable".
+    const slow = !data && [504, 524].includes(res.status);
     const message = typeof data?.detail === 'string' ? data.detail
       : Array.isArray(data?.detail) ? 'Check the details and try again.'
-      : data?.detail?.message || data?.error || (offline ? 'Can’t reach the Dixlab server.' : 'Something went wrong. Please try again.');
+      : data?.detail?.message || data?.error
+        || (slow ? 'That took too long to answer. Please try again in a moment.' : offline ? 'Can’t reach the Dixlab server.' : 'Something went wrong. Please try again.');
     if (res.status === 401 && isSignedIn() && !path.startsWith('/api/auth/login')) signOutLocally(); // session expired or revoked
     // The account must confirm its email first: the app's pages send it to "Confirm your email".
     if (res.status === 403 && data?.detail?.code === 'email_unverified' && !loadUser().mustVerify) saveUser({ ...loadUser(), mustVerify: true });
