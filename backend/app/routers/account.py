@@ -81,6 +81,8 @@ def _mark_verified(db, user_id: str) -> None:
     db.execute("UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?", (now_ms(), user_id))
     db.execute("DELETE FROM email_tokens WHERE user_id = ? AND purpose IN ('verify', 'verify_code')", (user_id,))
     events.log(db, "user.verified", user_id)
+    from ..admin.bootstrap import ensure_first_admin
+    ensure_first_admin(db)  # if this is DIXLAB_FIRST_ADMIN and the site has no admin yet
 
 
 def send_verification(db, user, background: BackgroundTasks | None = None) -> bool:

@@ -26,6 +26,10 @@ async def lifespan(_: FastAPI):
     from . import prodcheck, ratelimit
     prodcheck.run_on_startup()  # with DIXLAB_ENV=production, unsafe settings stop the server here
     init_db()
+    from .admin.bootstrap import ensure_first_admin
+    from .db import connect
+    with connect() as db:
+        ensure_first_admin(db)  # DIXLAB_FIRST_ADMIN: the first admin on hosts without a terminal
     events.prune()
     ratelimit.prune()
     from . import mailer

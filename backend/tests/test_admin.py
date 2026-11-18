@@ -129,3 +129,34 @@ def test_starting_two_step_setup_again_keeps_the_same_qr_code():
     r = c.post("/api/auth/2fa/enable", json={"code": "000000" if totp.current_code(first) != "000000" else "111111"}, headers=h)
     assert r.status_code == 400 and "newest Dixlab entry" in r.json()["detail"]
     assert c.post("/api/auth/2fa/enable", json={"code": totp.current_code(first)}, headers=h).status_code == 200
+
+
+def test_the_first_admin_can_come_from_a_setting(monkeypatch):
+    import sqlite3 as _sq
+    from app.admin import bootstrap
+    from app.config import DB_PATH
+    from app.db import connect
+    c = client()
+    with _sq.connect(DB_PATH) as db:       # this test needs a site with no admins
+        admins = [r[0] for r in db.execute("SELECT id FROM users WHERE is_admin = 1")]
+        db.execute("UPDATE users SET is_admin = 0")
+    try:
+        monkeypatch.setenv("DIXLAB_FIRST_ADMIN", "First.Admin@example.com")
+        h = sign_up(c, "first.admin@example.com", verified=False)
+        with connect() as db:
+            assert bootstrap.ensure_first_admin(db) is False             # email not confirmed yet
+        with _sq.connect(DB_PATH) as db:
+            db.execute("UPDATE users SET email_verified_at = 1 WHERE email = 'first.admin@example.com'")
+        with connect() as db:
+            assert bootstrap.ensure_first_admin(db) is True
+        assert c.get("/api/auth/me", headers=h).json()["user"]["isAdmin"] is True
+        # Once there's an admin, the setting never grants anyone else.
+        sign_up(c, "second@example.com")
+        monkeypatch.setenv("DIXLAB_FIRST_ADMIN", "second@example.com")
+        with connect() as db:
+            assert bootstrap.ensure_first_admin(db) is False
+            assert db.execute("SELECT is_admin FROM users WHERE email = 'second@example.com'").fetchone()[0] == 0
+    finally:
+        with _sq.connect(DB_PATH) as db:
+            db.execute("UPDATE users SET is_admin = 0 WHERE email = 'first.admin@example.com'")
+            db.executemany("UPDATE users SET is_admin = 1 WHERE id = ?", [(i,) for i in admins])

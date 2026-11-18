@@ -73,7 +73,16 @@ The website on Vercel sends every `/api` request to the backend on pxxl (`dixlab
    - Redeploy or restart after changing them; settings are only read at startup.
    - **Make sure pxxl keeps the database between deploys:** add a persistent volume or disk for `/app/backend/data` (the database) and `/app/backend/uploads`. Without one, every redeploy wipes all accounts, including your admin role.
 2. **Sign up on the live site** (`https://<your site>/signup`) and **confirm your email** with the code.
-3. **Grant admin from pxxl's server terminal** (its shell or console for the backend service). The app's folder there is `/app/backend`:
+3. **Grant admin.**
+
+   **No terminal? (pxxl's Free plan locks the Terminal tab.)** Use the first-admin setting instead:
+   1. In pxxl → your backend → **Secrets**, add `DIXLAB_FIRST_ADMIN=you@example.com`, the email you signed up with.
+   2. **Redeploy or restart** the backend.
+   3. That's it. The account becomes an admin at start-up, or the moment it confirms its email. The backend log says `DIXLAB_FIRST_ADMIN: you@example.com is now the first admin.`
+
+   It only works while the site has **no admin yet**, and only for an account whose email is **confirmed**. Once you're an admin it does nothing, so removing it afterwards is tidy but not urgent.
+
+   **With a terminal** (its shell or console for the backend service), run this instead. The app's folder there is `/app/backend`:
    ```sh
    cd /app/backend
    python -m app.admin grant you@example.com
