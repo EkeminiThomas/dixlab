@@ -16,7 +16,7 @@ from .db import init_db
 from .ratelimit import is_https
 from .security import CSRF_HEADER, SESSION_COOKIE
 from .admin import routes as admin
-from .routers import account, assist, auth, billing, customize, interview, messages, projects, publish, twofactor, uploads
+from .routers import account, analytics, assist, auth, billing, customize, interview, messages, projects, publish, twofactor, uploads
 
 log = logging.getLogger("dixlab")
 
@@ -63,6 +63,7 @@ app.include_router(uploads.router)
 app.include_router(customize.router)
 app.include_router(interview.router)
 app.include_router(assist.router)
+app.include_router(analytics.router)
 app.include_router(publish.router)
 app.include_router(messages.router)
 app.include_router(admin.router)

@@ -8,6 +8,7 @@ import {
 import { LiveSite, SITE_TEMPLATES } from '../components/sites/index.jsx';
 import TemplateViewer from '../components/sites/Viewer.jsx';
 import Customize from '../components/sites/Customize.jsx';
+import AvailabilityField from '../components/sites/AvailabilityField.jsx';
 import { blankSiteProject, blankSiteRole, projectToSite } from '../components/sites/shared.jsx';
 import { ScaledDoc, CvDoc, CV_TEMPLATES } from '../components/cv/index.jsx';
 import { projectToCv, blankCvRole, blankCvEdu } from '../components/cv/data.js';
@@ -358,6 +359,14 @@ export default function Editor() {
                   ))}
                   {d.experience.length < 8 && <button type="button" className="ed__add" onClick={() => addRow('experience', blankSiteRole)}>+ Add role</button>}
                 </fieldset>
+
+                <AvailabilityField
+                  value={d.availability}
+                  cvProjectId={d.cvProjectId}
+                  cvs={loadProjects().filter((x) => x.type === 'cv' && !x.sample)}
+                  onChange={(v) => setField('availability', v)}
+                  onCv={(id) => setField('cvProjectId', id)}
+                />
               </>
             )}
 

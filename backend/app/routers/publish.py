@@ -98,6 +98,17 @@ def public_page(slug: str, request: Request, db: sqlite3.Connection = Depends(ge
                    "ON CONFLICT(slug, day) DO UPDATE SET views = views + 1", (slug, day))
     # Cleaned again on the way out, so pages published before a rule change are covered too.
     project = safety.clean(json.loads(row["data"]))
+    # A portfolio's "Download CV" points at the owner's published CV, looked up now so it's always the latest.
+    cv_slug = None
+    if project.get("type") == "portfolio" and project.get("cvProjectId"):
+        cv = db.execute("SELECT p.slug, p.data FROM publications p WHERE p.user_id = ? AND p.project_id = ?",
+                        (row["user_id"], str(project["cvProjectId"]))).fetchone()
+        if cv and json.loads(cv["data"]).get("type") == "cv":
+            cv_slug = cv["slug"]
+    plan = plans.plan_of(db, row["user_id"])
     # Visitors can download a CV as a PDF only when the owner's plan includes it.
     return {"project": project, "publishedAt": row["updated_at"],
-            "pdf": plans.pdf_allowed(db, row["user_id"], str(project.get("type") or ""))}
+            "pdf": plans.pdf_allowed(db, row["user_id"], str(project.get("type") or "")),
+            "cvSlug": cv_slug,
+            # Pro and Premium remove the "Made with Dixlab" footer.
+            "branding": plans.PLANS[plan]["rank"] < plans.PLANS["pro"]["rank"]}

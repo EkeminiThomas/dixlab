@@ -477,6 +477,18 @@ export async function publishProject(project) {
 export const unpublishProject = (id) => request(`/api/projects/${encodeURIComponent(id)}/publish`, { method: 'DELETE' });
 export const fetchPublic = (slug) => request(`/api/public/${encodeURIComponent(slug)}`);
 
+/** A visitor did something on a published page (where they came from, what they opened, how far
+    they scrolled). Fire-and-forget: it never slows the page or shows an error. */
+export function pageEvent(slug, kind, key = '') {
+  try {
+    fetch(`/api/public/${encodeURIComponent(slug)}/event`, {
+      method: 'POST', keepalive: true, credentials: 'same-origin',
+      headers: { ...BASE_HEADERS, 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, key: String(key).slice(0, 300) }),
+    }).catch(() => {});
+  } catch { /* old browsers: skip */ }
+}
+export const projectAnalytics = (projectId, days = 30) => request(`/api/projects/${encodeURIComponent(projectId)}/analytics?days=${days}`);
+
 /* ---------- Get in touch: visitors message a portfolio's owner ---------- */
 
 export const sendContact = (slug, { name, email, message, website = '' }) =>

@@ -35,19 +35,23 @@ LEGACY_TEMPLATES = {"studio", "outline", "narrative"}  # the original builder's 
 UNLIMITED = None  # still subject to fair-use limits (DIXLAB_MAX_PROJECTS_PER_USER)
 PLANS = {
     "free": {
+        "analytics_days": 0,
         "name": "Free", "rank": 0, "projects": 1, "per_type": None, "templates": FREE_TEMPLATES,
         "ai_units": 10, "storage_mb": 100,
         "pdf_types": None,        # PDF export for every type (Free still has just one asset)
     },
     "starter": {
+        "analytics_days": 0,
         "name": "Starter", "rank": 1, "projects": UNLIMITED, "per_type": {"cv": 3, "portfolio": 2, "case": 5},
         "templates": STARTER_TEMPLATES, "ai_units": 100, "storage_mb": 1024, "pdf_types": None,
     },
     "pro": {
+        "analytics_days": 30,
         "name": "Pro", "rank": 2, "projects": UNLIMITED, "per_type": {"cv": UNLIMITED, "portfolio": 5, "case": 15},
         "templates": None, "ai_units": 300, "storage_mb": 5 * 1024, "pdf_types": None,
     },
     "premium": {
+        "analytics_days": 365,
         "name": "Premium", "rank": 3, "projects": UNLIMITED, "per_type": None,
         "templates": None, "ai_units": 800, "storage_mb": 10 * 1024, "pdf_types": None,
     },

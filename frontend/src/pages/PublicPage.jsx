@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Logo, TEMPLATES, FORMATS } from '../components/ui.jsx';
-import { fetchPublic } from '../api.js';
+import { fetchPublic, pageEvent } from '../api.js';
+import HireBar from '../components/sites/HireBar.jsx';
 import { SitePreview, SITE_TEMPLATES } from '../components/sites/index.jsx';
 import { projectToSite, site, OpenProject } from '../components/sites/shared.jsx';
 import ProjectView from '../components/sites/ProjectView.jsx';
@@ -24,7 +25,7 @@ export default function PublicPage() {
   useEffect(() => {
     let live = true;
     fetchPublic(slug)
-      .then(({ project, pdf }) => { if (live) setState({ project, pdf: pdf !== false }); })
+      .then(({ project, pdf, cvSlug, branding }) => { if (live) setState({ project, pdf: pdf !== false, cvSlug, branding: branding !== false }); })
       .catch((e) => { if (live) setState({ error: e.status === 404 ? 'missing' : 'offline' }); });
     return () => { live = false; };
   }, [slug]);
@@ -41,8 +42,54 @@ export default function PublicPage() {
     const prev = document.title;
     const page = workIndex != null ? s.projects[workIndex].title : '';
     document.title = [page, p.title || p.name, p.role].filter(Boolean).join(' · ') || 'Dixlab';
-    return () => { document.title = prev; };
+    const desc = String(p.tagline || p.problem || p.notes || p.role || '').replace(/\s+/g, ' ').slice(0, 200);
+    let tag = document.querySelector('meta[name="description"]');
+    if (!tag) { tag = document.createElement('meta'); tag.name = 'description'; document.head.appendChild(tag); }
+    const prevDesc = tag.content;
+    tag.content = desc;
+    return () => { document.title = prev; tag.content = prevDesc; };
   }, [p, workIndex]);
+
+  // Visitor analytics (counted per day, nothing personal): where they came from, once per visit…
+  const sentRef = useRef(false);
+  useEffect(() => {
+    if (!p || sentRef.current) return;
+    sentRef.current = true;
+    pageEvent(slug, 'ref', document.referrer || '');
+  }, [p, slug]);
+  // …how far they scroll…
+  useEffect(() => {
+    if (!p) return undefined;
+    const done = new Set();
+    const onScroll = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const pct = max <= 0 ? 100 : (window.scrollY / max) * 100;
+      for (const m of [25, 50, 75, 100]) {
+        if (pct >= m - 2 && !done.has(m)) { done.add(m); pageEvent(slug, 'depth', String(m)); }
+      }
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [p, slug]);
+  // …which project they open…
+  useEffect(() => {
+    if (p && workIndex != null) pageEvent(slug, 'open', s.projects[workIndex]?.title || `Project ${workIndex + 1}`);
+  }, [p, workIndex, slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  // …and which outside links they follow (live sites, repos, socials).
+  const onLinkClick = (e) => {
+    const a = e.target.closest?.('a[href]');
+    if (a && /^https?:/i.test(a.href) && new URL(a.href).origin !== window.location.origin) pageEvent(slug, 'action', 'link');
+  };
+
+  // Opened from a portfolio's "Download CV": save it as a PDF straight away.
+  const autoPrinted = useRef(false);
+  useEffect(() => {
+    if (!p || p.type !== 'cv' || autoPrinted.current || !state.pdf) return undefined;
+    if (new URLSearchParams(window.location.search).get('download') !== '1') return undefined;
+    autoPrinted.current = true;
+    const t = setTimeout(() => printCvNow(), 700);
+    return () => clearTimeout(t);
+  }, [p, state.pdf]);
 
   // Coming back to the portfolio from a project: start at the top.
   useEffect(() => { window.scrollTo({ top: 0 }); }, [workIndex]);
@@ -58,12 +105,7 @@ export default function PublicPage() {
     );
   }
 
-  const printCv = () => {
-    document.body.classList.add('is-printing-cv');
-    const done = () => { document.body.classList.remove('is-printing-cv'); window.removeEventListener('afterprint', done); };
-    window.addEventListener('afterprint', done);
-    window.print();
-  };
+  const printCv = printCvNow;
 
   let body;
   if (p.type === 'case' && CASE_TEMPLATES[p.template]) {
@@ -114,11 +156,23 @@ export default function PublicPage() {
 
   return (
     <div className={`pub pub--${p.type}`}>
-      <main className="pub__page">{body}</main>
-      <footer className="pub__foot">
-        <span>Made with</span> <Link to="/" className="pub__brand">Dixlab</Link>
-        <Link to="/signup" className="pub__make">Make yours →</Link>
-      </footer>
+      <main className="pub__page" onClick={onLinkClick}>{body}</main>
+      {p.type === 'portfolio' && workIndex == null && (
+        <HireBar availability={p.availability || {}} cvSlug={state.cvSlug} onAction={(k) => pageEvent(slug, 'action', k)} />
+      )}
+      {state.branding && (
+        <footer className="pub__foot">
+          <span>Made with</span> <Link to="/" className="pub__brand">Dixlab</Link>
+          <Link to="/signup" className="pub__make">Make yours →</Link>
+        </footer>
+      )}
     </div>
   );
+}
+
+function printCvNow() {
+  document.body.classList.add('is-printing-cv');
+  const done = () => { document.body.classList.remove('is-printing-cv'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
 }
