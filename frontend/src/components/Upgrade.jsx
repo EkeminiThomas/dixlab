@@ -1,44 +1,76 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { usePlan, loadCatalog, startTrial, checkout, formatPrice, templateTier, PLAN_RANK, PLAN_NAMES, isSignedIn, getCurrency } from '../api.js';
-
-const PERKS = {
-  starter: ['CVs, portfolios and case studies', 'Premium templates', '100 AI units a month'],
-  pro: ['Unlimited CVs, 5 portfolios, 15 case studies', 'Advanced and 3D templates, your own domain', '300 AI units, analytics, no branding'],
-  premium: ['Unlimited portfolios and case studies', 'Multiple profiles and domains', '800 AI units, priority support'],
-};
+import {
+  usePlan, loadCatalog, refreshPlan, buyCredits, unlockFeature, formatPrice, isPremiumTemplate, hasFeature, unlockInfo,
+  isSignedIn, getCurrency,
+} from '../api.js';
 
 const TITLES = {
-  plan_limit: 'You’ve reached your plan’s limit',
-  template_locked: 'This template isn’t on your plan',
-  ai_quota: 'You’ve used this period’s AI units',
-  ai_plan: 'Tailoring your CV to a job is part of Pro',
+  ai_credits: 'You need a few more credits',
+  credits_low: 'You need a few more credits',
+  unlock_needed: 'Unlock this for good',
 };
 
 /**
- * The upgrade dialog. Anything in the app can open it with openUpgrade(detail)
- * (api.js does when the server answers 402 for a plan limit). Mounted once.
+ * The credits dialog. Anything in the app can open it with openUpgrade(detail)
+ * (api.js does when the server answers 402: a feature to unlock, or not enough
+ * credits). Mounted once.
  */
 export function UpgradeHost() {
   const [detail, setDetail] = useState(null);
   useEffect(() => {
-    const open = (e) => { loadCatalog(); setDetail(e.detail || {}); };
+    const open = (e) => { loadCatalog(); if (isSignedIn()) refreshPlan(); setDetail(e.detail || {}); };
     window.addEventListener('dixlab:upgrade', open);
     return () => window.removeEventListener('dixlab:upgrade', open);
   }, []);
   if (!detail) return null;
-  return <UpgradeDialog detail={detail} onClose={() => setDetail(null)} />;
+  return <CreditsDialog detail={detail} onClose={() => setDetail(null)} />;
 }
 
-function UpgradeDialog({ detail, onClose }) {
+/** Credit packs to choose from: the one that covers `need`, and the one after it. */
+export function PackPicker({ need = 0, onError }) {
   const nav = useNavigate();
   const { catalog, plan } = usePlan();
   const [busy, setBusy] = useState('');
-  const [error, setError] = useState('');
-  const needed = PLAN_RANK[detail.needed] ? detail.needed : 'starter';
-  const options = ['starter', 'pro', 'premium'].filter((id) => PLAN_RANK[id] >= PLAN_RANK[needed] && (!plan || PLAN_RANK[id] > PLAN_RANK[plan.plan])).slice(0, 2);
-  const trial = plan?.trialAvailable && PLAN_RANK[needed] <= PLAN_RANK.pro && plan.plan === 'free';
   const currency = getCurrency();
+  const short = Math.max(0, need - (plan?.credits ?? 0));
+  const packs = catalog?.packs || [];
+  const first = Math.max(0, packs.findIndex((p) => p.credits >= short));
+  const shown = packs.slice(first, first + 2);
+  const buy = async (id) => {
+    if (!isSignedIn()) { nav(`/signup?next=${encodeURIComponent('/pricing')}`); return; }
+    setBusy(id);
+    try { await buyCredits(id, currency); } catch (e) {
+      onError?.(e.body?.unavailable ? 'Payments aren’t set up yet. Check back soon.' : e.message);
+    }
+    setBusy('');
+  };
+  if (!catalog) return <p className="upg__lead">Loading…</p>;
+  return (
+    <div className={`upg__opts ${shown.length === 1 ? 'is-one' : ''}`}>
+      {shown.map((p, i) => (
+        <div key={p.id} className={`upg__opt ${i === 1 ? 'upg__opt--pro' : ''}`}>
+          <div className="upg__opt-head"><b>{p.credits.toLocaleString()} credits</b><span>{formatPrice(p.prices[currency], currency)}</span></div>
+          <ul><li>Never expire</li><li>{formatPrice(Math.round(p.prices[currency] / p.credits) * 100, currency)} per 100 credits</li></ul>
+          <button type="button" className="app-btn app-btn--primary upg__btn" disabled={!!busy} onClick={() => buy(p.id)}>
+            {busy === p.id ? 'Opening checkout…' : `Buy ${p.credits.toLocaleString()} credits`}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CreditsDialog({ detail, onClose }) {
+  const nav = useNavigate();
+  const { catalog, plan } = usePlan();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [done, setDone] = useState('');
+  const unlock = detail.feature ? (unlockInfo(detail.feature, catalog) || { id: detail.feature, name: detail.name, credits: detail.credits }) : null;
+  const balance = plan?.credits ?? detail.balance ?? 0;
+  const cost = unlock?.credits ?? detail.needed ?? 0;
+  const canAfford = unlock && balance >= cost;
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -46,68 +78,65 @@ function UpgradeDialog({ detail, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const run = async (key, fn) => {
-    setBusy(key); setError('');
-    try { await fn(); } catch (e) { setError(e.body?.unavailable ? 'Payments aren’t set up yet. Try the free trial, or check back soon.' : e.message); }
-    setBusy('');
-  };
-  const buy = (id) => {
-    if (!isSignedIn()) { onClose(); nav(`/signup?next=${encodeURIComponent('/pricing')}`); return; }
-    // Already paying: the plan is switched in place (no redirect), so just close.
-    run(id, async () => { const res = await checkout(id, 'monthly', currency); if (res?.changed) onClose(); });
+  const doUnlock = async () => {
+    setBusy(true); setError('');
+    try { await unlockFeature(unlock.id); setDone(`${unlock.name} is unlocked for good. Try again now.`); } catch (e) { setError(e.message); }
+    setBusy(false);
   };
 
   return (
     <div className="upg" role="dialog" aria-modal="true" aria-labelledby="upg-title" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="upg__card">
         <button type="button" className="upg__x" onClick={onClose} aria-label="Close">✕</button>
-        {plan && <p className="upg__k"><span>{plan.name} plan</span></p>}
-        <h2 id="upg-title" className="upg__title">{TITLES[detail.code] || 'Upgrade your plan'}</h2>
-        <p className="upg__lead">{detail.message || 'Pick a plan to unlock more.'} Your work is safe: nothing is deleted.</p>
-        <div className={`upg__opts ${options.length === 1 ? 'is-one' : ''}`}>
-          {options.map((id) => {
-            const p = catalog?.plans.find((x) => x.id === id);
-            return (
-              <div key={id} className={`upg__opt upg__opt--${id}`}>
-                <div className="upg__opt-head"><b>{PLAN_NAMES[id]}</b>{p?.prices?.[currency] && <span>{formatPrice(p.prices[currency].monthly, currency)} / month</span>}</div>
-                <ul>{PERKS[id].map((t) => <li key={t}>{t}</li>)}</ul>
-                {id === 'pro' && trial ? (
-                  <button type="button" className="app-btn app-btn--primary upg__btn" disabled={!!busy} onClick={() => run('trial', async () => { await startTrial(); onClose(); })}>
-                    {busy === 'trial' ? 'Starting…' : `Try Pro free for ${catalog?.trialDays || 14} days`}
-                  </button>
-                ) : (
-                  <button type="button" className={`app-btn ${id === 'premium' ? 'upg__btn--gold' : 'app-btn--primary'} upg__btn`} disabled={!!busy} onClick={() => buy(id)}>
-                    {busy === id ? 'Opening checkout…' : `Get ${PLAN_NAMES[id]}`}
+        {plan && <p className="upg__k"><span>{balance.toLocaleString()} credits</span></p>}
+        <h2 id="upg-title" className="upg__title">{done ? 'Unlocked' : unlock ? `Unlock ${unlock.name}` : TITLES[detail.code] || 'Buy credits'}</h2>
+        {done ? <p className="upg__lead">{done}</p> : (
+          <>
+            <p className="upg__lead">
+              {detail.message || (unlock ? 'Pay once with credits and it stays on your account for good.' : 'Credits pay for AI help and unlock features. They never expire.')}
+              {' '}Your work is safe: nothing is deleted.
+            </p>
+            {unlock && (
+              <div className="upg__unlock">
+                <div><b>{unlock.name}</b>{unlock.desc && <span>{unlock.desc}</span>}</div>
+                <div className="upg__unlock-cost"><b>{cost} credits</b><span>once, yours for good</span></div>
+                {canAfford && (
+                  <button type="button" className="app-btn app-btn--primary" disabled={busy} onClick={doUnlock}>
+                    {busy ? 'Unlocking…' : `Unlock for ${cost} credits`}
                   </button>
                 )}
               </div>
-            );
-          })}
-        </div>
+            )}
+            {!canAfford && (
+              <>
+                <p className="upg__short">{isSignedIn() ? `You have ${balance} credits${cost ? `; this needs ${cost}` : ''}. Top up:` : 'Create a free account to get started, then top up:'}</p>
+                <PackPicker need={cost} onError={setError} />
+              </>
+            )}
+          </>
+        )}
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="upg__foot">
-          <button type="button" className="upg__link" onClick={onClose}>Not now</button>
-          <button type="button" className="upg__link" onClick={() => { onClose(); nav('/pricing'); }}>Compare plans →</button>
+          <button type="button" className="upg__link" onClick={onClose}>{done ? 'Close' : 'Not now'}</button>
+          <button type="button" className="upg__link" onClick={() => { onClose(); nav('/pricing'); }}>See all prices →</button>
         </div>
       </div>
     </div>
   );
 }
 
-/** "Starter" or "Pro" next to a template the account's plan doesn't include. */
+/** "Premium" next to a template that needs the premium templates unlock. */
 export function PlanBadge({ template }) {
   const { catalog, plan } = usePlan();
-  if (!catalog || !catalog.enforced) return null;
-  const tier = templateTier(template, catalog);
-  if (tier === 'free') return null;
-  const mine = plan?.plan || 'free';
-  const included = PLAN_RANK[mine] >= PLAN_RANK[tier];
+  if (!catalog || !catalog.enforced || !isPremiumTemplate(template, catalog)) return null;
+  const included = hasFeature('templates', plan);
   return (
-    <span className={`plan-badge plan-badge--${tier} ${included ? 'is-included' : ''}`} title={included ? `Included in your ${plan?.name} plan` : `Publishing with it needs ${PLAN_NAMES[tier]}`}>
+    <span className={`plan-badge plan-badge--starter ${included ? 'is-included' : ''}`}
+      title={included ? 'Premium templates are unlocked on your account' : `Publishing with it needs the premium templates unlock (${unlockInfo('templates', catalog)?.credits ?? 300} credits, once)`}>
       {!included && (
         <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden><path d="M6 11h12v9H6zM8 11V8a4 4 0 0 1 8 0v3" /></svg>
       )}
-      {PLAN_NAMES[tier]}
+      Premium
     </span>
   );
 }

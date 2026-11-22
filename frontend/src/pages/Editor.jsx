@@ -9,17 +9,21 @@ import { LiveSite, SITE_TEMPLATES } from '../components/sites/index.jsx';
 import TemplateViewer from '../components/sites/Viewer.jsx';
 import Customize from '../components/sites/Customize.jsx';
 import AvailabilityField from '../components/sites/AvailabilityField.jsx';
+import { LiveStatsField } from '../components/sites/LiveStats.jsx';
 import { blankSiteProject, blankSiteRole, projectToSite } from '../components/sites/shared.jsx';
 import { ScaledDoc, CvDoc, CV_TEMPLATES } from '../components/cv/index.jsx';
 import { projectToCv, blankCvRole, blankCvEdu } from '../components/cv/data.js';
 import CvViewer from '../components/cv/CvViewer.jsx';
 import { pushProject, fetchProject, uploadImage, isSignedIn, useSyncStatus, usePlan, pdfAllowed, openUpgrade } from '../api.js';
 import PublishDialog from '../components/Publish.jsx';
+import { TestimonialsPanel, FeedbackDialog } from '../components/Reviews.jsx';
 import { draftKeysFor } from '../components/case/interview.js';
 import MediaField from '../components/MediaField.jsx';
 import FileField from '../components/FileField.jsx';
 import AiAssist from '../components/AiAssist.jsx';
 import CaseAssist from '../components/CaseAssist.jsx';
+import A11yCheck from '../components/A11yCheck.jsx';
+import { LanguagesDialog } from '../components/Languages.jsx';
 import ProfilePhotoField from '../components/ProfilePhotoField.jsx';
 import { uploadMedia, ACCEPT } from '../components/media.js';
 import { CasePreview, CASE_TEMPLATES } from '../components/case/index.jsx';
@@ -113,6 +117,8 @@ export default function Editor() {
   const [confirming, setConfirming] = useState(false);
   const [storeFull, setStoreFull] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [feedback, setFeedback] = useState(false);
+  const [languages, setLanguages] = useState(false);
   const dirty = useRef(Boolean(id) && d.id === id);
   const loadedAt = useRef(d.updatedAt);
   const sync = useSyncStatus();
@@ -178,11 +184,6 @@ export default function Editor() {
 
   // A CV prints on its own, at real A4 size, named after the person.
   const exportPdf = () => {
-    if (!pdfAllowed(d.type, plan)) {
-      openUpgrade({ code: 'pdf_locked', needed: 'starter',
-        message: `On Free, PDF export is for case studies. Starter and above export ${isCv ? 'CVs' : 'portfolios'} to PDF too.` });
-      return;
-    }
     if (!isCv) { window.print(); return; }
     const title = document.title;
     document.title = `${(d.name || 'My').trim()} CV`;
@@ -212,6 +213,8 @@ export default function Editor() {
           : { syncing: 'Saving…', saved: 'Saved to your account', offline: 'Offline · saved in this browser', error: 'Couldn’t save to your account' }[sync] || 'Saved in this browser'}</p>
         {saved() && <button className="app-btn app-btn--ghost ed__del" onClick={() => setConfirming(true)} aria-label="Delete this project" title="Delete"><TrashIcon /></button>}
         <button className="app-btn app-btn--ghost" onClick={exportPdf}>Export PDF</button>
+        <button className="app-btn app-btn--ghost" onClick={() => setLanguages(true)} title="Offer your page in more languages">Languages</button>
+        <button className="app-btn app-btn--ghost" onClick={() => { if (dirty.current) persist(d); setFeedback(true); }}>Feedback</button>
         <button className="app-btn app-btn--ghost ed__publish" onClick={() => { if (dirty.current) persist(d); setPublishing(true); }}>{d.status === 'Published' ? 'Published ✓' : 'Publish'}</button>
         <button className="app-btn app-btn--primary" onClick={finish}>Done</button>
       </header>
@@ -367,6 +370,8 @@ export default function Editor() {
                   onChange={(v) => setField('availability', v)}
                   onCv={(id) => setField('cvProjectId', id)}
                 />
+                <LiveStatsField value={d.liveStats} onChange={(v) => setField('liveStats', v)} />
+                <TestimonialsPanel project={d} />
               </>
             )}
 
@@ -794,6 +799,7 @@ export default function Editor() {
             <p className="ed__preview-meta">
               {TEMPLATES[tpl].name}
               {customAt >= 0 && <button className={`ed__expand ${sid === 'custom' ? 'is-on' : ''}`} onClick={() => go(customAt)} title={isCv ? 'Fonts, colour and text size' : 'Fonts, colour and motion'}>Customize</button>}
+              <A11yCheck targetSelector=".ed__preview" project={d} />
               {(isSite || isCv || isCase) && <button className="ed__expand" onClick={() => setExpanded(true)} title="Open full screen preview">Expand ⤢</button>}
             </p>
           </div>
@@ -857,6 +863,8 @@ export default function Editor() {
           onStatus={(status) => setD((prev) => ({ ...prev, status }))}
         />
       )}
+      {languages && <LanguagesDialog project={d} onApply={update} onClose={() => setLanguages(false)} />}
+      {feedback && <FeedbackDialog project={d} onClose={() => setFeedback(false)} />}
       {confirming && <ConfirmDelete project={d} onCancel={() => setConfirming(false)} onConfirm={remove} />}
     </div>
   );

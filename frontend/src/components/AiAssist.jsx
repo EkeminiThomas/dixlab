@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { assistTailorCv, assistProfiles, cvCheck, isSignedIn, usePlan, PLAN_RANK } from '../api.js';
+import { assistTailorCv, assistProfiles, cvCheck, isSignedIn, usePlan } from '../api.js';
 
 /*
  * The editor's AI assistant.
@@ -69,8 +69,7 @@ export default function AiAssist({ kind, project, onApply }) {
   const [undo, setUndo] = useState(null);       // the fields as they were before Apply
 
   const signedIn = isSignedIn();
-  const needsPro = plan?.enforced && PLAN_RANK[plan.plan] < PLAN_RANK.pro;
-  const units = plan?.usage?.ai;
+
   // An empty CV can't be tailored, so the job tab builds one from the person's background instead.
   const hasCv = Boolean(String(project.notes || '').trim() || list(project.skills).length
     || (project.experience || []).some((r) => String(r.role || '').trim() || String(r.desc || '').trim()));
@@ -130,7 +129,7 @@ export default function AiAssist({ kind, project, onApply }) {
     <section className="aia" aria-label="AI assistant">
       <div className="aia__head">
         <p className="aia__title"><span className="aia__spark" aria-hidden>✦</span>AI assistant</p>
-        {units && <span className="aia__units">{Math.max(0, units.allowance - units.units)} AI units left</span>}
+        {plan?.enforced && <span className="aia__units">{(plan.credits ?? 0).toLocaleString()} credits</span>}
         <button type="button" className="aia__x" onClick={() => setOpen(false)} aria-label="Close the AI assistant">✕</button>
       </div>
       {isCv && (
@@ -172,7 +171,7 @@ export default function AiAssist({ kind, project, onApply }) {
             <button type="button" className="app-btn app-btn--primary" disabled={busy || !hasJob || (!hasCv && !hasBg)} onClick={tailor}>
               {busy ? <><span className="cz__spin" aria-hidden /> {hasCv ? 'Reading the job…' : 'Writing your CV…'}</> : hasCv ? 'Tailor my CV' : 'Build my CV for this job'}
             </button>
-            <small className="aia__cost">{needsPro ? 'Part of Pro and Premium · ' : ''}20 AI units</small>
+            <small className="aia__cost">20 credits</small>
           </div>
         </div>
       )}
@@ -189,7 +188,7 @@ export default function AiAssist({ kind, project, onApply }) {
             <button type="button" className="app-btn app-btn--primary" disabled={busy || (!profileUrls(links).length && text.trim().length < 40)} onClick={readProfiles}>
               {busy ? <><span className="cz__spin" aria-hidden /> Reading your profiles…</> : 'Read my profiles'}
             </button>
-            <small className="aia__cost">15 AI units{busy ? ' · this can take up to a minute' : ''}</small>
+            <small className="aia__cost">15 credits{busy ? ' · this can take up to a minute' : ''}</small>
           </div>
         </div>
       )}

@@ -114,7 +114,7 @@ async def upload(file: UploadFile = File(...), user=Depends(current_user), db: s
     if room < MAX_VIDEO_BYTES and _free_unused(db, user["id"]):  # nearly full: first clear out files nothing uses
         db.commit()
         room = cap - _used(db, user["id"])
-    upgrade = " Or upgrade your plan for more space." if config.PLAN_LIMITS and plans.plan_of(db, user["id"]) != "premium" else ""
+    upgrade = " Or add 1 GB more storage with credits (it’s yours for good)." if config.PLAN_LIMITS else ""
     full = (f"Your storage is full ({_mb(cap)}). Remove images or videos you no longer need "
             f"from your projects, or delete a project, then try again.{upgrade}")
     if room <= 0:

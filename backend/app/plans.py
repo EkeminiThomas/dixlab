@@ -1,15 +1,15 @@
-"""Plans: what Free, Starter, Pro and Premium include, which plan an account
-is on, and the checks that keep each account within its plan.
+"""Credits, unlocks, and the checks that keep each account within what it has.
 
-An account's plan comes from (highest wins): a plan given by an admin, a paid
-plan that hasn't run out, or a free Pro trial. Everyone else is Free.
-Going down a plan never deletes anything: work beyond the new plan stays saved
-and published pages stay live; only new projects, publishing with a template
-the plan doesn't include, and AI help are limited.
+Dixlab is pay-as-you-go: people buy credit packs once and credits never expire.
+  * AI actions spend credits (AI_COSTS).
+  * Paid features are unlocked with credits, once, for good (UNLOCKS): premium
+    templates, visitor insights, custom domains, password pages, removing the
+    Dixlab footer, and extra projects or storage (these can be bought again).
+  * New accounts start with config.WELCOME_CREDITS free credits.
 
-AI is measured in usage units per billing period (see AI_COSTS). Running out
-never touches existing work: people keep editing by hand, and the app falls
-back to its built-in (non-AI) helpers.
+Older paid plans still count: an account with a plan given by an admin, or a
+subscription that hasn't run out, has everything its plan included (Pro and
+Premium: every feature). Running out of credits never touches existing work.
 
 With DIXLAB_PLAN_LIMITS=false every account gets everything."""
 import sqlite3
@@ -23,7 +23,7 @@ DAY_MS = 86_400_000
 GRACE_MS = 3 * DAY_MS          # a failed renewal keeps the plan this long while Bachs retries
 MB = 1024 * 1024
 
-# Templates in three tiers: basic (Free), premium (Starter), advanced (Pro and Premium).
+# Free templates; every other template needs the "Premium templates" unlock.
 FREE_TEMPLATES = {"folio", "plain", "snapshot"}
 STARTER_TEMPLATES = FREE_TEMPLATES | {
     "bento", "grid", "journal", "casebook",          # portfolios
@@ -61,8 +61,10 @@ PAID = ("starter", "pro", "premium")
 INTERVALS = ("monthly", "yearly")
 INTERVAL_DAYS = {"monthly": 30, "yearly": 365}
 TYPE_NAMES = {"portfolio": ("portfolio", "portfolios"), "cv": ("CV", "CVs"), "case": ("case study", "case studies")}
-# Usage units each AI request costs (the white paper's table). Asking the next
-# interview question is included; the write-ups and changes are counted.
+# Credits each AI request costs. Asking the next interview question is free;
+# write-ups and changes are counted. Priced from what the AI provider charges:
+# about $0.002 per heavy action on Groq, about $0.12 on Claude Opus 5.5 (with
+# thinking), against roughly $0.018 a credit, so even Claude leaves a margin.
 AI_COSTS = {
     "interview_next": 0,
     "interview_draft_portfolio": 10,  # generate portfolio content
@@ -71,9 +73,8 @@ AI_COSTS = {
     "assist_profiles": 15,            # read someone's public profiles to shape a CV or portfolio
     "assist_tailor_cv": 20,           # advanced workflow: tailor a CV to a job advert
     "assist_case_links": 15,          # write a case study from project links (repo, Figma, site)
+    "assist_translate": 10,           # translate a page into another language
 }
-# AI features that need at least this plan, whatever units are left.
-AI_MIN_PLAN = {"assist_tailor_cv": "pro"}  # "Advanced CV tailoring" is part of Pro and Premium
 
 
 def now_ms() -> int:
@@ -121,129 +122,225 @@ def plan_of(db: sqlite3.Connection, user_id: str) -> str:
     return current(db, user_id)["plan"] if config.PLAN_LIMITS else "premium"
 
 
+# ---------------------------------------------------------------- unlocks (paid with credits, kept for good)
+
+BASE_PROJECTS = 1          # everyone: one CV, portfolio or case study
+BASE_STORAGE_MB = 200
+STORAGE_STEP_MB = 1024     # each "more storage" unlock
+UNLOCKS = {
+    "templates": {"name": "Premium templates", "credits": 300, "stack": False,
+                  "desc": "Publish with every premium and 3D template, now and the ones we add later."},
+    "insights": {"name": "Visitor insights", "credits": 300, "stack": False,
+                 "desc": "See where visitors come from, what they open, how far they read, and who downloads your CV."},
+    "subdomain": {"name": "Your Dixlab address", "credits": 200, "stack": False,
+                  "desc": "A free web address for your page, like yourname.dixlab.click. No domain to buy."},
+    "password": {"name": "Password-protected pages", "credits": 200, "stack": False,
+                 "desc": "Share NDA or client work only with people who have the password."},
+    "branding": {"name": "Remove “Made with Dixlab”", "credits": 200, "stack": False,
+                 "desc": "Your published pages without the Dixlab footer."},
+    "project": {"name": "One more project", "credits": 100, "stack": True,
+                "desc": "Room for one more CV, portfolio or case study. Buy as many as you need."},
+    "storage": {"name": "1 GB more storage", "credits": 100, "stack": True,
+                "desc": "More space for images, videos and files."},
+}
+INSIGHT_DAYS = 365
+
+
+def _legacy(plan: str) -> dict:
+    """What an older paid plan (admin-given or a subscription still running) includes."""
+    if _rank(plan) >= _rank("pro"):
+        return {f: True for f in UNLOCKS if not UNLOCKS[f]["stack"]} | {"projects": None, "storage_mb": PLANS[plan]["storage_mb"]}
+    if plan == "starter":
+        return {"templates": True, "projects": None, "storage_mb": PLANS["starter"]["storage_mb"]}
+    return {}
+
+
+def unlocked(db: sqlite3.Connection, user_id: str) -> dict:
+    """{feature: count} bought with credits."""
+    return {r["feature"]: r["count"] for r in db.execute("SELECT feature, count FROM unlocks WHERE user_id = ?", (user_id,))}
+
+
+def entitlements(db: sqlite3.Connection, user_id: str) -> dict:
+    """Everything this account can do right now (features, project and storage limits)."""
+    if not config.PLAN_LIMITS:
+        return {f: True for f in UNLOCKS if not UNLOCKS[f]["stack"]} | {
+            "projects": None, "storage_mb": config.MAX_STORAGE_BYTES_PER_USER // MB, "insightDays": INSIGHT_DAYS}
+    got = unlocked(db, user_id)
+    out = {f: bool(got.get(f)) for f in UNLOCKS if not UNLOCKS[f]["stack"]}
+    out["projects"] = BASE_PROJECTS + got.get("project", 0)
+    out["storage_mb"] = BASE_STORAGE_MB + got.get("storage", 0) * STORAGE_STEP_MB
+    for k, v in _legacy(current(db, user_id)["plan"]).items():
+        if k == "projects":
+            out["projects"] = None
+        elif k == "storage_mb":
+            out["storage_mb"] = max(out["storage_mb"], v)
+        elif v:
+            out[k] = True
+    out["insightDays"] = INSIGHT_DAYS if out["insights"] else 0
+    return out
+
+
+def has(db: sqlite3.Connection, user_id: str, feature: str) -> bool:
+    return bool(entitlements(db, user_id).get(feature))
+
+
+def unlock_error(feature: str, message: str | None = None, db: sqlite3.Connection | None = None,
+                 user_id: str | None = None) -> HTTPException:
+    """402 naming the unlock that's needed; the app offers it (and credit packs if the balance is short)."""
+    u = UNLOCKS[feature]
+    return HTTPException(status.HTTP_402_PAYMENT_REQUIRED, {
+        "code": "unlock_needed", "feature": feature, "credits": u["credits"], "name": u["name"],
+        "message": message or f"{u['name']} is a one-time unlock for {u['credits']} credits.",
+        "balance": balance(db, user_id) if db is not None and user_id else None})
+
+
+def require(db: sqlite3.Connection, user_id: str, feature: str, message: str | None = None) -> None:
+    if not has(db, user_id, feature):
+        raise unlock_error(feature, message, db, user_id)
+
+
+# ---------------------------------------------------------------- credits
+
+def _id() -> str:
+    import secrets
+    return f"cr-{secrets.token_hex(8)}"
+
+
+def add_credits(db: sqlite3.Connection, user_id: str, delta: int, reason: str, ref: str | None = None) -> bool:
+    """Add (or, with a negative delta, take) credits. With `ref`, it happens once only. True if it was recorded."""
+    cur = db.execute("INSERT INTO credit_ledger (id, user_id, delta, reason, ref, created_at) VALUES (?, ?, ?, ?, ?, ?) "
+                     "ON CONFLICT(ref) DO NOTHING", (_id(), user_id, int(delta), reason, ref, now_ms()))
+    return cur.rowcount > 0
+
+
+def welcome(db: sqlite3.Connection, user_id: str) -> None:
+    """The free starting credits, once per account (also for accounts made before credits)."""
+    if config.WELCOME_CREDITS > 0:
+        add_credits(db, user_id, config.WELCOME_CREDITS, "welcome", ref=f"welcome:{user_id}")
+
+
+def balance(db: sqlite3.Connection, user_id: str) -> int:
+    if config.WELCOME_CREDITS > 0 and not db.execute("SELECT 1 FROM credit_ledger WHERE ref = ?", (f"welcome:{user_id}",)).fetchone():
+        welcome(db, user_id)
+    return int(db.execute("SELECT COALESCE(SUM(delta), 0) FROM credit_ledger WHERE user_id = ?", (user_id,)).fetchone()[0])
+
+
+def history(db: sqlite3.Connection, user_id: str, limit: int = 30) -> list[dict]:
+    return [{"delta": r["delta"], "reason": r["reason"], "at": r["created_at"]} for r in db.execute(
+        "SELECT delta, reason, created_at FROM credit_ledger WHERE user_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+        (user_id, limit))]
+
+
+def spend(db: sqlite3.Connection, user_id: str, amount: int, reason: str) -> None:
+    """Take credits, or raise 402 if there aren't enough."""
+    have = balance(db, user_id)
+    if amount > have:
+        raise HTTPException(status.HTTP_402_PAYMENT_REQUIRED, {
+            "code": "credits_low", "message": f"That needs {amount} credits and you have {have}. Buy a credit pack to continue.",
+            "needed": amount, "balance": have})
+    add_credits(db, user_id, -amount, reason)
+
+
+def buy_unlock(db: sqlite3.Connection, user_id: str, feature: str) -> dict:
+    u = UNLOCKS.get(feature)
+    if not u:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown feature.")
+    if not u["stack"] and has(db, user_id, feature):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"{u['name']} is already unlocked.")
+    spend(db, user_id, u["credits"], f"unlock:{feature}")
+    db.execute("INSERT INTO unlocks (user_id, feature, count, updated_at) VALUES (?, ?, 1, ?) "
+               "ON CONFLICT(user_id, feature) DO UPDATE SET count = count + 1, updated_at = excluded.updated_at",
+               (user_id, feature, now_ms()))
+    return entitlements(db, user_id)
+
+
+# ---------------------------------------------------------------- the checks
+
 def pdf_allowed(db: sqlite3.Connection, user_id: str, ptype: str) -> bool:
-    """Whether this account's plan includes PDF export for this kind of project."""
-    types = PLANS[plan_of(db, user_id)]["pdf_types"]
-    return types is None or ptype in types
+    """PDF export is for everyone."""
+    return True
 
 
 def upgrade_error(code: str, message: str, needed: str, plan: str) -> HTTPException:
-    """402 with what to upgrade to; the frontend opens its upgrade dialog."""
-    return HTTPException(status.HTTP_402_PAYMENT_REQUIRED,
-                         {"code": code, "message": message, "needed": needed, "plan": plan})
-
-
-def _type_limit(plan: str, ptype: str):
-    per = PLANS[plan]["per_type"]
-    return per.get(ptype, UNLIMITED) if per else UNLIMITED
-
-
-def _next_with_room(plan: str, ptype: str, used: int) -> str:
-    """The cheapest plan above `plan` with room for one more of this type."""
-    for p in ORDER[ORDER.index(plan) + 1:]:
-        limit = _type_limit(p, ptype)
-        if limit is UNLIMITED or limit > used:
-            return p
-    return "premium"
+    """Kept for older callers: 402 with a reason the frontend shows."""
+    return HTTPException(status.HTTP_402_PAYMENT_REQUIRED, {"code": code, "message": message, "needed": needed, "plan": plan})
 
 
 def check_new_project(db: sqlite3.Connection, user_id: str, ptype: str) -> None:
-    """Raise 402 if the plan has no room for another project of this type."""
+    """Raise 402 if there's no room for another project."""
     if not config.PLAN_LIMITS:
         return
-    plan = plan_of(db, user_id)
-    p = PLANS[plan]
+    limit = entitlements(db, user_id)["projects"]
+    if limit is None:
+        return
     total = db.execute("SELECT COUNT(*) FROM projects WHERE user_id = ?", (user_id,)).fetchone()[0]
-    if p["projects"] is not UNLIMITED and total >= p["projects"]:
-        raise upgrade_error("plan_limit", "Free includes one project: a CV, a portfolio or a case study. Upgrade to Starter "
-                            "to make all three, with more of each.", "starter", plan)
-    limit = _type_limit(plan, ptype)
-    if limit is not UNLIMITED:
-        used = db.execute("SELECT COUNT(*) FROM projects WHERE user_id = ? AND type = ?", (user_id, ptype)).fetchone()[0]
-        if used >= limit:
-            one, many = TYPE_NAMES[ptype]
-            needed = _next_with_room(plan, ptype, used)
-            raise upgrade_error("plan_limit", f"{p['name']} includes {limit} {many if limit != 1 else one}. "
-                                f"Upgrade to {PLANS[needed]['name']} for more, or delete one you no longer need.", needed, plan)
+    if total >= limit:
+        one = "one project" if limit == 1 else f"{limit} projects"
+        raise unlock_error("project", f"You have room for {one}. Add room for another for {UNLOCKS['project']['credits']} credits "
+                           "(it’s yours for good), or delete one you no longer need.", db, user_id)
 
 
 def check_template(db: sqlite3.Connection, user_id: str, template: str, names: dict | None = None) -> None:
-    """Raise 402 if the plan doesn't include this template (checked when publishing)."""
-    if not config.PLAN_LIMITS:
+    """Raise 402 if this template needs the premium templates unlock (checked when publishing)."""
+    if not config.PLAN_LIMITS or template in FREE_TEMPLATES or template in LEGACY_TEMPLATES:
         return
-    plan = plan_of(db, user_id)
-    allowed = PLANS[plan]["templates"]
-    if allowed is None or template in allowed or template in LEGACY_TEMPLATES:
-        return
-    tier = template_tier(template)
-    label = (names or {}).get(template, template.capitalize())
-    kind = "a premium" if tier == "starter" else "an advanced"
-    raise upgrade_error("template_locked", f"{label} is {kind} template, on {PLANS[tier]['name']} and above. Upgrade to publish "
-                        f"with it, or switch to a template on your plan.", tier, plan)
+    if not has(db, user_id, "templates"):
+        label = (names or {}).get(template, template.capitalize())
+        raise unlock_error("templates", f"{label} is a premium template. Unlock every premium template for "
+                           f"{UNLOCKS['templates']['credits']} credits, once, or switch to a free one.", db, user_id)
 
 
 def storage_limit(db: sqlite3.Connection, user_id: str) -> int:
     if not config.PLAN_LIMITS:
         return config.MAX_STORAGE_BYTES_PER_USER
-    return PLANS[plan_of(db, user_id)]["storage_mb"] * MB
+    return entitlements(db, user_id)["storage_mb"] * MB
 
 
-def usage_cycle(info: dict) -> str:
-    """Which allowance period usage counts towards: the paid period (it resets when
-    a new one starts), the trial, or the calendar month on Free."""
-    if info["source"] == "subscription" and info["periodEnd"]:
-        return f"p{info['periodEnd']}"
-    if info["source"] == "trial" and info["trialEndsAt"]:
-        return f"t{info['trialEndsAt']}"
-    return month()
+def _month_start_ms() -> int:
+    import calendar
+    t = time.gmtime()
+    return calendar.timegm((t.tm_year, t.tm_mon, 1, 0, 0, 0)) * 1000
 
 
 def ai_usage(db: sqlite3.Connection, user_id: str, info: dict | None = None) -> dict:
-    info = info or current(db, user_id)
-    row = db.execute("SELECT count FROM ai_usage WHERE user_id = ? AND month = ? AND feature = 'units'",
-                     (user_id, usage_cycle(info))).fetchone()
-    return {"units": row["count"] if row else 0, "allowance": PLANS[info["plan"]]["ai_units"]}
+    """Credits spent on AI this month, and the balance (admin dashboard and the account page)."""
+    spent = db.execute("SELECT COALESCE(-SUM(delta), 0) FROM credit_ledger WHERE user_id = ? AND reason LIKE 'ai:%' AND created_at >= ?",
+                       (user_id, _month_start_ms())).fetchone()[0]
+    return {"units": int(spent), "balance": balance(db, user_id)}
+
+
+def ai_included(db: sqlite3.Connection, user_id: str) -> bool:
+    """Older Pro and Premium plans (admin-given, or a subscription still running) include AI without credits."""
+    return _rank(current(db, user_id)["plan"]) >= _rank("pro")
 
 
 def ai_block(db: sqlite3.Connection, user_id: str, feature: str) -> tuple[str, str, str] | None:
-    """(code, message, plan needed) when the plan can't run this AI request, else None."""
-    if not config.PLAN_LIMITS:
+    """(code, message, needed) when there aren't enough credits for this AI request, else None."""
+    if not config.PLAN_LIMITS or ai_included(db, user_id):
         return None
-    info = current(db, user_id)
-    needs = AI_MIN_PLAN.get(feature)
-    if needs and _rank(info["plan"]) < _rank(needs):
-        return "ai_plan", f"Tailoring your CV to a job is part of {PLANS[needs]['name']} and Premium.", needs
     cost = AI_COSTS.get(feature, 5)
     if cost == 0:
         return None
-    usage = ai_usage(db, user_id, info)
-    if usage["units"] + cost > usage["allowance"]:
-        name = PLANS[info["plan"]]["name"]
-        nxt = ORDER[min(ORDER.index(info["plan"]) + 1, len(ORDER) - 1)]
-        tail = (f" Upgrade to {PLANS[nxt]['name']} for more, or wait for your allowance to reset."
-                if info["plan"] != "premium" else " It resets at the start of your next billing period.")
-        return "ai_quota", (f"You’ve used this period’s AI allowance on {name} ({usage['allowance']} units). Your work is safe "
-                            f"and you can keep editing by hand.{tail}"), nxt
+    have = balance(db, user_id)
+    if cost > have:
+        return "ai_credits", (f"This uses {cost} credits and you have {have}. Your work is safe and you can keep editing by hand, "
+                              "or buy a credit pack (credits never expire)."), "credits"
     return None
 
 
 def record_ai(db: sqlite3.Connection, user_id: str, feature: str) -> None:
     cost = AI_COSTS.get(feature, 5)
-    if cost:
-        cycle = usage_cycle(current(db, user_id))
-        db.execute("""INSERT INTO ai_usage (user_id, month, feature, count) VALUES (?, ?, 'units', ?)
-                      ON CONFLICT(user_id, month, feature) DO UPDATE SET count = count + excluded.count""", (user_id, cycle, cost))
+    if cost and config.PLAN_LIMITS and not ai_included(db, user_id):
+        add_credits(db, user_id, -cost, f"ai:{feature}")
 
 
-def public_catalog() -> list[dict]:
-    """The plans as the pricing page shows them."""
-    out = []
-    for key in ORDER:
-        p = PLANS[key]
-        out.append({
-            "id": key, "name": p["name"], "rank": p["rank"],
-            "prices": None if key == "free" else {cur: {i: config.PRICES[(key, i, cur)] for i in INTERVALS} for cur in config.CURRENCIES},
-            "limits": {"projects": p["projects"], "perType": p["per_type"], "storageMb": p["storage_mb"], "aiUnits": p["ai_units"],
-                       "pdfTypes": list(p["pdf_types"]) if p["pdf_types"] else None},
-        })
-    return out
+def public_catalog() -> dict:
+    """What the pricing page shows: packs, unlocks and what AI costs."""
+    return {
+        "packs": [{"id": pid, "credits": p["credits"], "prices": p["prices"]} for pid, p in config.CREDIT_PACKS.items()],
+        "unlocks": [{"id": k, **v} for k, v in UNLOCKS.items()],
+        "aiCosts": {k: v for k, v in AI_COSTS.items() if v},
+        "welcome": config.WELCOME_CREDITS,
+        "base": {"projects": BASE_PROJECTS, "storageMb": BASE_STORAGE_MB},
+        "freeTemplates": sorted(FREE_TEMPLATES | LEGACY_TEMPLATES),
+    }

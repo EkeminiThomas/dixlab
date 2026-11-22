@@ -177,8 +177,16 @@ def test_admins_can_give_a_plan_from_the_dashboard(monkeypatch):
     # An admin gives themselves Pro: no payment, shows on their plan straight away.
     r = c.patch(f"/api/admin/users/{me}/plan", json={"plan": "pro"}, headers=boss)
     assert r.status_code == 200 and r.json()["plan"] == "pro" and r.json()["source"] == "override"
-    assert c.get("/api/billing/me", headers=boss).json()["plan"] == "pro"
+    me_billing = c.get("/api/billing/me", headers=boss).json()
+    assert me_billing["legacy"]["plan"] == "pro" and all(me_billing["features"].values())   # a given plan unlocks everything
     assert c.get(f"/api/admin/users/{me}", headers=boss).json()["plan"]["given"] == "pro"
+    # Admins can give (and take back) credits.
+    start = c.get("/api/billing/me", headers=maker).json()["credits"]
+    assert c.post(f"/api/admin/users/{maker_id}/credits", json={"amount": 250}, headers=maker).status_code == 403
+    assert c.post(f"/api/admin/users/{maker_id}/credits", json={"amount": 250, "note": "tester"}, headers=boss).json()["credits"] == start + 250
+    assert c.post(f"/api/admin/users/{maker_id}/credits", json={"amount": -100000}, headers=boss).status_code == 409
+    assert admin_cli.main(["credits", "plan-maker@example.com", "-50"]) == 0
+    assert c.get("/api/billing/me", headers=maker).json()["credits"] == start + 200
     assert c.patch(f"/api/admin/users/{me}/plan", json={"plan": "gold"}, headers=boss).status_code == 422
     # Taking it back returns them to their own plan.
     assert c.patch(f"/api/admin/users/{me}/plan", json={"plan": "none"}, headers=boss).json()["plan"] == "free"

@@ -68,9 +68,9 @@ def error(status: int, message: str, unavailable: bool = False, code: str | None
 
 
 def guard(user_id: str, feature: str | None = None) -> JSONResponse | None:
-    """Return an error response if AI can't run for this request. Plans come
-    first: Free has no AI, Pro has a monthly allowance. These answer 402 with
-    `unavailable`, so the frontend falls back to its built-in (non-AI) version."""
+    """Return an error response if AI can't run for this request. Credits come
+    first: without enough for this action it answers 402 with `unavailable`, so the
+    frontend falls back to its built-in (non-AI) version and offers credit packs."""
     if feature:
         from . import plans
         from .db import connect
@@ -88,10 +88,10 @@ def guard(user_id: str, feature: str | None = None) -> JSONResponse | None:
 
 def track(user_id: str, feature: str, err: JSONResponse | None, usage: str | None = None) -> None:
     """Log one AI request for the admin dashboard (feature, success, status), and
-    count its cost (plans.AI_COSTS[usage or feature]) against the plan's allowance."""
+    take its cost in credits (plans.AI_COSTS[usage or feature]). Failed requests are free."""
     from . import events  # local import: events -> db -> config only
     events.log_now(f"ai.{feature}", user_id, ok=err is None, status=None if err is None else err.status_code)
-    if err is None:  # only successful requests count against a plan's monthly allowance
+    if err is None:  # only successful requests cost credits
         from . import plans
         from .db import connect
         with connect() as db:

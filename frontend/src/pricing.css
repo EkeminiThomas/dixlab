@@ -249,3 +249,22 @@
 .dash__units { display: block; margin-top: 3px; font-size: 11.5px; color: var(--muted); text-decoration: none; }
 .dash__units.is-low { color: var(--plan-gold); }
 .dash__units.is-out { color: #ff8a8a; font-weight: 600; }
+
+/* Credits */
+.prc__balance { margin: 14px 0 0; color: var(--muted); font-size: 15px; } .prc__balance b { color: var(--ink); }
+.prc__unit-list li span small { display: block; margin-top: 2px; font-size: 12.5px; color: var(--faint); line-height: 1.45; }
+.prc__unit-list b.is-owned { color: #34d399; }
+.prc__unit-btn { border: 1px solid var(--line-strong); background: none; color: var(--ink); border-radius: 100px; padding: 4px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.prc__unit-btn:hover { border-color: var(--accent); color: var(--accent); }
+.upg__unlock { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: center; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line); }
+.upg__unlock > div:first-child { display: flex; flex-direction: column; gap: 3px; } .upg__unlock > div:first-child span { font-size: 13px; color: var(--muted); line-height: 1.45; }
+.upg__unlock-cost { text-align: right; display: flex; flex-direction: column; } .upg__unlock-cost span { font-size: 12px; color: var(--faint); }
+.upg__unlock .app-btn { grid-column: 1 / -1; justify-self: start; }
+.upg__short { margin: 0; font-size: 13.5px; color: var(--muted); }
+.plan-legacy { margin-top: 14px; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); font-size: 13.5px; color: var(--muted); display: flex; flex-direction: column; gap: 10px; }
+.plan-legacy p { margin: 0; } .plan-legacy b { color: var(--ink); }
+.plan-unlocks { margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.plan-unlock { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.plan-unlock.is-on { color: var(--ink); } .plan-unlock b { color: #34d399; font-weight: 500; white-space: nowrap; }
+.plan-pay summary.plan-pay__k { cursor: pointer; }
+.plan-pay b.is-plus { color: #34d399; }

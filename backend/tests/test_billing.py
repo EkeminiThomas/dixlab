@@ -1,4 +1,4 @@
-"""Plans and billing (Bachs). Run from backend/:  python -m pytest"""
+"""Credits, unlocks and billing (Bachs). Run from backend/:  python -m pytest"""
 import hashlib
 import hmac
 import json
@@ -93,231 +93,138 @@ def test_signature_checks():
     assert bachs.cents("12.00") == 1200 and bachs.cents("9.99") == 999 and bachs.cents(None) == 0
 
 
-def test_plans_catalog_and_free_limits(monkeypatch):
+def _pack_done(cid, uid, amount, currency="USD", ref=None, pack="m"):
+    """checkout.completed for a credit pack, as Bachs sends it."""
+    return {"checkout_id": cid, "status": "completed", "payment_status": "paid", "amount": amount, "currency": currency,
+            "reference": ref, "customer": {"customer_id": "cust_c"}, "charge": {"id": f"ch_{cid}", "status": "succeeded"},
+            "subscription": None, "metadata": {"user_id": uid, "plan": "credits", "interval": pack}}
+
+
+def test_catalog_welcome_credits_and_free_limits(monkeypatch):
     _plans_on(monkeypatch, bachs_ready=False)
     c = client()
     cat = c.get("/api/billing/plans").json()
-    assert [p["id"] for p in cat["plans"]] == ["free", "starter", "pro", "premium"]
-    assert cat["configured"] == {"NGN": False, "USD": False} and cat["renews"] == {"NGN": False, "USD": True}
-    starter = cat["plans"][1]["prices"]
-    assert starter["NGN"] == {"monthly": 300000, "yearly": 2880000} and starter["USD"] == {"monthly": 399, "yearly": 3830}
-    assert cat["plans"][3]["prices"]["NGN"]["monthly"] == 1200000 and cat["plans"][3]["prices"]["USD"]["monthly"] == 1499
-    assert "folio" in cat["templates"]["free"] and "bento" in cat["templates"]["starter"]
+    assert [p["id"] for p in cat["packs"]] == ["s", "m", "l", "xl"]
+    assert cat["packs"][1] == {"id": "m", "credits": 500, "prices": {"NGN": 750000, "USD": 900}}
+    assert {u["id"]: u["credits"] for u in cat["unlocks"]}["templates"] == 300 and cat["welcome"] == 30
+    assert cat["aiCosts"]["assist_tailor_cv"] == 20 and "interview_next" not in cat["aiCosts"]
+    assert cat["configured"] == {"NGN": False, "USD": False} and "folio" in cat["freeTemplates"]
     h = sign_up(c, "free@example.com")
     me = c.get("/api/billing/me", headers=h).json()
-    assert me["plan"] == "free" and me["trialAvailable"] is True and me["limits"]["projects"] == 1
-    assert me["usage"]["ai"] == {"units": 0, "allowance": 10}
-    # Free: ONE creation category, one asset in it.
+    assert me["credits"] == 30 and me["limits"]["projects"] == 1 and me["legacy"] is None    # free starting credits
+    assert not any(me["features"].values()) and me["history"][0]["reason"] == "welcome"
+    assert c.get("/api/billing/me", headers=h).json()["credits"] == 30                       # given once only
+    # One project to start; room for more is an unlock you keep.
     assert c.put("/api/projects/f1", json=_proj("f1", "cv", "plain"), headers=h).status_code == 200
-    for pid, ptype in (("f2", "portfolio"), ("f3", "case"), ("f4", "cv")):
-        r = c.put(f"/api/projects/{pid}", json=_proj(pid, ptype), headers=h)
-        assert r.status_code == 402 and r.json()["detail"]["code"] == "plan_limit" and r.json()["detail"]["needed"] == "starter"
+    r = c.put("/api/projects/f2", json=_proj("f2", "case"), headers=h)
+    assert r.status_code == 402 and r.json()["detail"]["code"] == "unlock_needed" and r.json()["detail"]["feature"] == "project"
     assert c.put("/api/projects/f1", json={**_proj("f1", "cv", "plain"), "title": "edited"}, headers=h).status_code == 200
-    # Drafts can use any template; publishing needs a plan that includes it.
+    # Drafts can use any template; publishing with a premium one needs the unlock.
     c.put("/api/projects/f1", json=_proj("f1", "cv", "classic"), headers=h)
     r = c.post("/api/projects/f1/publish", headers=h)
-    assert r.status_code == 402 and r.json()["detail"]["code"] == "template_locked" and r.json()["detail"]["needed"] == "starter"
-    c.put("/api/projects/f1", json=_proj("f1", "cv", "canvas"), headers=h)
-    assert c.post("/api/projects/f1/publish", headers=h).json()["detail"]["needed"] == "pro"   # an advanced template
+    assert r.status_code == 402 and r.json()["detail"]["feature"] == "templates" and r.json()["detail"]["balance"] == 30
     c.put("/api/projects/f1", json=_proj("f1", "cv", "plain"), headers=h)
     assert c.post("/api/projects/f1/publish", headers=h).status_code == 200
-    # Free has a small AI allowance (10 units): a change (5) passes the plan check (AI isn't
-    # configured in tests, so it stops at 503); a case study write-up (15) is more than 10.
+    # AI checks credits first (AI isn't configured in tests, so a change that fits stops at 503).
     assert c.post("/api/customize", json={"prompt": "make it green"}, headers=h).status_code == 503
+    admin_cli.main(["credits", "free@example.com", "-20"])
     transcript = [{"topic": "context", "q": "Q", "a": "A long enough answer"}] * 3
     r = c.post("/api/interview/draft", json={"transcript": transcript, "kind": "case"}, headers=h)
-    assert r.status_code == 402 and r.json()["unavailable"] is True and r.json()["code"] == "ai_quota"
+    assert r.status_code == 402 and r.json()["unavailable"] is True and r.json()["code"] == "ai_credits"   # 15 > 10 left
     # Payments aren't set up on this server.
-    r = c.post("/api/billing/checkout", json={"plan": "starter", "interval": "monthly", "currency": "NGN"}, headers=h)
+    r = c.post("/api/billing/checkout", json={"pack": "s", "currency": "NGN"}, headers=h)
     assert r.status_code == 503 and r.json()["unavailable"] is True
+    assert c.post("/api/billing/checkout", json={"pack": "huge"}, headers=h).status_code == 404
 
 
-def test_starter_limits_trial_and_ai_units(monkeypatch):
+def test_unlocks_are_bought_once_and_kept(monkeypatch):
     _plans_on(monkeypatch, bachs_ready=False)
-    c = client(); h = sign_up(c, "starter@example.com")
-    uid = _uid(c, h)
-    assert admin_cli.main(["set-plan", "starter@example.com", "starter"]) == 0
-    for i in range(2):
-        assert c.put(f"/api/projects/sp{i}", json=_proj(f"sp{i}", "portfolio", "bento"), headers=h).status_code == 200
-    r = c.put("/api/projects/sp2", json=_proj("sp2"), headers=h)
-    assert r.status_code == 402 and r.json()["detail"]["needed"] == "pro"      # Starter: 2 portfolios, Pro: 5
+    c = client(); h = sign_up(c, "unlock@example.com")
+    admin_cli.main(["credits", "unlock@example.com", "570"])                 # 600 in all
+    me = c.post("/api/billing/unlock", json={"feature": "templates"}, headers=h).json()
+    assert me["credits"] == 300 and me["features"]["templates"] is True and me["unlocks"] == {"templates": 1}
+    assert c.post("/api/billing/unlock", json={"feature": "templates"}, headers=h).status_code == 409   # already yours
+    assert c.post("/api/billing/unlock", json={"feature": "gold"}, headers=h).status_code == 404
+    # Stackable: room for more projects and storage.
+    for _ in range(2):
+        me = c.post("/api/billing/unlock", json={"feature": "project"}, headers=h).json()
+    assert me["limits"]["projects"] == 3 and me["credits"] == 100
+    me = c.post("/api/billing/unlock", json={"feature": "storage"}, headers=h).json()
+    assert me["limits"]["storageMb"] == 200 + 1024 and me["credits"] == 0
+    r = c.post("/api/billing/unlock", json={"feature": "project"}, headers=h)
+    assert r.status_code == 402 and r.json()["detail"]["code"] == "credits_low"
     for i in range(3):
-        assert c.put(f"/api/projects/sc{i}", json=_proj(f"sc{i}", "cv", "classic"), headers=h).status_code == 200
-    assert c.put("/api/projects/sc3", json=_proj("sc3", "cv"), headers=h).status_code == 402   # Starter: 3 CVs
-    assert c.post("/api/projects/sp0/publish", headers=h).status_code == 200    # Bento: a premium template, on Starter
-    c.put("/api/projects/sp0", json=_proj("sp0", "portfolio", "blocks"), headers=h)
-    assert c.post("/api/projects/sp0/publish", headers=h).json()["detail"]["needed"] == "pro"   # 3D: advanced, on Pro
-    # 100 units on Starter: at 98 used, a 5-unit change no longer fits.
-    with sqlite3.connect(DB_PATH) as db:
-        db.execute("INSERT INTO ai_usage (user_id, month, feature, count) VALUES (?, ?, 'units', 98)", (uid, plans_mod.month()))
-    r = c.post("/api/customize", json={"prompt": "make it green"}, headers=h)
-    assert r.status_code == 402 and r.json()["code"] == "ai_quota" and "Upgrade to Pro" in r.json()["error"]
-    assert c.get("/api/billing/me", headers=h).json()["usage"]["ai"] == {"units": 98, "allowance": 100}
-    assert admin_cli.main(["set-plan", "starter@example.com", "none"]) == 0
-    # The free trial is Pro, once, with its own allowance.
-    me = c.post("/api/billing/trial", headers=h).json()
-    assert me["plan"] == "pro" and me["source"] == "trial"
-    assert c.post("/api/billing/trial", headers=h).status_code == 409
-    assert me["usage"]["ai"] == {"units": 0, "allowance": 300}
-    assert c.post("/api/projects/sp0/publish", headers=h).status_code == 200    # Blocks is fine on Pro
-    me = c.post("/api/billing/cancel", headers=h).json()
-    assert me["plan"] == "free" and me["usage"]["projects"]["total"] == 5      # nothing deleted
+        assert c.put(f"/api/projects/u{i}", json=_proj(f"u{i}", "portfolio", "bento"), headers=h).status_code == 200
+    assert c.put("/api/projects/u3", json=_proj("u3"), headers=h).status_code == 402
+    assert c.post("/api/projects/u0/publish", headers=h).status_code == 200     # Bento: premium, unlocked
+    # Spending is in the history, newest first.
+    reasons = [x["reason"] for x in c.get("/api/billing/me", headers=h).json()["history"]]
+    assert reasons[:4] == ["unlock:storage", "unlock:project", "unlock:project", "unlock:templates"]
 
 
-def test_naira_is_a_one_off_payment_per_period(monkeypatch):
+def test_buying_a_credit_pack_in_naira(monkeypatch):
     _plans_on(monkeypatch)
     calls = _fake_bachs(monkeypatch)
     c = client(); h = sign_up(c, "naija@example.com")
     uid = _uid(c, h)
-
-    def buy(plan="starter"):
-        return c.post("/api/billing/checkout", json={"plan": plan, "interval": "monthly", "currency": "NGN"}, headers=h).json()
-
-    def done(cid, amount="3000.00", currency="NGN"):
-        return {"checkout_id": cid, "status": "completed", "payment_status": "paid", "amount": amount, "currency": currency,
-                "customer": {"customer_id": "cust_n"}, "charge": {"id": f"ch_{cid}", "status": "succeeded"},
-                "subscription": None, "metadata": {"user_id": uid}}
-    r = buy()
-    sent = calls[-1][2]
-    assert "product_cart" not in sent and sent["pricing"] == {"currency": "NGN", "amount": "3000.00"} and sent["billing_currency"] == "NGN"
-    _webhook(c, {"id": f"evt_{r['checkoutId']}", "type": "checkout.completed", "data": done(r["checkoutId"])})
-    me = c.get("/api/billing/me", headers=h).json()
-    assert me["plan"] == "starter" and me["status"] == "prepaid" and me["renews"] is False and me["currency"] == "NGN"
-    first_end = me["periodEnd"]
-    assert c.post("/api/billing/cancel", headers=h).status_code == 409          # nothing renews, so nothing to cancel
-    # Paying again early adds a month to the time left.
-    r2 = buy()
-    _webhook(c, {"id": f"evt_{r2['checkoutId']}", "type": "checkout.completed", "data": done(r2["checkoutId"])})
-    assert c.get("/api/billing/me", headers=h).json()["periodEnd"] == first_end + 30 * plans_mod.DAY_MS
-    # A payment for the wrong amount or currency switches nothing on; it's held for review.
-    r3 = buy("premium")
-    _webhook(c, {"id": f"evt_{r3['checkoutId']}", "type": "checkout.completed", "data": done(r3["checkoutId"], amount="100.00")})
-    r4 = buy("premium")
-    _webhook(c, {"id": f"evt_{r4['checkoutId']}", "type": "checkout.completed", "data": done(r4["checkoutId"], amount="12000.00", currency="USD")})
-    assert c.get("/api/billing/me", headers=h).json()["plan"] == "starter"
-    with sqlite3.connect(DB_PATH) as db:
-        held = db.execute("SELECT COUNT(*) FROM payments WHERE user_id = ? AND status = 'review'", (uid,)).fetchone()[0]
-    assert held == 2
-
-
-def test_bachs_checkout_webhooks_renewal_cancel_and_refund(monkeypatch):
-    _plans_on(monkeypatch)
-    calls = _fake_bachs(monkeypatch)
-    c = client(); h = sign_up(c, "payer@example.com")
-    uid = _uid(c, h)
     unverified = sign_up(c, "nopay@example.com", verified=False)
-    assert c.post("/api/billing/checkout", json={"plan": "pro", "interval": "monthly"}, headers=unverified).status_code == 403
-    r = c.post("/api/billing/checkout", json={"plan": "pro", "interval": "monthly"}, headers=h)
-    assert r.status_code == 200, r.text
-    checkout_id = r.json()["checkoutId"]
-    assert r.json()["url"].endswith(checkout_id)
+    assert c.post("/api/billing/checkout", json={"pack": "m", "currency": "NGN"}, headers=unverified).status_code == 403
+    r = c.post("/api/billing/checkout", json={"pack": "m", "currency": "NGN"}, headers=h).json()
     sent = calls[-1][2]
-    assert sent["product_cart"] == [{"product_id": "prod_pro_m", "quantity": 1}] and sent["billing_currency"] == "USD"
-    assert sent["success_url"] == f"https://dixlab.test/billing/callback/{sent['reference']}" and sent["customer"]["email"] == "payer@example.com"
-    assert sent["metadata"] == {"user_id": uid, "plan": "pro", "interval": "monthly", "currency": "USD"}
-    assert c.get("/api/billing/me", headers=h).json()["plan"] == "free"   # not paid yet
-
-    # Only signed, fresh deliveries count.
-    event = {"id": "evt_1", "type": "checkout.completed", "data": _completed(checkout_id, uid)}
+    assert "product_cart" not in sent and sent["pricing"] == {"currency": "NGN", "amount": "7500.00"}
+    assert sent["success_url"] == f"https://dixlab.test/billing/callback/{sent['reference']}"
+    assert sent["metadata"]["plan"] == "credits" and sent["metadata"]["interval"] == "m" and sent["metadata"]["credits"] == 500
+    assert c.get("/api/billing/me", headers=h).json()["credits"] == 30         # not paid yet
+    event = {"id": f"evt_{r['checkoutId']}", "type": "checkout.completed", "data": _pack_done(r["checkoutId"], uid, "7500.00", "NGN")}
     assert _webhook(c, event, secret="wrong").status_code == 400
-    assert _webhook(c, event, ts=time.time() - 3600).status_code == 400
     assert _webhook(c, event).status_code == 200
-    assert _webhook(c, event).json().get("duplicate") is True            # each event applies once
+    assert _webhook(c, event).json().get("duplicate") is True                  # each event applies once
     me = c.get("/api/billing/me", headers=h).json()
-    assert me["plan"] == "pro" and me["source"] == "subscription" and me["interval"] == "monthly"
-    assert me["payments"][0]["amount"] == 799 and me["payments"][0]["refundable"] is True
-    # The subscription's real period arrives.
-    sub = {"subscription_id": "sub_1", "status": "active", "product_id": "prod_pro_m", "current_period_end": "2026-12-17T10:00:00Z",
-           "cancel_at_period_end": False, "customer": {"customer_id": "cust_1"}, "metadata": {"user_id": uid}}
-    _webhook(c, {"id": "evt_2", "type": "customer.subscription.created", "data": sub})
-    me = c.get("/api/billing/me", headers=h).json()
-    assert me["periodEnd"] == bachs_ms("2026-12-17T10:00:00Z") and me["canManageCard"] is True
-    # The first invoice is the checkout payment, not a second one.
-    first_inv = {"invoice_id": "inv_1", "subscription": {"subscription_id": "sub_1"}, "status": "paid", "amount_paid": "7.99",
-                 "currency": "USD", "period_end": "2026-12-17T10:00:00Z", "charge": None}
-    _webhook(c, {"id": "evt_3", "type": "invoice.paid", "data": first_inv})
-    assert len(c.get("/api/billing/me", headers=h).json()["payments"]) == 1
-    # Coming back from Bachs: verifying an applied checkout changes nothing.
-    v = c.get(f"/api/billing/verify?checkout_id={checkout_id}", headers=h).json()
-    assert v["payment"] == "success" and v["billing"]["plan"] == "pro"
-    assert c.get("/api/billing/verify?checkout_id=chk_someone_else", headers=h).status_code == 404
-    # Card updates go through Bachs's customer portal.
-    assert c.get("/api/billing/manage", headers=h).json()["url"] == "https://portal.bachs.io/s/abc"
-    assert ("POST", "/v1/customers/cust_1/portal-sessions", None) in calls
-    # A renewal: a new payment, and the period moves on.
-    renewal = {**first_inv, "invoice_id": "inv_2", "period_end": "2027-01-17T10:00:00Z", "charge": {"id": "ch_2"}}
-    _webhook(c, {"id": "evt_4", "type": "invoice.paid", "data": renewal})
-    me = c.get("/api/billing/me", headers=h).json()
-    assert len(me["payments"]) == 2 and me["periodEnd"] == bachs_ms("2027-01-17T10:00:00Z")
-    # Cancelling stops renewal at Bachs; the plan lasts until the period ends.
-    me = c.post("/api/billing/cancel", headers=h).json()
-    assert ("DELETE", "/v1/subscriptions/sub_1", {"cancel_at_period_end": True, "reason": "Cancelled in Dixlab"}) in calls
-    assert me["plan"] == "pro" and me["cancelAtPeriodEnd"] is True
-    assert c.post("/api/billing/cancel", headers=h).status_code == 409
-    # Bachs confirms the scheduled cancellation; still Pro until the period ends.
-    _webhook(c, {"id": "evt_5", "type": "customer.subscription.updated", "data": {**sub, "cancel_at_period_end": True,
-                                                                                 "current_period_end": "2027-01-17T10:00:00Z"}})
-    assert c.get("/api/billing/me", headers=h).json()["status"] == "non_renewing"
-    # Refund the first payment within 14 days: money back, plan ends now.
-    first_ref = [p for p in me["payments"] if p["amount"] == 799][-1]["reference"]
-    me = c.post("/api/billing/refund", json={"reference": first_ref}, headers=h).json()
-    refund_call = [x for x in calls if x[1] == "/v1/refunds"][-1]
-    assert refund_call[2]["charge_id"] == "ch_1" and refund_call[2]["reference"] == f"rf_{first_ref}"
-    assert me["plan"] == "free"
-    assert c.post("/api/billing/refund", json={"reference": first_ref}, headers=h).status_code == 409
-    _webhook(c, {"id": "evt_6", "type": "refund.paid", "data": {"refund_id": "rfnd_1", "charge_id": "ch_1", "status": "success"}})
-    statuses = {p["reference"]: p["refundStatus"] for p in c.get("/api/billing/me", headers=h).json()["payments"]}
-    assert statuses[first_ref] == "processed"
+    assert me["credits"] == 530 and me["payments"][0]["credits"] == 500 and me["payments"][0]["refundable"] is True
+    # The same checkout again (a second, different event) doesn't add credits twice.
+    _webhook(c, {**event, "id": "evt_again"})
+    assert c.get("/api/billing/me", headers=h).json()["credits"] == 530
+    # Wrong amount or currency: held for review, no credits.
+    r2 = c.post("/api/billing/checkout", json={"pack": "l", "currency": "NGN"}, headers=h).json()
+    _webhook(c, {"id": "evt_low", "type": "checkout.completed", "data": _pack_done(r2["checkoutId"], uid, "100.00", "NGN", pack="l")})
+    r3 = c.post("/api/billing/checkout", json={"pack": "l", "currency": "NGN"}, headers=h).json()
+    _webhook(c, {"id": "evt_usd", "type": "checkout.completed", "data": _pack_done(r3["checkoutId"], uid, "20000.00", "USD", pack="l")})
+    assert c.get("/api/billing/me", headers=h).json()["credits"] == 530
+    with sqlite3.connect(DB_PATH) as db:
+        assert db.execute("SELECT COUNT(*) FROM payments WHERE user_id = ? AND status = 'review'", (uid,)).fetchone()[0] == 2
 
 
-def bachs_ms(iso):
-    from app.billing import _ms
-    return _ms(iso)
-
-
-def test_verify_on_return_applies_the_checkout(monkeypatch):
-    """If the webhook is late, coming back from Bachs still switches the plan on."""
+def test_verify_on_return_and_refunds(monkeypatch):
+    """If the webhook is late, coming back from Bachs still adds the credits. Unused packs can be refunded."""
     _plans_on(monkeypatch)
     checkouts = {}
-    _fake_bachs(monkeypatch, checkouts)
+    calls = _fake_bachs(monkeypatch, checkouts)
     c = client(); h = sign_up(c, "return@example.com")
     uid = _uid(c, h)
-    checkout_id = c.post("/api/billing/checkout", json={"plan": "premium", "interval": "yearly"}, headers=h).json()["checkoutId"]
-    assert c.get(f"/api/billing/verify?checkout_id={checkout_id}", headers=h).json()["payment"] == "pending"  # not paid yet
-    checkouts[checkout_id] = {"checkout_id": checkout_id, "status": "completed", "payment_status": "succeeded", "amount": "143.90",
-                              "currency": "USD", "customer": {"id": "cust_r"}, "metadata": {"user_id": uid},
-                              "charge": {"payment_id": "pay_1", "status": "succeeded", "subscription_id": "sub_r",
-                                         "invoice": {"invoice_id": "inv_r", "subscription_id": "sub_r", "period_end": "2027-11-17T10:00:00Z"}}}
-    v = c.get(f"/api/billing/verify?checkout_id={checkout_id}", headers=h).json()
-    assert v["payment"] == "success" and v["billing"]["plan"] == "premium" and v["billing"]["interval"] == "yearly"
-    assert c.put("/api/projects/many1", json=_proj("many1"), headers=h).status_code == 200
-    assert c.put("/api/projects/many2", json=_proj("many2"), headers=h).status_code == 200  # Premium: no project limit
-    # An expired checkout is reported as failed.
-    other = c.post("/api/billing/checkout", json={"plan": "pro", "interval": "monthly"}, headers=sign_up(c, "late@example.com"))
-    assert other.status_code == 200
-
-
-def test_changing_plan_uses_the_same_subscription(monkeypatch):
-    _plans_on(monkeypatch)
-    calls = _fake_bachs(monkeypatch)
-    c = client(); h = sign_up(c, "switch@example.com")
-    uid = _uid(c, h)
-    cid = c.post("/api/billing/checkout", json={"plan": "pro", "interval": "monthly"}, headers=h).json()["checkoutId"]
-    _webhook(c, {"id": "evt_s1", "type": "checkout.completed", "data": _completed(cid, uid, sub="sub_s")})
-    # Same billing period: switched now, Bachs charges the difference.
-    r = c.post("/api/billing/checkout", json={"plan": "premium", "interval": "monthly"}, headers=h).json()
-    assert r["changed"] is True and r["when"] == "now" and r["billing"]["plan"] == "premium"
-    assert ("PATCH", "/v1/subscriptions/sub_s", {"product_id": "prod_premium_m", "proration_behavior": "invoice_now"}) in calls
-    # Monthly to yearly: Bachs switches at the next renewal.
-    r = c.post("/api/billing/checkout", json={"plan": "premium", "interval": "yearly"}, headers=h).json()
-    assert r["when"] == "next_renewal" and r["billing"]["interval"] == "monthly"
-    assert ("PATCH", "/v1/subscriptions/sub_s", {"product_id": "prod_premium_y", "proration_behavior": "next_cycle"}) in calls
-    assert sum(1 for x in calls if x[1] == "/v1/checkout-sessions") == 1        # never a second subscription
-    # When Bachs applies it, the webhook moves the plan to yearly.
-    _webhook(c, {"id": "evt_s2", "type": "customer.subscription.updated", "data": {
-        "subscription_id": "sub_s", "status": "active", "product_id": "prod_premium_y", "current_period_end": "2027-12-17T10:00:00Z",
-        "cancel_at_period_end": False, "customer": {"customer_id": "cust_1"}}})
-    assert c.get("/api/billing/me", headers=h).json()["interval"] == "yearly"
+    cid = c.post("/api/billing/checkout", json={"pack": "s", "currency": "USD"}, headers=h).json()["checkoutId"]
+    assert calls[-1][2]["pricing"] == {"currency": "USD", "amount": "3.00"}
+    assert c.get(f"/api/billing/verify?checkout_id={cid}", headers=h).json()["payment"] == "pending"
+    checkouts[cid] = _pack_done(cid, uid, "3.00", pack="s")
+    v = c.get(f"/api/billing/verify?checkout_id={cid}", headers=h).json()
+    assert v["payment"] == "success" and v["billing"]["credits"] == 180
+    assert c.get(f"/api/billing/verify?checkout_id={cid}", headers=h).json()["billing"]["credits"] == 180   # once
+    assert c.get("/api/billing/verify?checkout_id=chk_someone_else", headers=h).status_code == 404
+    ref = v["billing"]["payments"][0]["reference"]
+    # Refund within 14 days while the credits are unused: money back, credits taken back.
+    me = c.post("/api/billing/refund", json={"reference": ref}, headers=h).json()
+    assert [x for x in calls if x[1] == "/v1/refunds"][-1][2]["charge_id"] == f"ch_{cid}"
+    assert me["credits"] == 30 and c.post("/api/billing/refund", json={"reference": ref}, headers=h).status_code == 409
+    _webhook(c, {"id": "evt_rf", "type": "refund.paid", "data": {"refund_id": "rfnd_1", "charge_id": f"ch_{cid}", "status": "success"}})
+    assert c.get("/api/billing/me", headers=h).json()["payments"][0]["refundStatus"] == "processed"
+    # Once some credits are spent, the pack can't be refunded.
+    cid2 = c.post("/api/billing/checkout", json={"pack": "s", "currency": "USD"}, headers=h).json()["checkoutId"]
+    checkouts[cid2] = _pack_done(cid2, uid, "3.00", pack="s")
+    ref2 = c.get(f"/api/billing/verify?checkout_id={cid2}", headers=h).json()["billing"]["payments"][0]["reference"]
+    c.post("/api/billing/unlock", json={"feature": "branding"}, headers=h)          # 180 - 200? not enough
+    admin_cli.main(["credits", "return@example.com", "-100"])
+    me = c.get("/api/billing/me", headers=h).json()
+    assert me["credits"] == 80 and me["payments"][0]["refundable"] is False
+    assert c.post("/api/billing/refund", json={"reference": ref2}, headers=h).status_code == 409
 
 
 def test_failed_renewal_grace_and_admin_set_plan(monkeypatch):
@@ -329,18 +236,18 @@ def test_failed_renewal_grace_and_admin_set_plan(monkeypatch):
     with sqlite3.connect(DB_PATH) as db:
         db.execute("INSERT INTO subscriptions (user_id, plan, interval, status, current_period_end, subscription_ref, created_at, updated_at) "
                    "VALUES (?, 'premium', 'monthly', 'active', ?, 'sub_g', ?, ?)", (uid, now - 60_000, now, now))
-    assert c.get("/api/billing/me", headers=h).json()["plan"] == "free"       # period over and not renewed
+    assert c.get("/api/billing/me", headers=h).json()["legacy"] is None      # period over and not renewed
     _webhook(c, {"id": "evt_g1", "type": "invoice.payment_failed", "data": {"invoice_id": "inv_g", "subscription": {"subscription_id": "sub_g"}}})
-    me = c.get("/api/billing/me", headers=h).json()
+    me = c.get("/api/billing/me", headers=h).json()["legacy"]
     assert me["plan"] == "premium" and me["status"] == "past_due"            # grace while Bachs retries
     _webhook(c, {"id": "evt_g2", "type": "customer.subscription.deleted", "data": {"subscription_id": "sub_g", "status": "canceled",
                                                                                   "canceled_at": "2026-01-01T00:00:00Z"}})
-    assert c.get("/api/billing/me", headers=h).json()["plan"] == "free"       # Bachs gave up: back to Free
+    assert c.get("/api/billing/me", headers=h).json()["legacy"] is None      # Bachs gave up: credits only
     assert admin_cli.main(["set-plan", "grace@example.com", "gold"]) == 2
     assert admin_cli.main(["set-plan", "grace@example.com", "pro"]) == 0
-    assert c.get("/api/billing/me", headers=h).json()["plan"] == "pro"       # a plan given by an admin
+    assert c.get("/api/billing/me", headers=h).json()["legacy"]["plan"] == "pro"   # a plan given by an admin
     assert admin_cli.main(["set-plan", "grace@example.com", "none"]) == 0
-    assert c.get("/api/billing/me", headers=h).json()["plan"] == "free"
+    assert c.get("/api/billing/me", headers=h).json()["legacy"] is None
 
 
 def test_deleting_an_account_stops_its_subscription(monkeypatch):
@@ -358,17 +265,12 @@ def test_deleting_an_account_stops_its_subscription(monkeypatch):
         assert db.execute("SELECT COUNT(*) FROM subscriptions WHERE user_id = ?", (uid,)).fetchone()[0] == 0
 
 
-def test_pdf_export_is_on_every_plan(monkeypatch):
+def test_pdf_export_is_for_everyone(monkeypatch):
     _plans_on(monkeypatch, bachs_ready=False)
     c = client(); h = sign_up(c, "pdf@example.com")
-    assert c.get("/api/billing/me", headers=h).json()["limits"]["pdfTypes"] is None
-    assert all(p["limits"]["pdfTypes"] is None for p in c.get("/api/billing/plans").json()["plans"])
-    # A Free user's one CV can be downloaded as a PDF from its public page.
     c.put("/api/projects/pcv", json=_proj("pcv", "cv", "plain"), headers=h)
     slug = c.post("/api/projects/pcv/publish", headers=h).json()["slug"]
     assert c.get(f"/api/public/{slug}").json()["pdf"] is True
-    # ...but Free is still one asset.
-    assert c.put("/api/projects/pcs", json=_proj("pcs", "case"), headers=h).status_code == 402
 
 
 def test_a_sandbox_key_in_production_needs_test_mode_on_purpose(monkeypatch):
@@ -408,19 +310,20 @@ def test_coming_back_with_an_id_we_didnt_save_still_finds_the_payment(monkeypatc
     monkeypatch.setattr(bachs, "_call", fake)
     c = client(); h = sign_up(c, "renamed-id@example.com")
     uid = _uid(c, h)
-    r = c.post("/api/billing/checkout", json={"plan": "starter", "interval": "monthly", "currency": "USD"}, headers=h).json()
+    r = c.post("/api/billing/checkout", json={"pack": "s", "currency": "USD"}, headers=h).json()
     assert r["checkoutId"] == "cs_named_differently" and r["url"].startswith("https://")
     # Simulate an older record that lost its checkout id.
     with sqlite3.connect(DB_PATH) as db:
         db.execute("UPDATE payments SET checkout_ref = NULL WHERE reference = ?", (fake.ref,))
     checkouts["cs_named_differently"] = {"id": "cs_named_differently", "reference": fake.ref, "status": "completed",
-                                         "payment_status": "succeeded", "amount": "3.99", "currency": "USD",
-                                         "metadata": {"user_id": uid}, "charge": {"payment_id": "pay_x", "status": "succeeded"}}
+                                         "payment_status": "succeeded", "amount": "3.00", "currency": "USD",
+                                         "metadata": {"user_id": uid, "plan": "credits", "interval": "s"},
+                                         "charge": {"payment_id": "pay_x", "status": "succeeded"}}
     # Someone else can't claim it.
     other = sign_up(c, "not-mine@example.com")
     assert c.get("/api/billing/verify?checkout_id=cs_named_differently", headers=other).status_code == 404
     v = c.get("/api/billing/verify?checkout_id=cs_named_differently", headers=h).json()
-    assert v["payment"] == "success" and v["billing"]["plan"] == "starter"
+    assert v["payment"] == "success" and v["billing"]["credits"] == 180
 
 
 def test_coming_back_through_our_own_return_link(monkeypatch):
@@ -443,16 +346,16 @@ def test_coming_back_through_our_own_return_link(monkeypatch):
     monkeypatch.setattr(bachs, "_call", fake)
     c = client(); h = sign_up(c, "own-link@example.com")
     uid = _uid(c, h)
-    r = c.post("/api/billing/checkout", json={"plan": "pro", "interval": "monthly", "currency": "USD"}, headers=h).json()
+    r = c.post("/api/billing/checkout", json={"pack": "m", "currency": "USD"}, headers=h).json()
     ref = state["ref"]
     assert state["success_url"].endswith(f"/billing/callback/{ref}") and r["checkoutId"] == "chk_wrapped"
     # Back with no checkout id at all: known payment, not yet paid.
     assert c.get(f"/api/billing/verify?ref={ref}", headers=h).json()["payment"] == "pending"
     state["paid"] = {"checkout_id": "chk_wrapped", "reference": ref, "status": "completed", "payment_status": "succeeded",
-                     "amount": "7.99", "currency": "USD", "metadata": {"user_id": uid},
+                     "amount": "9.00", "currency": "USD", "metadata": {"user_id": uid},
                      "charge": {"payment_id": "pay_w", "status": "succeeded"}}
     v = c.get(f"/api/billing/verify?ref={ref}&checkout_id=chk_wrapped", headers=h).json()
-    assert v["payment"] == "success" and v["billing"]["plan"] == "pro"
+    assert v["payment"] == "success" and v["billing"]["credits"] == 530
     # Another account can't use someone's reference.
     assert c.get(f"/api/billing/verify?ref={ref}", headers=sign_up(c, "nosy-ref@example.com")).status_code == 404
 

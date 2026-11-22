@@ -49,7 +49,6 @@ export default function CaseAssist({ project, onApply }) {
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [undo, setUndo] = useState(null);
-  const units = plan?.usage?.ai;
   const urls = links.map((l) => l.trim()).filter(Boolean).map((l) => (/^https?:\/\//i.test(l) ? l : `https://${l}`));
 
   const build = async () => {
@@ -78,7 +77,7 @@ export default function CaseAssist({ project, onApply }) {
     <section className="aia" aria-label="Case study assistant">
       <div className="aia__head">
         <p className="aia__title"><span className="aia__spark" aria-hidden>✦</span>Case study assistant</p>
-        {units && <span className="aia__units">{Math.max(0, units.allowance - units.units)} AI units left</span>}
+        {plan?.enforced && <span className="aia__units">{(plan.credits ?? 0).toLocaleString()} credits</span>}
         <button type="button" className="aia__x" onClick={() => setOpen(false)} aria-label="Close the case study assistant">✕</button>
       </div>
       <div className="aia__tabs" role="tablist">
@@ -110,7 +109,7 @@ export default function CaseAssist({ project, onApply }) {
             <button type="button" className="app-btn app-btn--primary" disabled={busy || (!urls.length && notes.trim().length < 40)} onClick={build}>
               {busy ? <><span className="cz__spin" aria-hidden /> Reading your project…</> : 'Build my case study'}
             </button>
-            <small className="aia__cost">15 AI units{busy ? ' · this can take up to a minute' : ''}</small>
+            <small className="aia__cost">15 credits{busy ? ' · this can take up to a minute' : ''}</small>
           </div>
         </div>
       )}

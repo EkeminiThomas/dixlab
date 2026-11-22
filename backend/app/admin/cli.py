@@ -5,29 +5,30 @@
     python -m app.admin list
     python -m app.admin reset-2fa someone@example.com   (lost phone and recovery codes)
     python -m app.admin set-plan someone@example.com premium   (give a plan: free | starter | pro | premium | none)
+    python -m app.admin credits someone@example.com 500        (give credits; a negative number takes them back)
 
 Admin rights only come from here (or from an existing admin in the dashboard),
 never from signing up with a particular email: a setting like that would hand
 admin to whoever registers that address first. Only someone with access to the
-server can run this. The account must already exist (sign up in the app first).
+server can run this. The account  must already exist (sign up in the app first).
 Full guide: docs/admin/admin-dashboard.md"""
 import sys
 
 from .. import events
 from ..db import connect, init_db
 
-
 USAGE = """Usage:
     python -m app.admin grant you@example.com
     python -m app.admin revoke someone@example.com
     python -m app.admin list
     python -m app.admin reset-2fa someone@example.com   (lost phone and recovery codes)
-    python -m app.admin set-plan someone@example.com premium   (free | starter | pro | premium | none)"""
+    python -m app.admin set-plan someone@example.com premium   (free | starter | pro | premium | none: Pro/Premium unlock everything)
+    python -m app.admin credits someone@example.com 500        (give credits; a negative number takes them back)"""
 
 
 def main(argv: list[str]) -> int:
-    wanted = {"list": 1, "set-plan": 3}
-    if len(argv) < 1 or argv[0] not in ("grant", "revoke", "list", "reset-2fa", "set-plan") or len(argv) != wanted.get(argv[0], 2):
+    wanted = {"list": 1, "set-plan": 3, "credits": 3}
+    if len(argv) < 1 or argv[0] not in ("grant", "revoke", "list", "reset-2fa", "set-plan", "credits") or len(argv) != wanted.get(argv[0], 2):
         # Its own text, not __doc__: Python can drop docstrings (python -OO), and then this would crash.
         print(USAGE)
         return 2
@@ -52,6 +53,20 @@ def main(argv: list[str]) -> int:
             events.log(db, "admin.set_plan", row["id"], None, plan=plan, via="terminal")
             print(f"{email} now has {'no plan given by an admin (their own plan applies)' if plan == 'none' else PLANS[plan]['name']}."
                   + (" A paid plan or trial above it still applies." if plan == "free" else ""))
+            return 0
+        if argv[0] == "credits":
+            from .. import plans
+            try:
+                amount = int(argv[2])
+            except ValueError:
+                print("Credits must be a whole number, like 500 or -100.")
+                return 2
+            if amount == 0 or plans.balance(db, row["id"]) + amount < 0:
+                print("Use a number other than 0 that doesn't take the balance below zero.")
+                return 2
+            plans.add_credits(db, row["id"], amount, "admin")
+            events.log(db, "admin.credits", row["id"], None, amount=amount, via="terminal")
+            print(f"{email} now has {plans.balance(db, row['id'])} credits.")
             return 0
         if argv[0] == "reset-2fa":
             # Only do this after confirming who's asking (e.g. a reply from the account's email).

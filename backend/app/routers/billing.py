@@ -1,5 +1,6 @@
-"""Plans and billing: the pricing page's data, your plan and usage, the free
-trial, Bachs checkout, the Bachs webhook, plan changes, cancelling and refunds."""
+"""Credits and billing: the pricing page's data, your balance and unlocks, buying
+credit packs (one-off Bachs payments), unlocking features with credits, the
+Bachs webhook, refunds, and managing an older subscription."""
 import hashlib
 import json
 import secrets
@@ -33,37 +34,48 @@ def list_plans():
     return {
         "currencies": list(config.CURRENCIES),
         "configured": {cur: bachs.configured(cur) for cur in config.CURRENCIES},
-        "renews": {cur: bachs.recurring(cur) for cur in config.CURRENCIES},  # NGN: one-off payments per period, for now
         "enforced": config.PLAN_LIMITS,
-        "trialDays": config.TRIAL_DAYS,
         "refundDays": config.REFUND_DAYS,
-        "plans": plans.public_catalog(),
-        "templates": {"free": sorted(plans.FREE_TEMPLATES | plans.LEGACY_TEMPLATES), "starter": sorted(plans.STARTER_TEMPLATES)},
+        **plans.public_catalog(),
     }
+
+
+def _pack_of(row) -> dict | None:
+    return config.CREDIT_PACKS.get(row["interval"]) if row["plan"] == "credits" else None
 
 
 def summary(db: sqlite3.Connection, user_id: str) -> dict:
     info = plans.current(db, user_id)
-    p = plans.PLANS[info["plan"]]
+    ent = plans.entitlements(db, user_id)
+    bal = plans.balance(db, user_id)
     counts = {r["type"]: r["n"] for r in db.execute("SELECT type, COUNT(*) AS n FROM projects WHERE user_id = ? GROUP BY type", (user_id,))}
     storage = db.execute("SELECT COALESCE(SUM(size), 0) FROM uploads WHERE user_id = ?", (user_id,)).fetchone()[0]
     sub = db.execute("SELECT customer_ref FROM subscriptions WHERE user_id = ?", (user_id,)).fetchone()
     window = config.REFUND_DAYS * plans.DAY_MS
     now = plans.now_ms()
-    payments = [{
-        "reference": r["reference"], "plan": r["plan"], "interval": r["interval"], "amount": r["amount"],
-        "currency": r["currency"], "status": r["status"], "paidAt": r["paid_at"], "refundStatus": r["refund_status"],
-        "refundable": (r["status"] == "success" and r["refund_status"] in (None, "failed") and bool(r["paid_at"])
-                       and now - r["paid_at"] <= window and r["amount"] > 0),
-    } for r in db.execute("SELECT * FROM payments WHERE user_id = ? AND status != 'pending' ORDER BY created_at DESC LIMIT 20", (user_id,))]
+    payments = []
+    for r in db.execute("SELECT * FROM payments WHERE user_id = ? AND status != 'pending' ORDER BY created_at DESC LIMIT 20", (user_id,)):
+        pack = _pack_of(r)
+        refundable = (r["plan"] != "domain" and r["status"] == "success" and r["refund_status"] in (None, "failed") and bool(r["paid_at"])
+                      and now - r["paid_at"] <= window and r["amount"] > 0 and (not pack or bal >= pack["credits"]))
+        payments.append({"reference": r["reference"], "plan": r["plan"], "interval": r["interval"], "amount": r["amount"],
+                         "currency": r["currency"], "status": r["status"], "paidAt": r["paid_at"], "refundStatus": r["refund_status"],
+                         "credits": pack["credits"] if pack else None, "refundable": refundable})
+    legacy = None
+    if info["plan"] != "free":
+        legacy = {"plan": info["plan"], "name": plans.PLANS[info["plan"]]["name"], "source": info["source"], "status": info["status"],
+                  "interval": info["interval"], "currency": info["currency"], "periodEnd": info["periodEnd"],
+                  "renews": info["renews"], "cancelAtPeriodEnd": info["cancelAtPeriodEnd"]}
     return {
-        **info,
-        "name": p["name"],
         "enforced": config.PLAN_LIMITS,
-        "limits": {"projects": p["projects"], "perType": p["per_type"], "storageMb": p["storage_mb"], "aiUnits": p["ai_units"],
-                   "pdfTypes": list(p["pdf_types"]) if p["pdf_types"] and config.PLAN_LIMITS else None},
+        "credits": bal,
+        "features": {k: v for k, v in ent.items() if k not in ("projects", "storage_mb", "insightDays")},
+        "limits": {"projects": ent["projects"], "storageMb": ent["storage_mb"], "insightDays": ent["insightDays"]},
+        "unlocks": plans.unlocked(db, user_id),
+        "history": plans.history(db, user_id),
+        "legacy": legacy,
         "usage": {"projects": {"total": sum(counts.values()), **counts}, "storageBytes": storage, "ai": plans.ai_usage(db, user_id, info)},
-        "canManageCard": bool(sub and sub["customer_ref"] and config.BACHS_API_KEY),
+        "canManageCard": bool(sub and sub["customer_ref"] and config.BACHS_API_KEY and legacy and legacy["renews"]),
         "payments": payments,
     }
 
@@ -73,68 +85,47 @@ def my_billing(user=Depends(current_user), db: sqlite3.Connection = Depends(get_
     return summary(db, user["id"])
 
 
-@router.post("/trial")
-def start_trial(user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
-    """A free Pro trial, once per account, no card."""
-    if config.TRIAL_DAYS <= 0:
-        raise HTTPException(status.HTTP_409_CONFLICT, "There’s no free trial at the moment.")
-    info = plans.current(db, user["id"])
-    if not info["trialAvailable"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "You’ve already used your free trial.")
-    if plans.PLANS[info["plan"]]["rank"] >= plans.PLANS["pro"]["rank"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "You already have Pro features.")
-    now = plans.now_ms()
-    db.execute("UPDATE users SET trial_used_at = ?, trial_ends_at = ? WHERE id = ?", (now, now + config.TRIAL_DAYS * plans.DAY_MS, user["id"]))
-    events.log(db, "billing.trial", user["id"], days=config.TRIAL_DAYS)
+class UnlockIn(BaseModel):
+    feature: str
+
+
+@router.post("/unlock")
+def unlock(body: UnlockIn, user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
+    """Spend credits on a feature; it stays unlocked for good."""
+    plans.buy_unlock(db, user["id"], body.feature)
+    events.log(db, "billing.unlock", user["id"], feature=body.feature, credits=plans.UNLOCKS[body.feature]["credits"])
     return summary(db, user["id"])
 
 
 class CheckoutIn(BaseModel):
-    plan: Literal["starter", "pro", "premium"]
-    interval: Literal["monthly", "yearly"]
+    pack: str
     currency: Literal["NGN", "USD"] = "USD"
 
 
 @router.post("/checkout")
 def checkout(body: CheckoutIn, user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
-    """Start paying (returns Bachs's checkout page), or switch an existing subscription.
-    USD renews automatically; NGN is a one-off payment for the period (renewed by paying again)."""
+    """Buy a credit pack: a one-off payment on Bachs's checkout page. Credits arrive when Bachs confirms it."""
+    pack = config.CREDIT_PACKS.get(body.pack)
+    if not pack:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown credit pack.")
     if not bachs.configured(body.currency):
         return _unavailable()
     if not user.get("email_verified", True):
         from .account import unverified_response
         return unverified_response()
-    info = plans.current(db, user["id"])
-    key = (body.plan, body.interval, body.currency)
-    recurring = bachs.recurring(body.currency)
-    product = config.BACHS_PRODUCTS[key] if recurring else None
-    sub = db.execute("SELECT * FROM subscriptions WHERE user_id = ?", (user["id"],)).fetchone()
-    renewing = info["source"] == "subscription" and info["renews"]
-    if renewing and (info["plan"], info["interval"], info["currency"] or "USD") == key:
-        raise HTTPException(status.HTTP_409_CONFLICT, "You’re already on this plan.")
-    if renewing and recurring and sub and sub["subscription_ref"] and (sub["currency"] or "USD") == body.currency:
-        # Already paying: change the plan on the same subscription (no second subscription).
-        same_period = info["interval"] == body.interval
-        try:
-            bachs.change_plan(sub["subscription_ref"], product, now=same_period)
-        except bachs.BachsError as e:
-            return _fail(e)
-        if same_period:  # Bachs charges or credits the difference now
-            db.execute("UPDATE subscriptions SET plan = ?, updated_at = ? WHERE user_id = ?", (body.plan, plans.now_ms(), user["id"]))
-        events.log(db, "billing.changed", user["id"], plan=body.plan, interval=body.interval, now=same_period)
-        return {"changed": True, "when": "now" if same_period else "next_renewal", "billing": summary(db, user["id"])}
+    amount = pack["prices"][body.currency]
+    sub = db.execute("SELECT customer_ref FROM subscriptions WHERE user_id = ?", (user["id"],)).fetchone()
     reference = f"dx_{secrets.token_hex(12)}"
     db.execute("""INSERT INTO payments (reference, user_id, email, plan, interval, amount, currency, status, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
-               (reference, user["id"], user["email"], body.plan, body.interval, config.PRICES[key], body.currency, plans.now_ms()))
+                  VALUES (?, ?, ?, 'credits', ?, ?, ?, 'pending', ?)""",
+               (reference, user["id"], user["email"], body.pack, amount, body.currency, plans.now_ms()))
     customer = {"customer_id": sub["customer_ref"]} if sub and sub["customer_ref"] else {"email": user["email"], "name": user["name"]}
     try:
         data = bachs.create_checkout(
-            currency=body.currency, product_id=product, amount_cents=None if product else config.PRICES[key],
-            customer=customer, reference=reference,
+            currency=body.currency, amount_cents=amount, customer=customer, reference=reference,
             # Our own reference in the path, so coming back always identifies the payment, whatever Bachs adds.
             success_url=f"{config.PUBLIC_URL}/billing/callback/{reference}", cancel_url=f"{config.PUBLIC_URL}/pricing?checkout=cancelled",
-            metadata={"user_id": user["id"], "plan": body.plan, "interval": body.interval, "currency": body.currency},
+            metadata={"user_id": user["id"], "plan": "credits", "interval": body.pack, "credits": pack["credits"], "currency": body.currency},
         )
     except bachs.BachsError as e:
         db.execute("UPDATE payments SET status = 'failed' WHERE reference = ?", (reference,))
@@ -143,7 +134,7 @@ def checkout(body: CheckoutIn, user=Depends(current_user), db: sqlite3.Connectio
     if not checkout_id:
         log.warning("Bachs created a checkout without an id we recognise (fields: %s)", ", ".join(sorted(data)))
     db.execute("UPDATE payments SET checkout_ref = ? WHERE reference = ?", (checkout_id, reference))
-    events.log(db, "billing.checkout", user["id"], plan=body.plan, interval=body.interval, currency=body.currency)
+    events.log(db, "billing.checkout", user["id"], pack=body.pack, credits=pack["credits"], currency=body.currency)
     return {"url": data.get("checkout_url") or data.get("url"), "checkoutId": checkout_id}
 
 
@@ -221,7 +212,17 @@ def verify(checkout_id: str = "", ref: str = "", user=Depends(current_user), db:
                         data.get("status"), data.get("payment_status"), (data.get("charge") or {}).get("status"), ", ".join(sorted(data)))
     elif row["status"] == "failed":
         payment = "failed"
-    return {"payment": payment, "billing": summary(db, user["id"])}
+    return {"payment": payment, "billing": summary(db, user["id"]), "domainOrder": _domain_order(db, user["id"], ref, checkout_id)}
+
+
+def _domain_order(db, user_id: str, ref: str, checkout_id: str):
+    """For the return page: the domain this payment bought, if it was one."""
+    row = db.execute("SELECT reference FROM payments WHERE user_id = ? AND plan = 'domain' AND (reference = ? OR checkout_ref = ?)",
+                     (user_id, ref or "-", checkout_id or "-")).fetchone()
+    if not row:
+        return None
+    from . import domains
+    return domains.order_out(db.execute("SELECT * FROM domain_orders WHERE reference = ?", (row["reference"],)).fetchone())
 
 
 @router.post("/webhook", include_in_schema=False)
@@ -248,10 +249,6 @@ async def webhook(request: Request, db: sqlite3.Connection = Depends(get_db)):
 def cancel(user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
     """Stop renewing. The plan stays until the end of the period already paid for."""
     info = plans.current(db, user["id"])
-    if info["source"] == "trial":
-        db.execute("UPDATE users SET trial_ends_at = ? WHERE id = ?", (plans.now_ms(), user["id"]))
-        events.log(db, "billing.trial_ended", user["id"])
-        return summary(db, user["id"])
     if info["source"] != "subscription" or not info["renews"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "There’s no renewing plan to cancel. A paid period just ends; nothing is charged again.")
     sub = db.execute("SELECT subscription_ref FROM subscriptions WHERE user_id = ?", (user["id"],)).fetchone()
@@ -286,7 +283,8 @@ class RefundIn(BaseModel):
 
 @router.post("/refund")
 def refund(body: RefundIn, user=Depends(current_user), db: sqlite3.Connection = Depends(get_db)):
-    """Full refund of a payment made in the last REFUND_DAYS days. The plan ends now."""
+    """Full refund of a payment made in the last REFUND_DAYS days: a credit pack's credits are
+    taken back (so only while they're unused); an older plan payment ends the plan now."""
     row = db.execute("SELECT * FROM payments WHERE reference = ? AND user_id = ?", (body.reference, user["id"])).fetchone()
     if not row or row["status"] != "success":
         raise HTTPException(status.HTTP_404_NOT_FOUND, "We couldn’t find that payment.")
@@ -294,6 +292,10 @@ def refund(body: RefundIn, user=Depends(current_user), db: sqlite3.Connection = 
         raise HTTPException(status.HTTP_409_CONFLICT, "This payment has already been refunded.")
     if not row["paid_at"] or plans.now_ms() - row["paid_at"] > config.REFUND_DAYS * plans.DAY_MS:
         raise HTTPException(status.HTTP_409_CONFLICT, f"Refunds are available for {config.REFUND_DAYS} days after a payment. "
+                            "Email us if something went wrong.")
+    pack = _pack_of(row)
+    if pack and plans.balance(db, user["id"]) < pack["credits"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Some of these credits have been used, so this pack can’t be refunded. "
                             "Email us if something went wrong.")
     if not config.BACHS_API_KEY:
         return _unavailable()
@@ -311,8 +313,11 @@ def refund(body: RefundIn, user=Depends(current_user), db: sqlite3.Connection = 
     except bachs.BachsError as e:
         return _fail(e)
     db.execute("UPDATE payments SET refund_status = 'pending', charge_ref = ? WHERE reference = ?", (charge_ref, row["reference"]))
-    billing.cancel_remote(db, user["id"], at_period_end=False, reason="Refunded")
-    now = plans.now_ms()
-    db.execute("UPDATE subscriptions SET status = 'cancelled', current_period_end = ?, updated_at = ? WHERE user_id = ?", (now, now, user["id"]))
+    if pack:  # the pack's credits go back with the money
+        plans.add_credits(db, user["id"], -pack["credits"], "refund", ref=f"refund:{row['reference']}")
+    else:     # an older plan payment: the plan ends now
+        billing.cancel_remote(db, user["id"], at_period_end=False, reason="Refunded")
+        now = plans.now_ms()
+        db.execute("UPDATE subscriptions SET status = 'cancelled', current_period_end = ?, updated_at = ? WHERE user_id = ?", (now, now, user["id"]))
     events.log(db, "billing.refund", user["id"], amount=row["amount"], currency=row["currency"])
     return summary(db, user["id"])

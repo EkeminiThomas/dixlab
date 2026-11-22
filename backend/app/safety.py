@@ -15,7 +15,7 @@ _SCHEME = re.compile(r"^([a-z][a-z0-9+.\-]*):")
 _DATA_IMAGE = re.compile(r"^data:image/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$", re.I)
 
 # Keys holding a link people click.
-LINK_KEYS = {"link", "href", "url", "website", "linkedin", "github", "portfolio", "behance", "dribbble", "twitter", "instagram"}
+LINK_KEYS = {"link", "href", "url", "website", "linkedin", "github", "portfolio", "behance", "dribbble", "twitter", "instagram", "bookingurl"}
 # Keys holding an image, video or file address the page loads.
 MEDIA_KEYS = {"src", "photo", "poster", "avatar", "image", "thumbnail", "bgimage"}  # keys are compared lower-cased
 

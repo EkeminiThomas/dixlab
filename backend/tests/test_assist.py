@@ -75,10 +75,10 @@ def _ai_on(monkeypatch):
 def _units(uid):
     db = sqlite3.connect(DB_PATH)
     try:
-        row = db.execute("SELECT SUM(count) FROM ai_usage WHERE user_id = ? AND feature = 'units'", (uid,)).fetchone()
+        row = db.execute("SELECT -SUM(delta) FROM credit_ledger WHERE user_id = ? AND reason LIKE 'ai:%'", (uid,)).fetchone()
     finally:
         db.close()
-    return row[0] or 0
+    return row[0] or 0  # credits spent on AI
 
 
 def _uid(c, h):
@@ -87,14 +87,15 @@ def _uid(c, h):
 
 # ---------------------------------------------------------------- routes
 
-def test_tailoring_a_cv_needs_pro_and_keeps_to_the_cv(monkeypatch):
+def test_tailoring_a_cv_costs_credits_and_keeps_to_the_cv(monkeypatch):
     calls = _ai_on(monkeypatch)
     c = client(); h = sign_up(c, "tailor@example.com")
     body = {"job_url": "jobs.example.com/123", "cv": CV}
+    assert admin_cli.main(["credits", "tailor@example.com", "-25"]) == 0  # 30 welcome credits - 25 = 5, and tailoring costs 20
     r = c.post("/api/assist/tailor-cv", json=body, headers=h)
-    assert r.status_code == 402 and r.json()["code"] == "ai_plan" and r.json()["needed"] == "pro"
-    assert calls["fetched"] == []                                     # nothing read before the plan check
-    assert admin_cli.main(["set-plan", "tailor@example.com", "pro"]) == 0
+    assert r.status_code == 402 and r.json()["code"] == "ai_credits" and r.json()["unavailable"] is True
+    assert calls["fetched"] == []                                     # nothing read before the credit check
+    assert admin_cli.main(["credits", "tailor@example.com", "100"]) == 0
     r = c.post("/api/assist/tailor-cv", json=body, headers=h)
     assert r.status_code == 200, r.text
     t = r.json()["tailored"]
@@ -121,6 +122,7 @@ def test_profiles_draft_a_portfolio_and_explain_unreadable_links(monkeypatch):
     calls = _ai_on(monkeypatch)
     c = client(); h = sign_up(c, "profiles@example.com")
     admin_cli.main(["set-plan", "profiles@example.com", "starter"])
+    admin_cli.main(["credits", "profiles@example.com", "100"])  # Starter pays for AI in credits
     r = c.post("/api/assist/profiles", json={"kind": "portfolio", "urls": ["github.com/ada", "https://www.linkedin.com/in/ada"]}, headers=h)
     assert r.status_code == 200, r.text
     j = r.json()
@@ -138,10 +140,11 @@ def test_profiles_draft_a_portfolio_and_explain_unreadable_links(monkeypatch):
     before = _units(_uid(c, h))
     r = c.post("/api/assist/profiles", json={"kind": "cv", "urls": ["https://x.com/ada"]}, headers=h)
     assert r.status_code == 422 and _units(_uid(c, h)) == before
-    # Free's 10 units don't cover reading profiles (15).
+    # Out of credits: reading profiles (15) is refused, nothing is read.
     h2 = sign_up(c, "profiles-free@example.com")
+    admin_cli.main(["credits", "profiles-free@example.com", "-20"])
     r = c.post("/api/assist/profiles", json={"kind": "cv", "urls": ["github.com/ada"]}, headers=h2)
-    assert r.status_code == 402 and r.json()["code"] == "ai_quota"
+    assert r.status_code == 402 and r.json()["code"] == "ai_credits"
     assert c.post("/api/assist/profiles", json={"kind": "cv", "urls": []}, headers=h).status_code == 400
 
 
@@ -159,7 +162,7 @@ def test_an_empty_cv_is_built_for_the_job_from_the_persons_background(monkeypatc
     assert j["built"]["notes"] == "Built for the job." and j["built"]["experience"][0]["desc"] == "Shipped React apps"
     assert j["gaps"] == ["GraphQL"] and "tailored" not in j
     assert "ABOUT THE PERSON" in calls["parse"][-1] and "developer at Acme" in calls["parse"][-1]
-    assert _units(_uid(c, h)) == plans_mod.AI_COSTS["assist_tailor_cv"]
+    assert _units(_uid(c, h)) == 0                                    # an older Premium plan includes AI
 
 
 # ---------------------------------------------------------------- the page reader

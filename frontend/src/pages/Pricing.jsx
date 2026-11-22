@@ -2,61 +2,39 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo, loadUser } from '../components/ui.jsx';
 import {
-  usePlan, loadCatalog, refreshPlan, isSignedIn, startTrial, checkout, formatPrice, homeFor,
-  getCurrency, setCurrency, PLAN_NAMES,
+  usePlan, loadCatalog, refreshPlan, isSignedIn, buyCredits, formatPrice, homeFor, getCurrency, setCurrency, openUpgrade, hasFeature,
 } from '../api.js';
 
-/* What each plan's card lists (the limits themselves are enforced by the server). */
-const CARDS = {
-  free: {
-    for: 'Try Dixlab and build your first professional asset.', lead: 'Includes',
-    items: [['One creation category', 'Choose a CV, a portfolio or a case study'], ['One asset in that category'],
-      ['Basic templates'], ['Limited AI help', '10 AI units a month'], ['Basic editing'], ['PDF export'], ['Publish on a Dixlab subdomain'], ['Your dashboard']],
-  },
-  starter: {
-    for: 'Affordable access to everything you need beyond Free.', lead: 'Everything in Free, plus',
-    items: [['CVs, portfolios and case studies', 'All three categories'], ['Up to 3 CVs, 2 portfolios, 5 case studies'],
-      ['Premium templates'], ['AI-assisted content', '100 AI units a month'], ['Publish on a Dixlab subdomain']],
-  },
-  pro: {
-    for: 'For professionals, freelancers, designers, developers and active job seekers.', lead: 'Everything in Starter, plus',
-    items: [['Unlimited CVs', 'Fair use'], ['Up to 5 portfolios and 15 case studies'], ['Advanced templates', 'Including 3D'],
-      ['Advanced AI and CV tailoring', '300 AI units a month'], ['Connect your own domain'], ['Portfolio analytics'], ['Remove Dixlab branding']],
-  },
-  premium: {
-    for: 'For highly active professionals who need more flexibility.', lead: 'Everything in Pro, plus',
-    items: [['Unlimited portfolios and case studies', 'Fair use'], ['Multiple professional profiles'], ['Premium AI workflows', '800 AI units a month'],
-      ['Multiple custom domains'], ['Advanced portfolio analytics'], ['Priority support']],
-  },
+const PACKS = {
+  s: { name: 'Starter pack', for: 'Try the AI on a CV or two.' },
+  m: { name: 'Builder pack', for: 'A strong CV, a portfolio and a few unlocks.', tag: 'Most popular' },
+  l: { name: 'Career pack', for: 'Everything unlocked, with plenty of AI left.' },
+  xl: { name: 'Pro pack', for: 'For heavy use: many CVs, translations and case studies.', tag: 'Best value' },
 };
 
-const COMPARE = [
-  ['Create', [['CVs', '1 · or one other category', '3', 'Unlimited*', 'Unlimited*'], ['Portfolios', '1 · or one other category', '2', '5', 'Unlimited*'],
-    ['Case studies', '1 · or one other category', '5', '15', 'Unlimited*'], ['Basic templates', '✓', '✓', '✓', '✓'], ['Premium templates', '—', '✓', '✓', '✓'],
-    ['Advanced templates (3D, specialist)', '—', '—', '✓', '✓'], ['PDF exports', '✓', '✓', '✓', '✓']]],
-  ['AI', [['AI features', 'Limited', 'Standard', 'Advanced', 'Advanced'], ['AI units a month', '10', '100', '300', '800'],
-    ['Advanced CV tailoring', '—', '—', '✓', '✓'], ['Premium AI workflows', '—', '—', '—', '✓']]],
-  ['Publish & brand', [['Dixlab subdomain', '✓', '✓', '✓', '✓'], ['Custom domains', '—', '—', '1', 'Multiple'],
-    ['Portfolio analytics', '—', '—', '✓', 'Advanced'], ['Remove Dixlab branding', '—', '—', '✓', '✓'], ['Multiple professional profiles', '—', '—', '—', '✓']]],
-  ['Support', [['Help centre', '✓', '✓', '✓', '✓'], ['Priority support', '—', '—', '—', '✓']]],
-];
-
-const UNITS = [['Generate CV or portfolio content', 10], ['Improve content (“Describe a change”)', 5], ['Write a case study', 15],
-  ['Build from your GitHub, LinkedIn or X', 15], ['Tailor a CV to a job advert (Pro)', 20]];
+const AI_NAMES = {
+  assist_tailor_cv: 'Tailor your CV to a job',
+  assist_profiles: 'Build from your GitHub and other profiles',
+  assist_case_links: 'Case study from project links',
+  interview_draft_case: 'Write a case study from your interview',
+  interview_draft_portfolio: 'Write your portfolio from your interview',
+  assist_translate: 'Translate a page into another language',
+  customize: 'Describe a change (“make it more concise”)',
+};
 
 const FAQ = [
-  ['Is the free plan really free?', 'Yes. Pick one category, a CV, a portfolio or a case study, and make one asset in it. Keep it live for as long as you like. No card needed.'],
-  ['Why naira or dollars?', 'Prices are set separately for Nigeria (in naira) and everywhere else (in US dollars); they aren’t exchange-rate conversions. We suggest one based on where you are, and you can switch before paying.'],
-  ['How does paying work?', 'Payments run on Bachs’s secure checkout, so Dixlab never sees your card. Dollar plans renew automatically until you cancel. Naira plans are paid for one month or one year at a time, and you renew by paying again (automatic naira renewals are coming).'],
-  ['What are AI units?', 'Each plan includes a monthly AI allowance. Different tasks use different amounts: writing a case study uses 15 units, improving content uses 5. If you run out, your work stays and you can keep editing by hand until it resets or you upgrade.'],
-  ['What happens if I downgrade or cancel?', 'Nothing is deleted. You keep your paid features until the end of the period, then anything beyond your new plan stays saved but read-only.'],
-  ['Do you offer refunds?', 'Yes: ask within 14 days of being charged and we refund that payment in full, from Your account.'],
+  ['Do credits expire?', 'No. Credits you buy stay on your account until you use them, however long that takes. There’s no subscription and nothing renews.'],
+  ['What’s free?', 'Every account gets free credits to try the AI, one project (a CV, portfolio or case study), the free templates, PDF export, publishing on a Dixlab link, testimonials, feedback links, live GitHub stats and the accessibility check.'],
+  ['What does an unlock do?', 'An unlock is paid once, with credits, and stays on your account for good: premium templates, visitor insights, your own yourname.dixlab.click address, password pages, or removing the Dixlab footer. Room for more projects and storage can be added as many times as you need.'],
+  ['What happens when I run out?', 'Nothing is lost. Your work stays, your pages stay live, and everything you unlocked stays unlocked. You can keep editing by hand, and top up whenever you want more AI help.'],
+  ['Can I use my own domain?', 'Yes, and connecting it is free. Buy a domain like yourname.com on pxxl.app (or anywhere), then connect it from Publish. Credits are only for the free yourname.dixlab.click address.'],
+  ['Can I get a refund?', 'Yes. Ask within 14 days of buying a pack, while its credits are unused, from Profile → Credits & billing.'],
+  ['Why naira and dollars?', 'People in Nigeria pay in naira at local prices. Everyone else pays in US dollars by card. Your bank may add its own fees.'],
 ];
 
 export default function Pricing() {
   const nav = useNavigate();
   const { catalog, plan } = usePlan();
-  const [yearly, setYearly] = useState(false);
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState(null);
   const [open, setOpen] = useState(0);
@@ -71,65 +49,23 @@ export default function Pricing() {
     }
   }, []);
 
-  const interval = yearly ? 'yearly' : 'monthly';
-  const current = signedIn ? plan?.plan || null : null;
-  const renews = catalog?.renews?.[currency] !== false;
-  const prices = (id) => catalog?.plans.find((p) => p.id === id)?.prices?.[currency];
-
-  const run = async (key, fn) => {
-    setBusy(key); setMessage(null);
-    try { await fn(); } catch (e) {
-      setMessage({ error: true, text: e.body?.unavailable ? 'Payments aren’t set up yet. You can start the free Pro trial in the meantime.' : e.message });
+  const buy = async (id) => {
+    if (!signedIn) { nav(`/signup?next=${encodeURIComponent('/pricing')}`); return; }
+    setBusy(id); setMessage(null);
+    try { await buyCredits(id, currency); } catch (e) {
+      setMessage({ error: true, text: e.body?.unavailable ? 'Payments aren’t set up yet. Check back soon.' : e.message });
     }
     setBusy('');
   };
-  const choose = (id) => {
-    if (!signedIn) { nav(`/signup?next=${encodeURIComponent('/pricing')}`); return; }
-    if (id === 'free') { nav(homeFor(loadUser())); return; }
-    run(id, async () => {
-      const res = await checkout(id, interval, currency);
-      if (res?.changed) {
-        setMessage({ text: res.when === 'now'
-          ? `You’re now on ${PLAN_NAMES[id]}. The difference is charged or credited on your card.`
-          : `Your plan changes to ${PLAN_NAMES[id]} (${interval}) at your next renewal. Until then nothing changes.` });
-      }
-    });
-  };
-  const trial = () => run('trial', async () => {
-    const me = await startTrial();
-    setMessage({ text: `You’re on Pro until ${new Date(me.trialEndsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}. Enjoy!` });
-  });
+  const packs = catalog?.packs || [];
+  const cheapestPer = Math.min(...packs.map((p) => p.prices[currency] / p.credits));
 
-  const cta = (id) => {
-    const isCurrent = current === id && (id === 'free' || plan?.source !== 'trial');
-    if (isCurrent && (id === 'free' || plan?.renews)) return <button className="prc__cta" disabled>Your current plan</button>;
-    if (id === 'free') return <button className="prc__cta" onClick={() => choose('free')}>{signedIn ? 'Go to your work' : 'Start free'}</button>;
-    const verb = isCurrent ? 'Renew' : 'Get';
-    const main = (
-      <button className={`prc__cta prc__cta--${id}`} onClick={() => choose(id)} disabled={!!busy}>
-        {busy === id ? 'Opening checkout…' : `${verb} ${PLAN_NAMES[id]}`}
-      </button>
-    );
-    if (id === 'pro' && (catalog?.trialDays ?? 14) > 0 && plan?.trialAvailable !== false && (!signedIn || plan?.plan === 'free')) {
-      return (
-        <div className="prc__ctas">
-          {main}
-          <button className="prc__sub-cta" onClick={signedIn ? trial : () => choose('pro')} disabled={!!busy}>
-            {busy === 'trial' ? 'Starting…' : `Or try Pro free for ${catalog?.trialDays || 14} days`}
-          </button>
-        </div>
-      );
-    }
-    return main;
-  };
-
-  const per = '/ month';
   return (
     <div className="prc">
       <header className="prc__nav">
         <Logo to="/" />
         <nav className="prc__links">
-          <Link to="/#templates">Templates</Link>
+          <Link to="/gallery">Gallery</Link>
           <Link to="/pricing" className="is-on">Pricing</Link>
         </nav>
         <div className="prc__actions">
@@ -142,100 +78,88 @@ export default function Pricing() {
 
       <section className="prc__hero">
         <p className="prc__kicker">Pricing</p>
-        <h1 className="prc__h1">Your professional identity,<br />built in <em>one place</em>.</h1>
-        <p className="prc__lead">Start free with one CV, portfolio or case study. Upgrade for all three, more of each, advanced AI, your own domain and analytics.</p>
+        <h1 className="prc__h1">Pay for what you use.<br /><em>Keep it forever.</em></h1>
+        <p className="prc__lead">No subscription. Buy credits once, use them for AI help and to unlock features, and top up when you need more. Credits never expire.</p>
         <div className="prc__switches">
           <div className="prc__toggle" role="group" aria-label="Currency">
             <button className={currency === 'NGN' ? 'is-on' : ''} aria-pressed={currency === 'NGN'} onClick={() => setCurrency('NGN')}>₦ Naira</button>
             <button className={currency === 'USD' ? 'is-on' : ''} aria-pressed={currency === 'USD'} onClick={() => setCurrency('USD')}>$ US dollars</button>
           </div>
-          <div className="prc__toggle" role="group" aria-label="Billing period">
-            <button className={!yearly ? 'is-on' : ''} aria-pressed={!yearly} onClick={() => setYearly(false)}>Monthly</button>
-            <button className={yearly ? 'is-on' : ''} aria-pressed={yearly} onClick={() => setYearly(true)}>Yearly <span>Save 20%</span></button>
-          </div>
         </div>
-        <p className="prc__note">{currency === 'NGN'
-          ? (renews ? 'Billed in naira. Renews automatically until you cancel.' : 'Billed in naira, one month or one year at a time. Renew by paying again; nothing is charged automatically.')
-          : 'Billed in US dollars by card. Renews automatically until you cancel. Your bank may add its own exchange fees.'}</p>
+        {signedIn && plan?.enforced && <p className="prc__balance">You have <b>{(plan.credits ?? 0).toLocaleString()} credits</b>.</p>}
+        {!signedIn && catalog?.welcome > 0 && <p className="prc__note">New accounts get {catalog.welcome} free credits to try the AI.</p>}
         {message && <p className={`prc__msg ${message.error ? 'is-error' : ''}`} role={message.error ? 'alert' : 'status'}>{message.text}</p>}
-        {plan?.source === 'trial' && <p className="prc__msg">Your free Pro trial ends {new Date(plan.trialEndsAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}. Choose a plan to keep your features.</p>}
       </section>
 
-      <section className="prc__plans prc__plans--four" aria-label="Plans">
-        {['free', 'starter', 'pro', 'premium'].map((id) => {
-          const c = CARDS[id];
-          const p = prices(id);
-          const amount = p ? (yearly ? p.yearly / 12 : p.monthly) : 0;
+      <section className="prc__plans prc__plans--four" aria-label="Credit packs">
+        {packs.map((p) => {
+          const c = PACKS[p.id] || { name: `${p.credits} credits`, for: '' };
+          const per100 = (p.prices[currency] / p.credits) * 100;
+          const save = Math.round((1 - (p.prices[currency] / p.credits) / (packs[0].prices[currency] / packs[0].credits)) * 100);
           return (
-            <article key={id} className={`prc__plan prc__plan--${id} ${current === id ? 'is-current' : ''}`}>
+            <article key={p.id} className={`prc__plan ${c.tag === 'Most popular' ? 'prc__plan--pro' : ''}`}>
               <div className="prc__plan-top">
-                <div className="prc__plan-row"><h2>{PLAN_NAMES[id]}</h2>
-                  {id === 'pro' && <span className="prc__tag">Most popular</span>}{id === 'premium' && <span className="prc__tag prc__tag--gold">Everything</span>}</div>
+                <div className="prc__plan-row"><h2>{c.name}</h2>{c.tag && <span className={`prc__tag ${c.tag === 'Best value' ? 'prc__tag--gold' : ''}`}>{c.tag}</span>}</div>
                 <p className="prc__for">{c.for}</p>
               </div>
               <div className="prc__price">
-                <p><b>{catalog ? formatPrice(id === 'free' ? 0 : Math.round(amount), currency) : '—'}</b><span>{id === 'free' ? 'forever' : per}</span></p>
-                <small>{id === 'free' ? 'No card needed.'
-                  : yearly && p ? `${formatPrice(p.yearly, currency)} for the year${renews ? ', billed yearly' : ''}.`
-                  : renews ? 'Billed monthly. Cancel any time.' : 'Paid monthly. Renew when you like.'}</small>
+                <p><b>{formatPrice(p.prices[currency], currency)}</b><span>once</span></p>
+                <small>{p.credits.toLocaleString()} credits · {formatPrice(Math.round(per100 / 100) * 100, currency)} per 100{save > 0 ? ` · save ${save}%` : ''}</small>
               </div>
-              {cta(id)}
+              <button className={`prc__cta ${c.tag === 'Most popular' ? 'prc__cta--pro' : ''}`} onClick={() => buy(p.id)} disabled={!!busy}>
+                {busy === p.id ? 'Opening checkout…' : `Buy ${p.credits.toLocaleString()} credits`}
+              </button>
               <div className="prc__divider" />
-              <p className="prc__lead-k">{c.lead}</p>
               <ul className="prc__items">
-                {c.items.map(([t, s]) => <li key={t}><i aria-hidden>✓</i><span>{t}{s && <small>{s}</small>}</span></li>)}
+                <li><i aria-hidden>✓</i><span>About {Math.floor(p.credits / 20)} tailored CVs<small>or any mix of AI actions and unlocks</small></span></li>
+                <li><i aria-hidden>✓</i><span>Never expire</span></li>
+                <li><i aria-hidden>✓</i><span>Refund within 14 days if unused</span></li>
               </ul>
             </article>
           );
         })}
       </section>
-      <p className="prc__fair">*Unlimited means generous fair-use and technical limits apply.</p>
+      {packs.length > 0 && Number.isFinite(cheapestPer) && <p className="prc__fair">Paid once, in {currency === 'NGN' ? 'naira' : 'US dollars'}. Nothing renews.</p>}
 
-      <section className="prc__teams" aria-label="For teams and organisations">
-        <div className="prc__team">
-          <span className="prc__offer-tag">Coming soon</span>
-          <h3>Dixlab Teams</h3>
-          <p className="prc__team-price">{currency === 'NGN' ? '₦35,000' : '$39'}<span> / month</span></p>
-          <p>For small teams, agencies and professional groups: up to 5 members, a shared workspace, shared templates and one bill.</p>
-          <a className="prc__cta prc__cta--ghost" href="mailto:hello@dixlab.app?subject=Dixlab%20Teams">Join the waitlist</a>
+      <section className="prc__units">
+        <div>
+          <h2 className="prc__h2">Unlock once, keep for good</h2>
+          <p>Features you unlock with credits stay on your account forever, even if your balance runs out.</p>
         </div>
-        <div className="prc__team">
-          <span className="prc__offer-tag">Coming soon</span>
-          <h3>Dixlab Enterprise</h3>
-          <p className="prc__team-price">Custom<span> quote</span></p>
-          <p>For universities, training institutions, career centres, recruiters and large organisations: bulk onboarding, your branding, admin controls and dedicated support.</p>
-          <a className="prc__cta prc__cta--ghost" href="mailto:hello@dixlab.app?subject=Dixlab%20Enterprise">Talk to us</a>
-        </div>
-      </section>
-
-      <section className="prc__compare">
-        <h2 className="prc__h2">Compare plans</h2>
-        <div className="prc__table-wrap">
-          <table className="prc__table prc__table--four">
-            <thead><tr><th scope="col"><span className="sr-only">Feature</span></th>{['free', 'starter', 'pro', 'premium'].map((id) => {
-              const p = prices(id);
-              return <th scope="col" key={id}>{PLAN_NAMES[id]}<small>{id === 'free' ? formatPrice(0, currency) : p ? `${formatPrice(p.monthly, currency)} / mo` : ''}</small></th>;
-            })}</tr></thead>
-            {COMPARE.map(([group, rows]) => (
-              <tbody key={group}>
-                <tr className="prc__group"><th scope="rowgroup" colSpan={5}>{group}</th></tr>
-                {rows.map(([name, ...vals]) => (
-                  <tr key={name}><th scope="row">{name}</th>{vals.map((v, i) => <td key={i} className={v === '✓' ? `is-yes is-yes--${i}` : v === '—' ? 'is-no' : ''}>{v === '—' ? <span aria-label="Not included">—</span> : v === '✓' ? <span aria-label="Included">✓</span> : v}</td>)}</tr>
-                ))}
-              </tbody>
-            ))}
-          </table>
-        </div>
+        <ul className="prc__unit-list">
+          {(catalog?.unlocks || []).map((u) => {
+            const owned = signedIn && !u.stack && hasFeature(u.id, plan) && plan?.enforced;
+            return (
+              <li key={u.id}>
+                <span>{u.name}<small>{u.desc}</small></span>
+                {owned ? <b className="is-owned">✓ Yours</b>
+                  : signedIn ? <button className="prc__unit-btn" onClick={() => openUpgrade({ code: 'unlock_needed', feature: u.id })}>{u.credits} credits{u.stack ? ' each' : ''}</button>
+                  : <b>{u.credits} credits{u.stack ? ' each' : ''}</b>}
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       <section className="prc__units">
         <div>
-          <h2 className="prc__h2">How AI units work</h2>
-          <p>Every plan includes a monthly AI allowance, so you never buy credits for each action. Units reset at the start of each billing period and don’t roll over. Run out, and your work stays: keep editing by hand, or upgrade.</p>
+          <h2 className="prc__h2">What AI help costs</h2>
+          <p>Credits are only used when the AI finishes the job. If a link can’t be read or something fails, nothing is taken. Asking interview questions is free.</p>
         </div>
         <ul className="prc__unit-list">
-          {UNITS.map(([t, n]) => <li key={t}><span>{t}</span><b>{n} units</b></li>)}
+          {Object.entries(catalog?.aiCosts || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => (
+            <li key={k}><span>{AI_NAMES[k] || k}</span><b>{n} credits</b></li>
+          ))}
         </ul>
+      </section>
+
+      <section className="prc__teams" aria-label="For teams and organisations">
+        <div className="prc__team">
+          <span className="prc__offer-tag">Coming soon</span>
+          <h3>Dixlab for teams</h3>
+          <p>For agencies, bootcamps and career centres: shared credits for your whole team, bulk onboarding and one bill.</p>
+          <a className="prc__cta prc__cta--ghost" href="mailto:hello@dixlab.app?subject=Dixlab%20for%20teams">Talk to us</a>
+        </div>
       </section>
 
       <section className="prc__faq">
@@ -252,8 +176,8 @@ export default function Pricing() {
 
       <section className="prc__band">
         <h2>Your professional identity, built in one place.</h2>
-        <p>Start free today. Upgrade only when it’s worth it.</p>
-        <div><Link to={signedIn ? homeFor(loadUser()) : '/signup'} className="prc__btn">Start free</Link><Link to="/#templates" className="prc__btn prc__btn--ghost">See templates</Link></div>
+        <p>Start free today. Buy credits only when it’s worth it.</p>
+        <div><Link to={signedIn ? homeFor(loadUser()) : '/signup'} className="prc__btn">Start free</Link><Link to="/gallery" className="prc__btn prc__btn--ghost">See the gallery</Link></div>
       </section>
 
       <footer className="prc__foot">

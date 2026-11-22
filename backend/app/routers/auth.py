@@ -78,6 +78,8 @@ def sign_up(body: SignUpIn, request: Request, response: Response, background: Ba
     )
     token = create_session(db, user_id)
     events.log(db, "user.signup", user_id)
+    from .. import plans
+    plans.welcome(db, user_id)  # free starting credits
     row = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     from .account import send_verification, sends_per_user  # sign-up emails a link to confirm the address
     if sends_per_user.hit(f"verify|{user_id}"):

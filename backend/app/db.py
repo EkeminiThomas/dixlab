@@ -85,6 +85,74 @@ CREATE TABLE IF NOT EXISTS page_events (
     count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (slug, day, kind, key)
 );
+-- Links an owner shares so other people can help: 'testimonial' (write a
+-- recommendation) or 'feedback' (comment on a draft). One live link per kind per project.
+CREATE TABLE IF NOT EXISTS invites (
+    token      TEXT PRIMARY KEY,
+    kind       TEXT NOT NULL,
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_invites_owner ON invites(user_id, project_id, kind);
+-- Recommendations from colleagues and clients. Only 'approved' ones are ever shown.
+CREATE TABLE IF NOT EXISTS testimonials (
+    id         TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    role       TEXT NOT NULL DEFAULT '',
+    company    TEXT NOT NULL DEFAULT '',
+    relation   TEXT NOT NULL DEFAULT '',
+    body       TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending',   -- pending | approved | hidden
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_testimonials_project ON testimonials(user_id, project_id);
+-- Comments on a draft from people the owner asked for feedback.
+CREATE TABLE IF NOT EXISTS feedback (
+    id          TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id  TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    section     TEXT NOT NULL DEFAULT '',
+    body        TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    resolved_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_project ON feedback(user_id, project_id);
+-- Domains for published pages: their own (free to connect; live once the DNS TXT record matches `token`)
+-- or a Dixlab address like name.dixlab.click (the "Dixlab address" unlock; live straight away).
+CREATE TABLE IF NOT EXISTS domains (
+    domain      TEXT PRIMARY KEY,
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id  TEXT NOT NULL,
+    slug        TEXT NOT NULL,
+    token       TEXT NOT NULL,
+    vercel      TEXT,               -- 'added' once the website's Vercel project knows the domain
+    kind        TEXT NOT NULL DEFAULT 'custom',   -- custom (their own, e.g. bought on pxxl.app) | sub (name.dixlab.click)
+    verified_at INTEGER,
+    created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_domains_owner ON domains(user_id, project_id);
+-- Domains bought in Dixlab (through pxxl.app). Paid with Bachs first, then registered.
+-- status: awaiting_payment -> paid -> registering -> active, or failed (refunded).
+CREATE TABLE IF NOT EXISTS domain_orders (
+    reference    TEXT PRIMARY KEY,      -- also the payment reference and pxxl's idempotency key
+    user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id   TEXT NOT NULL,
+    domain       TEXT NOT NULL,
+    years        INTEGER NOT NULL DEFAULT 1,
+    amount       INTEGER NOT NULL,      -- what the customer pays, smallest unit
+    currency     TEXT NOT NULL,
+    charge_minor INTEGER NOT NULL,      -- most pxxl may take from the wallet (US cents)
+    contact      TEXT NOT NULL,         -- registrant details (JSON): the customer owns the domain
+    status       TEXT NOT NULL,
+    error        TEXT,
+    created_at   INTEGER NOT NULL,
+    updated_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_domain_orders_user ON domain_orders(user_id, created_at);
 CREATE TABLE IF NOT EXISTS email_tokens (
     token_hash TEXT PRIMARY KEY,           -- sha256 of the token in the emailed link
     user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -138,6 +206,25 @@ CREATE TABLE IF NOT EXISTS ai_usage (
     count   INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, month, feature)
 );
+-- Credits: every change to a balance is a row (+ bought / welcome / admin, - AI / unlock).
+-- The balance is the sum, so it never expires. `ref` makes a payment count only once.
+CREATE TABLE IF NOT EXISTS credit_ledger (
+    id         TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    delta      INTEGER NOT NULL,
+    reason     TEXT NOT NULL,                     -- welcome | purchase | ai:<feature> | unlock:<feature> | admin | refund
+    ref        TEXT UNIQUE,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_credit_ledger_user ON credit_ledger(user_id, created_at);
+-- Features unlocked with credits, for good. `count` is for ones you can buy more than once (projects, storage).
+CREATE TABLE IF NOT EXISTS unlocks (
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    feature    TEXT NOT NULL,
+    count      INTEGER NOT NULL DEFAULT 1,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, feature)
+);
 CREATE TABLE IF NOT EXISTS recovery_codes (
     user_id   TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     code_hash TEXT NOT NULL,              -- sha256 of a one-time two-step backup code
@@ -188,6 +275,12 @@ MIGRATIONS = {
     },
     # Billing tables from the first (Paystack) draft get the provider-neutral columns.
     "subscriptions": {"customer_ref": "TEXT", "subscription_ref": "TEXT", "currency": "TEXT"},
+    "publications": {
+        "password_hash": "TEXT",       # a page only people with the password can open
+        "gallery": "TEXT",             # the public gallery: 'requested' by the owner, then 'featured' or 'declined' by an admin
+        "featured_at": "INTEGER",
+    },
+    "domains": {"kind": "TEXT NOT NULL DEFAULT 'custom'"},
     "payments": {"checkout_ref": "TEXT", "charge_ref": "TEXT", "invoice_ref": "TEXT", "subscription_ref": "TEXT"},
 }
 # When a column first appears, fill it for existing rows.

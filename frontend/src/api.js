@@ -57,36 +57,32 @@ export async function request(path, { method = 'GET', body, form } = {}) {
       : Array.isArray(data?.detail) ? 'Check the details and try again.'
       : data?.detail?.message || data?.error
         || (slow ? 'That took too long to answer. Please try again in a moment.' : offline ? 'Can’t reach the Dixlab server.' : 'Something went wrong. Please try again.');
-    if (res.status === 401 && isSignedIn() && !path.startsWith('/api/auth/login')) signOutLocally(); // session expired or revoked
+    if (res.status === 401 && isSignedIn() && !path.startsWith('/api/auth/login') && !path.startsWith('/api/public/')) signOutLocally(); // session expired or revoked
     // The account must confirm its email first: the app's pages send it to "Confirm your email".
     if (res.status === 403 && data?.detail?.code === 'email_unverified' && !loadUser().mustVerify) saveUser({ ...loadUser(), mustVerify: true });
     const err = new ApiError(message, res.status, offline);
     err.body = data;
-    // A plan limit (e.g. Free's one project, or a Premium template at publish): offer an upgrade.
-    // AI limits answer 402 too, but the app quietly uses its built-in version instead.
+    // Something to unlock with credits (a premium template, room for another project...), or not
+    // enough credits: offer the unlock, or a credit pack.
     if (res.status === 402 && data?.detail?.code) openUpgrade(data.detail);
-    // Out of AI units: the app still falls back to its built-in helper, but says why.
-    // A feature on a higher plan (CV tailoring): say which.
-    if (res.status === 402 && (data?.code === 'ai_quota' || data?.code === 'ai_plan')) {
-      const next = PLAN_ORDER[Math.min(PLAN_ORDER.indexOf(plan?.plan || 'free') + 1, PLAN_ORDER.length - 1)];
-      openUpgrade({ code: data.code, message: data.error, needed: data.needed || next });
-    }
+    // Out of credits for an AI action: the app still falls back to its built-in helper, but says why.
+    if (res.status === 402 && data?.code === 'ai_credits') openUpgrade({ code: 'ai_credits', message: data.error });
     throw err;
   }
-  if (method === 'POST' && AI_PATHS.some((p) => path.startsWith(p))) refreshPlan(); // units used: update the counter
+  if (method === 'POST' && AI_PATHS.some((p) => path.startsWith(p))) refreshPlan(); // credits used: update the balance
   return data;
 }
 
 /* ---------- Plans and billing ---------- */
 
-/** Ask the app to show its upgrade dialog ({ code, message, needed }). */
+/** Ask the app to show its credits dialog ({ code, message, feature?, credits? }). */
 export function openUpgrade(detail = {}) {
   try { window.dispatchEvent(new CustomEvent('dixlab:upgrade', { detail })); } catch { /* no window (tests) */ }
 }
 
 let catalog = null;          // GET /api/billing/plans (public)
 let catalogLoad = null;
-let plan = null;             // GET /api/billing/me (signed in)
+let plan = null;             // GET /api/billing/me (signed in): credits, features, limits
 const planSubs = new Set();
 let planVersion = 0;
 const notifyPlan = () => { planVersion += 1; planSubs.forEach((fn) => fn()); };
@@ -102,28 +98,23 @@ export async function refreshPlan() {
   return plan;
 }
 const setPlan = (next) => { plan = next; notifyPlan(); return next; };
-/** { catalog, plan } kept fresh across the app. plan is null when signed out. */
+/** { catalog, plan } kept fresh across the app. plan (the account's credits and unlocks) is null when signed out. */
 export function usePlan() {
   useSyncExternalStore((fn) => { planSubs.add(fn); return () => planSubs.delete(fn); }, () => planVersion);
   return { catalog, plan };
 }
 
-/** Whether the signed-in plan includes PDF export for this kind of project (Free: case studies only). */
-export function pdfAllowed(type, p = plan) {
-  const types = p?.enforced ? p.limits?.pdfTypes : null;
-  return !types || types.includes(type);
-}
+/** PDF export is for everyone. */
+export const pdfAllowed = () => true;
 
-export const PLAN_ORDER = ['free', 'starter', 'pro', 'premium'];
-export const PLAN_RANK = { free: 0, starter: 1, pro: 2, premium: 3 };
-export const PLAN_NAMES = { free: 'Free', starter: 'Starter', pro: 'Pro', premium: 'Premium' };
-
-/** The lowest plan that includes a template: 'free' (basic), 'starter' (premium) or 'pro' (advanced). */
-export function templateTier(key, cat = catalog) {
-  if (!cat) return 'free';
-  if (cat.templates.free.includes(key)) return 'free';
-  return cat.templates.starter.includes(key) ? 'starter' : 'pro';
+/** Has the account unlocked this feature (templates, insights, domain, password, branding)? True when limits are off. */
+export function hasFeature(feature, p = plan) {
+  return !p?.enforced || Boolean(p.features?.[feature]);
 }
+/** A template that needs the premium templates unlock. */
+export const isPremiumTemplate = (key, cat = catalog) => Boolean(cat) && !cat.freeTemplates.includes(key);
+/** The unlock's details from the catalog ({ id, name, credits, desc, stack }). */
+export const unlockInfo = (feature, cat = catalog) => cat?.unlocks.find((u) => u.id === feature) || null;
 
 /** Price as text, e.g. "$3.99" or "₦3,000". Amounts are in the smallest unit (cents, kobo). */
 export function formatPrice(amount, currency = 'USD') {
@@ -150,48 +141,30 @@ export function getCurrency() {
 }
 export function setCurrency(currency) { write(CURRENCY_KEY, currency); notifyPlan(); }
 
-const TYPE_NAMES = { portfolio: ['portfolio', 'portfolios'], cv: ['CV', 'CVs'], case: ['case study', 'case studies'] };
-const typeLimit = (p, type) => p?.limits.perType?.[type] ?? null; // null: unlimited (fair use)
 /**
- * Is there room on the plan for another project of this type? Returns null when
- * there is (or the plan isn't known), else the upgrade dialog's details. Same
- * rules as the server, checked first so nobody starts work they can't save.
+ * Is there room for another project? Returns null when there is (or it isn't known),
+ * else the credits dialog's details. Same rule as the server, checked first so
+ * nobody starts work they can't save.
  */
 export function projectRoom(type, projects) {
   if (!isSignedIn() || !plan?.enforced) return null;
-  const mine = projects.filter((p) => !p.sample);
-  const { projects: total, perType } = plan.limits;
-  if (total != null && mine.length >= total) {
-    return { code: 'plan_limit', needed: 'starter',
-      message: 'Free includes one project: a CV, a portfolio or a case study. Upgrade to Starter to make all three, with more of each.' };
-  }
-  const max = perType?.[type];
-  const used = mine.filter((p) => p.type === type).length;
-  if (max != null && used >= max) {
-    const [one, many] = TYPE_NAMES[type];
-    const next = PLAN_ORDER.slice(PLAN_ORDER.indexOf(plan.plan) + 1).find((id) => {
-      const lim = typeLimit(catalog?.plans.find((x) => x.id === id), type);
-      return lim == null || lim > used;
-    }) || 'premium';
-    return { code: 'plan_limit', needed: next,
-      message: `${plan.name} includes ${max} ${max === 1 ? one : many}. Upgrade to ${PLAN_NAMES[next]} for more, or delete one you no longer need.` };
+  const total = plan.limits.projects;
+  if (total != null && projects.filter((p) => !p.sample).length >= total) {
+    return { code: 'unlock_needed', feature: 'project', credits: unlockInfo('project')?.credits,
+      message: `You have room for ${total === 1 ? 'one project' : `${total} projects`}. Add room for another with credits (it’s yours for good), or delete one you no longer need.` };
   }
   return null;
 }
 
-export const startTrial = () => request('/api/billing/trial', { method: 'POST' }).then(setPlan);
-/**
- * Pay for a plan. New subscribers go to Bachs's checkout page (this resolves only
- * if the redirect couldn't happen). Someone already paying is switched on their
- * existing subscription instead: resolves to { changed: true, when: 'now' | 'next_renewal' }.
- */
-export async function checkout(planId, interval, currency = getCurrency()) {
-  const res = await request('/api/billing/checkout', { method: 'POST', body: { plan: planId, interval, currency } });
-  if (res.changed) { setPlan(res.billing); return res; }
+/** Buy a credit pack: goes to Bachs's checkout page (resolves only if the redirect couldn't happen). */
+export async function buyCredits(pack, currency = getCurrency()) {
+  const res = await request('/api/billing/checkout', { method: 'POST', body: { pack, currency } });
   if (res.url) window.location.assign(res.url);
   return res;
 }
-/** After Bachs's checkout (?checkout_id=...): confirm it and switch the plan on. */
+/** Spend credits on a feature, for good. Resolves to the updated account. */
+export const unlockFeature = (feature) => request('/api/billing/unlock', { method: 'POST', body: { feature } }).then(setPlan);
+/** After Bachs's checkout (?checkout_id=...): confirm it and add the credits. */
 export const verifyPayment = (checkoutId, ref = '') =>
   request(`/api/billing/verify?checkout_id=${encodeURIComponent(checkoutId || '')}&ref=${encodeURIComponent(ref || '')}`).then((r) => { setPlan(r.billing); return r; });
 export const cancelPlan = () => request('/api/billing/cancel', { method: 'POST' }).then(setPlan);
@@ -476,6 +449,34 @@ export async function publishProject(project) {
 }
 export const unpublishProject = (id) => request(`/api/projects/${encodeURIComponent(id)}/publish`, { method: 'DELETE' });
 export const fetchPublic = (slug) => request(`/api/public/${encodeURIComponent(slug)}`);
+export const unlockPublic = (slug, password) => request(`/api/public/${encodeURIComponent(slug)}/unlock`, { method: 'POST', body: { password } });
+export const setGalleryListing = (id, listed) => request(`/api/projects/${encodeURIComponent(id)}/publish/gallery`, { method: 'PUT', body: { listed } });
+export const fetchGallery = (kind = 'all') => request(`/api/gallery?kind=${encodeURIComponent(kind)}`);
+export const getDomain = (id) => request(`/api/projects/${encodeURIComponent(id)}/domain`);
+export const setDomain = (id, domain) => request(`/api/projects/${encodeURIComponent(id)}/domain`, { method: 'PUT', body: { domain } });
+export const checkDomain = (id) => request(`/api/projects/${encodeURIComponent(id)}/domain/check`, { method: 'POST' });
+export const removeDomain = (id) => request(`/api/projects/${encodeURIComponent(id)}/domain`, { method: 'DELETE' });
+export const setSubdomain = (id, name) => request(`/api/projects/${encodeURIComponent(id)}/subdomain`, { method: 'PUT', body: { name } });
+export const removeSubdomain = (id) => request(`/api/projects/${encodeURIComponent(id)}/subdomain`, { method: 'DELETE' });
+export const setPagePassword = (id, password) => request(`/api/projects/${encodeURIComponent(id)}/publish/password`, { method: 'PUT', body: { password } });
+
+/* ---------- Testimonials and feedback links ---------- */
+const pid = (id) => encodeURIComponent(id);
+export const getInvite = (id, kind) => request(`/api/projects/${pid(id)}/invites/${kind}`);
+export async function makeInvite(project, kind) {
+  await saveProjectNow(project);
+  return request(`/api/projects/${pid(project.id)}/invites/${kind}`, { method: 'POST' });
+}
+export const stopInvite = (id, kind) => request(`/api/projects/${pid(id)}/invites/${kind}`, { method: 'DELETE' });
+export const openInvite = (token) => request(`/api/invites/${encodeURIComponent(token)}`);
+export const sendTestimonial = (token, body) => request(`/api/invites/${encodeURIComponent(token)}/testimonial`, { method: 'POST', body });
+export const sendFeedback = (token, body) => request(`/api/invites/${encodeURIComponent(token)}/feedback`, { method: 'POST', body });
+export const listTestimonials = (id) => request(`/api/projects/${pid(id)}/testimonials`);
+export const setTestimonial = (tid, status) => request(`/api/testimonials/${encodeURIComponent(tid)}`, { method: 'PATCH', body: { status } });
+export const deleteTestimonial = (tid) => request(`/api/testimonials/${encodeURIComponent(tid)}`, { method: 'DELETE' });
+export const listFeedback = (id) => request(`/api/projects/${pid(id)}/feedback`);
+export const resolveFeedback = (fid, resolved) => request(`/api/feedback/${encodeURIComponent(fid)}`, { method: 'PATCH', body: { resolved } });
+export const deleteFeedback = (fid) => request(`/api/feedback/${encodeURIComponent(fid)}`, { method: 'DELETE' });
 
 /** A visitor did something on a published page (where they came from, what they opened, how far
     they scrolled). Fire-and-forget: it never slows the page or shows an error. */
@@ -548,9 +549,11 @@ export const admin = {
   signOutUser: (id) => request(`/api/admin/users/${enc(id)}/signout`, { method: 'POST' }),
   setAdmin: (id, isAdmin) => request(`/api/admin/users/${enc(id)}/admin`, { method: 'PATCH', body: { isAdmin } }),
   setPlan: (id, plan) => request(`/api/admin/users/${enc(id)}/plan`, { method: 'PATCH', body: { plan } }),
+  giveCredits: (id, amount, note = '') => request(`/api/admin/users/${enc(id)}/credits`, { method: 'POST', body: { amount, note } }),
   deleteUser: (id, email) => request(`/api/admin/users/${enc(id)}`, { method: 'DELETE', body: { email } }),
   pages: (params) => request(`/api/admin/pages${qs(params)}`),
   takedown: (slug, reason = '') => request(`/api/admin/pages/${enc(slug)}/takedown`, { method: 'POST', body: { reason } }),
+  gallery: (slug, status) => request(`/api/admin/pages/${enc(slug)}/gallery`, { method: 'POST', body: { status } }),
   messages: (page = 1) => request(`/api/admin/messages?page=${page}`),
   deleteMessage: (id) => request(`/api/admin/messages/${enc(id)}`, { method: 'DELETE' }),
   storage: () => request('/api/admin/storage'),

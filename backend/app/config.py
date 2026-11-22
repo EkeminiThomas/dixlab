@@ -84,6 +84,25 @@ TRUST_PROXY_SET = bool(os.getenv("DIXLAB_TRUST_PROXY_HOPS", "").strip())
 # Account emails (verify address, reset password). PUBLIC_URL is where the
 # frontend lives, for the links in those emails.
 PUBLIC_URL = os.getenv("DIXLAB_PUBLIC_URL", "http://localhost:5173").rstrip("/")
+# Custom domains: with these set, domains people add are attached to the website's Vercel project automatically.
+# Without them, add each domain in Vercel → Project → Settings → Domains yourself.
+VERCEL_TOKEN = os.getenv("DIXLAB_VERCEL_TOKEN", "").strip()
+# Buying domains in Dixlab, through pxxl.app's reseller API (pxxl Pro plan, money in the pxxl wallet).
+PXXL_RESELLER_KEY = os.getenv("PXXL_RESELLER_KEY", "").strip()
+# off: hidden (people can still connect a domain they own) · demo: the whole flow with pxxl simulated,
+# nothing real is bought (payment is simulated too if Bachs isn't set up) · live: real purchases.
+DOMAIN_SALES = os.getenv("DIXLAB_DOMAIN_SALES", "off").strip().lower()
+if DOMAIN_SALES not in ("off", "demo", "live"):
+    DOMAIN_SALES = "off"
+PXXL_API = os.getenv("PXXL_API", "https://server.pxxl.app/api/v3").strip().rstrip("/")
+# Extra margin on top of pxxl's customer price (set your main markup in pxxl's reseller settings).
+DOMAIN_MARKUP_PERCENT = float(os.getenv("DIXLAB_DOMAIN_MARKUP_PERCENT", "0"))
+DOMAIN_TLDS = tuple(t.strip().lstrip(".") for t in os.getenv("DIXLAB_DOMAIN_TLDS", "com,com.ng,dev,me,co,io,cv").split(",") if t.strip())
+# Dixlab addresses (yourname.dixlab.click), unlocked with credits. Needs a wildcard
+# *.dixlab.click pointing at the website (see docs).
+SUBDOMAIN_BASE = os.getenv("DIXLAB_SUBDOMAIN_BASE", "dixlab.click").strip().lower().strip(".")
+VERCEL_PROJECT_ID = os.getenv("DIXLAB_VERCEL_PROJECT_ID", "").strip()
+VERCEL_TEAM_ID = os.getenv("DIXLAB_VERCEL_TEAM_ID", "").strip()
 VERIFY_LINK_HOURS = int(os.getenv("DIXLAB_VERIFY_LINK_HOURS", "48"))
 VERIFY_CODE_MINUTES = int(os.getenv("DIXLAB_VERIFY_CODE_MINUTES", "15"))
 # New accounts must confirm their email before using the app (enforced only when email can be sent).
@@ -114,10 +133,10 @@ PWNED_PASSWORD_CHECK = _flag("DIXLAB_PWNED_PASSWORD_CHECK", False)
 CLAMAV = os.getenv("DIXLAB_CLAMAV", "").strip()
 
 # ---------- Plans and billing (Bachs) ----------
-# Free, Starter, Pro and Premium limits (see app/plans.py). Turn off to give every
+# Credits and unlocks (see app/plans.py). Turn off to give every
 # account everything, e.g. for a private test server.
 PLAN_LIMITS = _flag("DIXLAB_PLAN_LIMITS", True)
-_trial = os.getenv("DIXLAB_TRIAL_DAYS", "14").strip().lower()
+_trial = os.getenv("DIXLAB_TRIAL_DAYS", "0").strip().lower()  # retired: new accounts get free credits instead
 # Free Pro trial, once per account, no card. 0 / false / off turns the trial off.
 TRIAL_DAYS = 0 if _trial in ("", "0", "false", "off", "no") else max(0, int(_trial))
 REFUND_DAYS = int(os.getenv("DIXLAB_REFUND_DAYS", "14"))  # full refund on request within this many days of a charge
@@ -136,6 +155,22 @@ _PRICE_DEFAULTS = {
 }
 PRICES = {key: int(os.getenv(f"DIXLAB_PRICE_{key[0]}_{key[1]}_{key[2]}".upper(), str(value)))
           for key, value in _PRICE_DEFAULTS.items()}
+# Credits: people buy packs once; credits never expire. AI actions spend them
+# (plans.AI_COSTS) and paid features are unlocked with them for good (plans.UNLOCKS).
+# Prices are in kobo / cents; each can be overridden, e.g. DIXLAB_PACK_M_NGN=800000.
+WELCOME_CREDITS = int(os.getenv("DIXLAB_WELCOME_CREDITS", "30"))
+_PACK_DEFAULTS = {  # id: (credits, NGN kobo, USD cents)
+    "s": (150, 250000, 300),
+    "m": (500, 750000, 900),
+    "l": (1500, 2000000, 2400),
+    "xl": (5000, 5800000, 7000),
+}
+CREDIT_PACKS = {
+    pid: {"credits": int(os.getenv(f"DIXLAB_PACK_{pid.upper()}_CREDITS", str(n))),
+          "prices": {"NGN": int(os.getenv(f"DIXLAB_PACK_{pid.upper()}_NGN", str(ngn))),
+                     "USD": int(os.getenv(f"DIXLAB_PACK_{pid.upper()}_USD", str(usd)))}}
+    for pid, (n, ngn, usd) in _PACK_DEFAULTS.items()
+}
 # Bachs bills recurring subscriptions on USD cards today. Until NGN recurring is
 # enabled on your Bachs account, NGN payments are one-off: each pays for one month
 # or one year, and renewing is manual. Set to true once Bachs enables it (and add

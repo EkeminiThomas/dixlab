@@ -416,3 +416,47 @@ def case_check(body: CaseCheckIn):
     if len(str(body.case)) > 80_000:
         return ai.error(413, "That case study is too long to check.")
     return casestandard.check(body.case)
+
+
+# ---------------------------------------------------------------- translations
+
+class TranslateIn(BaseModel):
+    project: dict
+    lang: str = Field(max_length=5)
+
+
+class Translated(BaseModel):
+    items: list[str]
+
+
+@router.post("/translate")
+def translate_project(body: TranslateIn, user=Depends(current_user)):
+    """Translate a project's words into another language. Returns the overlay; the editor saves it."""
+    from .. import translate
+    if body.lang not in translate.LANGS:
+        return ai.error(400, "We don’t support that language yet.")
+    project = {k: v for k, v in body.project.items() if k != "translations"}
+    items = translate.strings(project)
+    if not items:
+        return ai.error(400, "Add some content first, then translate it.")
+    blocked = ai.guard(user["id"], "assist_translate")
+    if blocked:
+        return blocked
+    lang = translate.LANGS[body.lang]
+    system = translate.SYSTEM.format(lang=lang)
+    overlay: dict[str, str] = {}
+    err = None
+    for group in translate.batches(items):
+        numbered = "\n".join(f"[{i + 1}] {text}" for i, (_, text) in enumerate(group))
+        content = f"Translate these {len(group)} items into {lang}.\n\n{numbered}"
+        out, err = ai.parse(Translated, system, content, max_tokens=6000, effort="low")
+        if err:
+            break
+        for (path, original), text in zip(group, out.items):
+            text = re.sub(r"^\[\d+\]\s*", "", str(text)).strip()
+            if text:
+                overlay[path] = text
+    ai.track(user["id"], "assist_translate", err if not overlay else None)
+    if not overlay:
+        return err or ai.error(502, "The translation didn’t come back. Please try again.")
+    return {"lang": body.lang, "strings": overlay, "count": len(overlay), "of": len(items)}

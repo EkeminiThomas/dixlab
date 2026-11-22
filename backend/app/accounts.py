@@ -18,6 +18,8 @@ def delete_account(db: sqlite3.Connection, user_id: str) -> tuple[dict, list[str
     slugs = [r[0] for r in db.execute("SELECT slug FROM publications WHERE user_id = ?", (user_id,))]
     db.executemany("DELETE FROM page_events WHERE slug = ?", [(s,) for s in slugs])
     db.executemany("DELETE FROM page_views_daily WHERE slug = ?", [(s,) for s in slugs])
+    for table in ("invites", "testimonials", "feedback", "domains", "credit_ledger", "unlocks", "domain_orders"):
+        db.execute(f"DELETE FROM {table} WHERE user_id = ?", (user_id,))
     for t in ("sessions", "email_tokens", "recovery_codes", "subscriptions", "ai_usage", *TABLES):
         db.execute(f"DELETE FROM {t} WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))

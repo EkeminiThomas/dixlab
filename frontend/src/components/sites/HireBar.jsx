@@ -19,7 +19,8 @@ export const bookingLink = (url) => { const u = safeHref(url); return u && BOOKI
  * rate, and buttons to book a call or download their CV. Shown only when they've set it up.
  */
 export default function HireBar({ availability: a = {}, cvSlug, onAction }) {
-  const [open, setOpen] = useState(true);
+  // On phones it starts as a small pill so it doesn't cover the page.
+  const [open, setOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 640);
   const status = AVAILABILITY[a.status] ? a.status : null;
   const book = bookingLink(a.bookingUrl);
   if (!status && !cvSlug && !book) return null;

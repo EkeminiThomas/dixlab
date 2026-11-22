@@ -81,6 +81,8 @@ def delete_project(project_id: str, user=Depends(current_user), db: sqlite3.Conn
     db.execute("DELETE FROM projects WHERE user_id = ? AND id = ?", (user["id"], project_id))
     events.log(db, "project.deleted", user["id"], project=project_id)
     db.execute("DELETE FROM publications WHERE user_id = ? AND project_id = ?", (user["id"], project_id))
+    for table in ("invites", "testimonials", "feedback", "domains"):  # links stop working; nothing left behind
+        db.execute(f"DELETE FROM {table} WHERE user_id = ? AND project_id = ?", (user["id"], project_id))
     # Remove images this project used, unless another of the user's projects still uses them.
     others = " ".join(r["data"] for r in db.execute(
         "SELECT data FROM projects WHERE user_id = ? UNION ALL SELECT data FROM publications WHERE user_id = ?",

@@ -109,6 +109,10 @@ def apply_checkout(db: sqlite3.Connection, data: dict) -> bool:
     meta = _meta(data)
     plan, interval = (row["plan"], row["interval"]) if row else (meta.get("plan"), meta.get("interval"))
     user_id = row["user_id"] if row else _find_user(db, data)
+    if plan == "credits":
+        return _apply_credit_pack(db, data, row, interval, user_id)
+    if plan == "domain":
+        return _apply_domain_payment(db, data, row)
     if plan not in PAID or interval not in INTERVAL_DAYS or not user_id:
         log.warning("Bachs checkout %s doesn't match a Dixlab plan payment", checkout_id)
         return False
@@ -149,6 +153,64 @@ def apply_checkout(db: sqlite3.Connection, data: dict) -> bool:
     # Paying ends any trial, and uses up the one trial.
     db.execute("UPDATE users SET trial_ends_at = NULL, trial_used_at = COALESCE(trial_used_at, ?) WHERE id = ?", (now_ms(), user_id))
     events.log(db, "billing.paid", user_id, plan=plan, interval=interval, amount=amount, currency=currency)
+    return True
+
+
+def _apply_credit_pack(db: sqlite3.Connection, data: dict, row, pack_id: str, user_id: str | None) -> bool:
+    """A paid credit pack: record the payment and add its credits, exactly once."""
+    from . import config, plans
+    checkout_id = data.get("checkout_id") or data.get("id")
+    pack = config.CREDIT_PACKS.get(pack_id or "")
+    if not pack or not user_id:
+        log.warning("Bachs checkout %s doesn't match a Dixlab credit pack", checkout_id)
+        return False
+    if row and row["status"] in ("success", "review"):
+        return False
+    charge = data.get("charge") or {}
+    charge_ref = charge.get("id") or charge.get("payment_id")
+    paid_at = _ms(data.get("completed_at")) or now_ms()
+    amount = bachs.cents(data.get("amount") or charge.get("amount") or 0)
+    currency = (data.get("currency") or charge.get("currency") or (row["currency"] if row else None) or "").upper()
+    if row and ((row["currency"] and currency and currency != row["currency"]) or (amount and amount < row["amount"])):
+        db.execute("UPDATE payments SET status = 'review', charge_ref = ? WHERE reference = ?", (charge_ref, row["reference"]))
+        events.log(db, "billing.mismatch", user_id, expected=row["amount"], paid=amount, currency=currency, expected_currency=row["currency"])
+        log.warning("Bachs checkout %s paid %s %s, expected %s %s: held for review", checkout_id, amount, currency, row["amount"], row["currency"])
+        return False
+    reference = row["reference"] if row else (data.get("reference") or checkout_id)
+    if row:
+        db.execute("UPDATE payments SET status = 'success', paid_at = ?, amount = COALESCE(NULLIF(?, 0), amount), "
+                   "currency = COALESCE(?, currency), charge_ref = ? WHERE reference = ?",
+                   (paid_at, amount, currency or None, charge_ref, reference))
+    else:
+        db.execute("""INSERT INTO payments (reference, user_id, plan, interval, amount, currency, status, checkout_ref, charge_ref,
+                        paid_at, created_at) VALUES (?, ?, 'credits', ?, ?, ?, 'success', ?, ?, ?, ?)""",
+                   (reference, user_id, pack_id, amount, currency or None, checkout_id, charge_ref, paid_at, now_ms()))
+    plans.add_credits(db, user_id, pack["credits"], "purchase", ref=f"pay:{reference}")
+    events.log(db, "billing.credits", user_id, pack=pack_id, credits=pack["credits"], amount=amount, currency=currency)
+    return True
+
+
+def _apply_domain_payment(db: sqlite3.Connection, data: dict, row) -> bool:
+    """A paid domain: record the payment, then buy and set up the domain on pxxl."""
+    if not row or row["status"] in ("success", "review"):
+        return False
+    charge = data.get("charge") or {}
+    charge_ref = charge.get("id") or charge.get("payment_id")
+    amount = bachs.cents(data.get("amount") or charge.get("amount") or 0)
+    currency = (data.get("currency") or charge.get("currency") or row["currency"] or "").upper()
+    if (row["currency"] and currency and currency != row["currency"]) or (amount and amount < row["amount"]):
+        db.execute("UPDATE payments SET status = 'review', charge_ref = ? WHERE reference = ?", (charge_ref, row["reference"]))
+        db.execute("UPDATE domain_orders SET status = 'failed', error = 'payment_mismatch', updated_at = ? WHERE reference = ?",
+                   (now_ms(), row["reference"]))
+        events.log(db, "billing.mismatch", row["user_id"], expected=row["amount"], paid=amount, currency=currency)
+        return False
+    db.execute("UPDATE payments SET status = 'success', paid_at = ?, charge_ref = ? WHERE reference = ?",
+               (_ms(data.get("completed_at")) or now_ms(), charge_ref, row["reference"]))
+    db.execute("UPDATE domain_orders SET status = 'paid', updated_at = ? WHERE reference = ? AND status = 'awaiting_payment'",
+               (now_ms(), row["reference"]))
+    events.log(db, "billing.domain_paid", row["user_id"], amount=amount, currency=currency)
+    from .routers import domains
+    domains.finish_order(db, row["reference"])
     return True
 
 

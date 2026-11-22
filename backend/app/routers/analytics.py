@@ -93,11 +93,9 @@ def page_event(slug: str, body: EventIn, request: Request, db: sqlite3.Connectio
 def project_analytics(project_id: str, days: int = Query(30, ge=7, le=365), user=Depends(current_user),
                       db: sqlite3.Connection = Depends(get_db)):
     """Views over time, sources, opened projects, scroll depth and actions for one published project."""
-    plan = plans.plan_of(db, user["id"])
-    allowed = plans.PLANS[plan].get("analytics_days", 0)
+    allowed = plans.entitlements(db, user["id"])["insightDays"]
     if not allowed:
-        raise plans.upgrade_error("plan_feature", "Visitor analytics are part of Pro and Premium: see where visitors come from, "
-                                  "what they open and what they do next.", "pro", plan)
+        raise plans.unlock_error("insights", None, db, user["id"])
     days = min(days, allowed)
     pub = db.execute("SELECT slug, views, created_at FROM publications WHERE user_id = ? AND project_id = ?",
                      (user["id"], project_id)).fetchone()
@@ -154,12 +152,16 @@ def preview_for(project: dict) -> dict:
 def share_page(slug: str, db: sqlite3.Connection = Depends(get_db)):
     """What link previews read (they don't run JavaScript). People who land here go straight on to the page."""
     import json
-    row = db.execute("SELECT p.data FROM publications p JOIN users u ON u.id = p.user_id WHERE p.slug = ? AND u.suspended_at IS NULL",
-                     (slug,)).fetchone()
+    row = db.execute("SELECT p.data, p.password_hash FROM publications p JOIN users u ON u.id = p.user_id "
+                     "WHERE p.slug = ? AND u.suspended_at IS NULL", (slug,)).fetchone()
     if not row:
         return HTMLResponse("<!doctype html><title>Not found</title>", status_code=404)
     from .. import safety
-    meta = preview_for(safety.clean(json.loads(row["data"])))
+    if row["password_hash"]:  # a private page: say nothing about what's inside
+        meta = {"title": "A private page on Dixlab", "description": "This page is password protected.",
+                "image": f"{config.PUBLIC_URL}/og-default.png"}
+    else:
+        meta = preview_for(safety.clean(json.loads(row["data"])))
     url = f"{config.PUBLIC_URL}/p/{slug}"
     e = lambda s: html.escape(s, quote=True)  # noqa: E731
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -174,3 +176,23 @@ def share_page(slug: str, db: sqlite3.Connection = Depends(get_db)):
 <meta http-equiv="refresh" content="0;url={e(url)}">
 </head><body><p><a href="{e(url)}">{e(meta['title'])}</a></p></body></html>"""
     return HTMLResponse(page, headers={"Cache-Control": "public, max-age=300"})
+
+
+# ---------------------------------------------------------------- live GitHub / Stack Overflow numbers
+
+_stats_ip = Limiter("live_stats_ip", 60, 60 * 60)
+
+
+@router.get("/api/public/{slug}/stats")
+def live_stats(slug: str, request: Request, db: sqlite3.Connection = Depends(get_db)):
+    """The numbers a portfolio's "Live stats" strip shows. Empty when it's off or nothing could be read."""
+    import json
+    from .. import livestats
+    row = db.execute("SELECT p.data, p.password_hash FROM publications p JOIN users u ON u.id = p.user_id "
+                     "WHERE p.slug = ? AND u.suspended_at IS NULL", (slug,)).fetchone()
+    if not row or row["password_hash"] or not _stats_ip.hit(client_ip(request)):
+        return {}
+    project = json.loads(row["data"])
+    if project.get("type") != "portfolio":
+        return {}
+    return livestats.for_project(project)

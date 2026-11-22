@@ -5,6 +5,7 @@ import { Panel, Pager, Status, useLoad, ConfirmAction, fmt, ago, KIND } from './
 import { AdminHead } from './AdminLayout.jsx';
 
 const KINDS = [['all', 'All'], ['portfolio', 'Portfolios'], ['cv', 'CVs'], ['case', 'Case studies']];
+const GALLERY = [['any', 'All pages'], ['requested', 'Gallery requests'], ['featured', 'Featured']];
 const SORTS = [['newest', 'Newest'], ['updated', 'Recently updated'], ['views', 'Most viewed']];
 
 /** Every live page: review it, see its reach, take it down if it breaks the rules. */
@@ -13,11 +14,16 @@ export default function Pages() {
   const [search, setSearch] = useState('');
   const [kind, setKind] = useState('all');
   const [sort, setSort] = useState('newest');
+  const [gal, setGal] = useState('any');
   const [page, setPage] = useState(1);
   const [doomed, setDoomed] = useState(null);
   const [note, setNote] = useState('');
   useEffect(() => { const t = setTimeout(() => { setSearch(q); setPage(1); }, 250); return () => clearTimeout(t); }, [q]);
-  const load = useLoad(() => admin.pages({ q: search, kind, sort, page }), [search, kind, sort, page]);
+  const load = useLoad(() => admin.pages({ q: search, kind, sort, page, gallery: gal }), [search, kind, sort, page, gal]);
+  const decide = (p, status) => admin.gallery(p.slug, status).then(() => {
+    setNote(status === 'featured' ? `“${p.title}” is now in the gallery.` : status === 'declined' ? `Declined “${p.title}”.` : `“${p.title}” left the gallery.`);
+    load.reload();
+  });
 
   return (
     <>
@@ -28,6 +34,9 @@ export default function Pages() {
           <input className="field__input adm-search" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search title, link or owner" aria-label="Search pages" />
           <div className="seg seg--sm" role="tablist" aria-label="Type">
             {KINDS.map(([k, l]) => <button key={k} role="tab" aria-selected={kind === k} className={`seg__btn ${kind === k ? 'is-active' : ''}`} onClick={() => { setKind(k); setPage(1); }}>{l}</button>)}
+          </div>
+          <div className="seg seg--sm" role="tablist" aria-label="Gallery">
+            {GALLERY.map(([k, l]) => <button key={k} role="tab" aria-selected={gal === k} className={`seg__btn ${gal === k ? 'is-active' : ''}`} onClick={() => { setGal(k); setPage(1); }}>{l}</button>)}
           </div>
           <label className="adm-select"><span>Sort</span>
             <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>{SORTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
@@ -48,7 +57,11 @@ export default function Pages() {
                         <td>{ago(p.createdAt)}</td>
                         <td>{ago(p.updatedAt)}</td>
                         <td className="num">{fmt(p.views)}</td>
-                        <td className="adm-row-act"><button className="adm-btn adm-btn--sm" onClick={() => setDoomed(p)}>Take down</button></td>
+                        <td className="adm-row-act">
+                          {p.gallery === 'requested' && <><button className="adm-btn adm-btn--sm" onClick={() => decide(p, 'featured')}>Feature</button> <button className="adm-btn adm-btn--sm" onClick={() => decide(p, 'declined')}>Decline</button> </>}
+                          {p.gallery === 'featured' && <><span className="adm-pill">Featured</span> <button className="adm-btn adm-btn--sm" onClick={() => decide(p, 'none')}>Unfeature</button> </>}
+                          <button className="adm-btn adm-btn--sm" onClick={() => setDoomed(p)}>Take down</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

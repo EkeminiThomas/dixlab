@@ -240,7 +240,8 @@ def user_detail(user_id: str, admin=Depends(require_admin), db: sqlite3.Connecti
     activity = [_event_row(r) for r in db.execute(f"{EVENT_SELECT} WHERE e.user_id = ? ORDER BY e.id DESC LIMIT 30", (user_id,))]
     info = plans.current(db, user_id)
     plan = {"plan": info["plan"], "name": plans.PLANS[info["plan"]]["name"], "source": info["source"],
-            "given": db.execute("SELECT plan_override FROM users WHERE id = ?", (user_id,)).fetchone()["plan_override"]}
+            "given": db.execute("SELECT plan_override FROM users WHERE id = ?", (user_id,)).fetchone()["plan_override"],
+            "credits": plans.balance(db, user_id), "unlocks": plans.unlocked(db, user_id), "history": plans.history(db, user_id, 15)}
     return {"user": _user_row(row), "projects": projects, "uploads": {"count": up[0], "bytes": up[1]},
             "sessions": sessions, "messages": msgs, "activity": activity, "plan": plan}
 
@@ -305,6 +306,24 @@ def set_plan(user_id: str, body: PlanIn, admin=Depends(require_admin), db: sqlit
             "given": None if body.plan == "none" else body.plan}
 
 
+class CreditsIn(BaseModel):
+    amount: int = Field(ge=-100000, le=100000)
+    note: str = Field(default="", max_length=200)
+
+
+@router.post("/users/{user_id}/credits")
+def give_credits(user_id: str, body: CreditsIn, admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db)):
+    """Give (or, with a negative amount, take back) credits: refunds by hand, goodwill, testers."""
+    _get_user(db, user_id)
+    if body.amount == 0:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Enter a number of credits.")
+    if body.amount < 0 and plans.balance(db, user_id) + body.amount < 0:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That would take the balance below zero.")
+    plans.add_credits(db, user_id, body.amount, "admin")
+    events.log(db, "admin.credits", user_id, admin["id"], amount=body.amount, note=body.note.strip())
+    return {"credits": plans.balance(db, user_id), "history": plans.history(db, user_id, 15)}
+
+
 class ConfirmIn(BaseModel):
     email: str = Field(max_length=320)
 
@@ -330,6 +349,7 @@ PAGE_SORTS = {"newest": "p.created_at DESC", "updated": "p.updated_at DESC", "vi
 
 @router.get("/pages")
 def pages(q: str = "", kind: str = Query("all", pattern="^(all|portfolio|cv|case)$"),
+          gallery: str = Query("any", pattern="^(any|requested|featured)$"),
           sort: str = Query("newest", pattern="^(newest|updated|views)$"), page: int = Query(1, ge=1),
           admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db)):
     where, params = [], []
@@ -340,16 +360,19 @@ def pages(q: str = "", kind: str = Query("all", pattern="^(all|portfolio|cv|case
     if kind != "all":
         where.append("json_extract(p.data, '$.type') = ?")
         params.append(kind)
+    if gallery != "any":
+        where.append("p.gallery = ?")
+        params.append(gallery)
     w = (" WHERE " + " AND ".join(where)) if where else ""
     base = f"FROM publications p JOIN users u ON u.id = p.user_id{w}"
     total = db.execute(f"SELECT COUNT(*) {base}", params).fetchone()[0]
     rows = db.execute(
-        f"""SELECT p.slug, p.project_id, p.views, p.created_at, p.updated_at, u.id AS user_id, u.name, u.email, u.suspended_at,
+        f"""SELECT p.slug, p.project_id, p.views, p.gallery, p.created_at, p.updated_at, u.id AS user_id, u.name, u.email, u.suspended_at,
             json_extract(p.data, '$.type') AS kind, json_extract(p.data, '$.template') AS template,
             COALESCE(json_extract(p.data, '$.title'), json_extract(p.data, '$.name')) AS title
             {base} ORDER BY {PAGE_SORTS[sort]} LIMIT ? OFFSET ?""", [*params, PAGE, (page - 1) * PAGE]).fetchall()
     items = [{"slug": r["slug"], "projectId": r["project_id"], "title": r["title"] or "Untitled", "kind": r["kind"],
-              "template": r["template"], "views": r["views"], "createdAt": r["created_at"], "updatedAt": r["updated_at"],
+              "template": r["template"], "views": r["views"], "gallery": r["gallery"], "createdAt": r["created_at"], "updatedAt": r["updated_at"],
               "owner": {"id": r["user_id"], "name": r["name"], "email": r["email"], "suspended": r["suspended_at"] is not None}}
              for r in rows]
     return {"pages": items, "total": total, "page": page, "pageSize": PAGE}
@@ -364,6 +387,25 @@ def takedown(slug: str, body: ReasonIn, admin=Depends(require_admin), db: sqlite
     db.execute("DELETE FROM publications WHERE slug = ?", (slug,))
     events.log(db, "admin.takedown", row["user_id"], admin["id"], slug=slug, project=row["project_id"], reason=body.reason.strip())
     return {"ok": True}
+
+
+class GalleryDecision(BaseModel):
+    status: Literal["featured", "declined", "none"]
+
+
+@router.post("/pages/{slug}/gallery")
+def gallery_decision(slug: str, body: GalleryDecision, admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db)):
+    """Feature a page in the public gallery, decline the request, or take it out."""
+    row = db.execute("SELECT user_id, password_hash FROM publications WHERE slug = ?", (slug,)).fetchone()
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "That page isn’t published.")
+    if body.status == "featured" and row["password_hash"]:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Password-protected pages can’t be featured.")
+    new = None if body.status == "none" else body.status
+    db.execute("UPDATE publications SET gallery = ?, featured_at = ? WHERE slug = ?",
+               (new, now_ms() if new == "featured" else None, slug))
+    events.log(db, f"admin.gallery.{body.status}", row["user_id"], admin["id"], slug=slug)
+    return {"ok": True, "gallery": new}
 
 
 # ---------- messages (metadata only) ----------

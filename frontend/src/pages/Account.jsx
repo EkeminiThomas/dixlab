@@ -7,10 +7,10 @@ import DashSide from '../components/DashSide.jsx';
 import {
   isSignedIn, updateName, changePassword, deleteAccount, resendVerification,
   twoFactorStatus, twoFactorSetup, twoFactorEnable, twoFactorDisable, twoFactorNewCodes,
-  usePlan, refreshPlan, loadCatalog, cancelPlan, manageCard, requestRefund, formatPrice,
+  usePlan, refreshPlan, loadCatalog, cancelPlan, manageCard, requestRefund, formatPrice, openUpgrade,
 } from '../api.js';
 
-const SECTIONS = [['details', 'Details'], ['password', 'Password'], ['security', 'Two-step login'], ['billing', 'Plan & billing'], ['delete', 'Delete account']];
+const SECTIONS = [['details', 'Details'], ['password', 'Password'], ['security', 'Two-step login'], ['billing', 'Credits & billing'], ['delete', 'Delete account']];
 
 /** Your profile: your details, email confirmation, password, two-step login, plan, and deleting the account. */
 export default function Account() {
@@ -69,7 +69,7 @@ function ProfileSummary({ user }) {
           <div className="prof__tags">
             {user.emailVerified ? <span className="acct__pill is-good"><span aria-hidden>✓</span>Email confirmed</span>
               : <span className="acct__pill is-warn"><span aria-hidden>!</span>Email not confirmed</span>}
-            {plan && <span className={`prof__plan prof__plan--${plan.plan}`}>{plan.name}{plan.source === 'trial' ? ' trial' : ''} plan</span>}
+            {plan?.enforced && <span className="prof__plan">{(plan.credits ?? 0).toLocaleString()} credits</span>}
             <span className="prof__meta">Two-step login {user.twoFactor ? 'on' : 'off'}</span>
             {user.createdAt && <span className="prof__meta">Member since {new Date(user.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</span>}
           </div>
@@ -114,59 +114,90 @@ function Meter({ label, used, max, format = (n) => n }) {
   );
 }
 
-/** Your plan, what you've used, renewals, cancelling, card updates and refunds. */
+const REASONS = {
+  welcome: 'Welcome credits', purchase: 'Credit pack', admin: 'From Dixlab', refund: 'Refunded pack',
+  'ai:assist_tailor_cv': 'Tailored a CV to a job', 'ai:assist_profiles': 'Read your profiles', 'ai:assist_case_links': 'Case study from links',
+  'ai:assist_translate': 'Translated a page', 'ai:customize': 'AI change', 'ai:interview_draft_portfolio': 'Wrote your portfolio',
+  'ai:interview_draft_case': 'Wrote a case study',
+};
+const reasonText = (r, catalog) => REASONS[r] || (r.startsWith('unlock:') ? `Unlocked ${catalog?.unlocks.find((u) => u.id === r.slice(7))?.name || r.slice(7)}` : r);
+
+/** Your credits, what you've unlocked, what you've used, payments and refunds. */
 function PlanCard() {
   const { plan, catalog } = usePlan();
   const [state, run, note] = useAction();
-  const [confirm, setConfirm] = useState(null); // 'cancel' | reference
+  const [confirm, setConfirm] = useState(null); // 'cancel' | payment reference
   useEffect(() => { refreshPlan(); loadCatalog(); }, []);
-  if (!plan) return <Card id="billing" title="Plan & billing" lead="Loading your plan…" />;
+  if (!plan) return <Card id="billing" title="Credits & billing" lead="Loading…" />;
 
-  const status = plan.source === 'trial' ? `Free trial · ends ${dateText(plan.trialEndsAt)}`
-    : plan.source === 'override' ? 'Given by Dixlab'
-    : plan.source === 'subscription'
-      ? plan.status === 'prepaid' ? `Paid until ${dateText(plan.periodEnd)} · renew by paying again`
-        : plan.status === 'past_due' ? 'Payment failed · Bachs will retry. Update your card to keep your plan.'
-        : plan.cancelAtPeriodEnd ? `Cancelled · ends ${dateText(plan.periodEnd)}` : `${plan.interval === 'yearly' ? 'Yearly' : 'Monthly'} · renews ${dateText(plan.periodEnd)}`
-      : 'Free forever';
   const L = plan.limits;
   const used = plan.usage;
   const cur = (p) => (p.currency ? formatPrice(p.amount, p.currency) : '');
+  const legacy = plan.legacy;
+  const unlocks = (catalog?.unlocks || []).filter((u) => !u.stack);
 
   return (
-    <Card id="billing" title="Plan & billing" lead="Your plan, what you’ve used this month, and your payments.">
+    <Card id="billing" title="Credits & billing" lead="Credits pay for AI help and unlock features for good. They never expire.">
       <div className="plan-now">
         <div>
-          <p className={`plan-now__name plan-now__name--${plan.plan}`}>{plan.name}</p>
-          <p className="plan-now__status">{status}</p>
+          <p className="plan-now__name">{(plan.credits ?? 0).toLocaleString()} credits</p>
+          <p className="plan-now__status">{used.ai.units ? `${used.ai.units} spent on AI this month` : 'Never expire'}</p>
         </div>
         <div className="acct__row">
-          <Link className="app-btn app-btn--primary" to="/pricing">{plan.status === 'prepaid' ? 'Renew or change' : plan.plan === 'premium' ? 'See plans' : 'Upgrade'}</Link>
-          {plan.canManageCard && <button className="app-btn app-btn--ghost" disabled={state.busy} onClick={() => run(manageCard)}>Manage billing</button>}
-          {((plan.source === 'subscription' && plan.renews) || plan.source === 'trial') && (
-            <button className="app-btn app-btn--ghost" onClick={() => setConfirm('cancel')}>{plan.source === 'trial' ? 'End trial' : 'Cancel plan'}</button>
-          )}
+          <Link className="app-btn app-btn--primary" to="/pricing">Buy credits</Link>
         </div>
       </div>
-      {confirm === 'cancel' && (
-        <div className="plan-confirm" role="alert">
-          <p>{plan.source === 'trial' ? 'End your Pro trial now? You’ll go back to Free, and you can’t start another trial.'
-            : `Cancel ${plan.name}? You keep it until ${dateText(plan.periodEnd)}, then move to Free. Nothing is deleted.`}</p>
+      {legacy && (
+        <div className="plan-legacy">
+          <p><b>{legacy.name}</b> {legacy.source === 'override' ? 'given by Dixlab' : legacy.status === 'prepaid'
+            ? `paid until ${dateText(legacy.periodEnd)}` : legacy.cancelAtPeriodEnd ? `ends ${dateText(legacy.periodEnd)}` : `renews ${dateText(legacy.periodEnd)}`}.
+            {' '}{legacy.plan === 'pro' || legacy.plan === 'premium' ? 'Every feature and AI help are included while it lasts.' : 'Premium templates are included while it lasts.'}</p>
           <div className="acct__row">
-            <button className="app-btn app-btn--primary" disabled={state.busy} onClick={() => run(async () => { await cancelPlan(); setConfirm(null); }, plan.source === 'trial' ? 'Your trial has ended.' : 'Your plan won’t renew.')}>Yes, {plan.source === 'trial' ? 'end it' : 'cancel'}</button>
-            <button className="app-btn app-btn--ghost" onClick={() => setConfirm(null)}>Keep my plan</button>
+            {plan.canManageCard && <button className="app-btn app-btn--ghost" disabled={state.busy} onClick={() => run(manageCard)}>Manage billing</button>}
+            {legacy.source === 'subscription' && legacy.renews && <button className="app-btn app-btn--ghost" onClick={() => setConfirm('cancel')}>Stop renewing</button>}
           </div>
+          {confirm === 'cancel' && (
+            <div className="plan-confirm" role="alert">
+              <p>Stop renewing {legacy.name}? You keep it until {dateText(legacy.periodEnd)}, then carry on with credits. Nothing is deleted.</p>
+              <div className="acct__row">
+                <button className="app-btn app-btn--primary" disabled={state.busy} onClick={() => run(async () => { await cancelPlan(); setConfirm(null); }, 'It won’t renew.')}>Yes, stop it</button>
+                <button className="app-btn app-btn--ghost" onClick={() => setConfirm(null)}>Keep it</button>
+              </div>
+            </div>
+          )}
         </div>
       )}
       {plan.enforced && (
-        <div className="plan-meters">
-          {L.perType
-            ? [['cv', 'CVs'], ['portfolio', 'Portfolios'], ['case', 'Case studies']].map(([k, label]) => (
-              <Meter key={k} label={label} used={used.projects[k] || 0} max={L.perType[k]} />))
-            : <Meter label={L.projects === 1 ? 'Projects (one category on Free)' : 'Projects'} used={used.projects.total} max={L.projects} />}
-          <Meter label="Storage" used={used.storageBytes} max={L.storageMb * 1024 * 1024} format={mb} />
-          <Meter label={plan.source === 'subscription' ? 'AI units this billing period' : 'AI units this month'} used={used.ai.units} max={used.ai.allowance} />
-        </div>
+        <>
+          <div className="plan-unlocks">
+            {unlocks.map((u) => (
+              <div key={u.id} className={`plan-unlock ${plan.features[u.id] ? 'is-on' : ''}`}>
+                <span>{u.name}</span>
+                {plan.features[u.id] ? <b>✓ Unlocked</b>
+                  : <button className="acct__link-btn" onClick={() => openUpgrade({ code: 'unlock_needed', feature: u.id })}>{u.credits} credits</button>}
+              </div>
+            ))}
+          </div>
+          <div className="plan-meters">
+            <Meter label="Projects" used={used.projects.total} max={L.projects} />
+            <Meter label="Storage" used={used.storageBytes} max={L.storageMb * 1024 * 1024} format={mb} />
+            <p className="acct__note">Need more room? <button className="acct__link-btn" onClick={() => openUpgrade({ code: 'unlock_needed', feature: 'project' })}>Add a project</button> or <button className="acct__link-btn" onClick={() => openUpgrade({ code: 'unlock_needed', feature: 'storage' })}>1 GB more storage</button>, 100 credits each.</p>
+          </div>
+        </>
+      )}
+      {plan.history?.length > 0 && (
+        <details className="plan-pay">
+          <summary className="plan-pay__k">Credit history</summary>
+          <ul>
+            {plan.history.map((h, i) => (
+              <li key={i}>
+                <span>{dateText(h.at)}</span>
+                <span>{reasonText(h.reason, catalog)}</span>
+                <b className={h.delta > 0 ? 'is-plus' : ''}>{h.delta > 0 ? `+${h.delta}` : h.delta}</b>
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
       {plan.payments.length > 0 && (
         <div className="plan-pay">
@@ -175,11 +206,12 @@ function PlanCard() {
             {plan.payments.map((p) => (
               <li key={p.reference}>
                 <span>{p.paidAt ? dateText(p.paidAt) : '—'}</span>
-                <span>{(catalog?.plans.find((x) => x.id === p.plan)?.name || p.plan)} · {p.interval}</span>
+                <span>{p.credits ? `${p.credits.toLocaleString()} credits` : `${p.plan} · ${p.interval}`}</span>
                 <b>{cur(p)}</b>
                 <span className="plan-pay__state">
                   {p.refundStatus ? (p.refundStatus === 'processed' ? 'Refunded' : 'Refund on its way')
                     : p.status === 'failed' ? 'Failed'
+                    : p.status === 'review' ? 'Being checked'
                     : p.refundable ? (confirm === p.reference
                       ? <><button className="acct__link-btn" disabled={state.busy} onClick={() => run(async () => { await requestRefund(p.reference); setConfirm(null); }, 'Refund requested. It reaches your card in 5–10 working days.')}>Confirm refund</button> · <button className="acct__link-btn" onClick={() => setConfirm(null)}>Keep</button></>
                       : <button className="acct__link-btn" onClick={() => setConfirm(p.reference)}>Request refund</button>)
@@ -188,7 +220,7 @@ function PlanCard() {
               </li>
             ))}
           </ul>
-          {confirm && confirm !== 'cancel' && <p className="acct__note">A refund ends your plan straight away and moves you to Free.</p>}
+          {confirm && confirm !== 'cancel' && <p className="acct__note">Refunding a pack takes its credits back. Packs can be refunded within {catalog?.refundDays || 14} days, while their credits are unused.</p>}
         </div>
       )}
       {note}

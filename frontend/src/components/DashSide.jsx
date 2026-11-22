@@ -62,18 +62,12 @@ export default function DashSide({ active, onFilter }) {
           {isSignedIn() ? <UserMenu user={user} onLogOut={onLogOut} /> : <span className="dash__avatar">{initials(user.name || 'You')}</span>}
           <div>
             <p className="dash__user-name">{user.name || (isSignedIn() ? 'Your profile' : 'Not signed in')}</p>
-            {plan?.enforced && (
-              <Link to="/pricing" className={`dash__plan dash__plan--${plan.plan}`} title={plan.source === 'trial' ? 'Free Pro trial' : `${plan.name} plan`}>
-                {plan.name}{plan.source === 'trial' ? ' trial' : ''}{plan.plan !== 'premium' && <span>Upgrade</span>}
-              </Link>
-            )}
-            {plan?.enforced && plan.usage?.ai && (() => {
-              const { units, allowance } = plan.usage.ai;
-              const left = Math.max(0, allowance - units);
-              const level = left === 0 ? 'is-out' : left <= allowance * 0.2 ? 'is-low' : '';
+            {plan?.enforced && (() => {
+              const left = plan.credits ?? 0;
+              const level = left === 0 ? 'is-out' : left < 20 ? 'is-low' : '';
               return (
-                <Link to="/account" className={`dash__units ${level}`} title="AI units reset at the start of each billing period">
-                  {left === 0 ? 'No AI units left' : `${left} of ${allowance} AI units left`}
+                <Link to="/pricing" className={`dash__units ${level}`} title="Credits pay for AI help and unlock features. They never expire.">
+                  {left === 0 ? 'No credits left · Top up' : `${left.toLocaleString()} credits · Top up`}
                 </Link>
               );
             })()}

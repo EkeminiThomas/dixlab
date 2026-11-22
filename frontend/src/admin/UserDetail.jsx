@@ -55,6 +55,7 @@ export default function UserDetail() {
               <Kpi label="Messages received" value={messages} />
               <Kpi label="Storage used" value={uploads.bytes} format={bytes} hint={`${fmt(uploads.count)} files`} />
             </div>
+            {plan && <CreditsPanel user={u} plan={plan} onSaved={(n) => done(`${self ? 'You now have' : 'They now have'} ${n.toLocaleString()} credits.`)} />}
             {plan && <PlanPanel user={u} plan={plan} self={self} onSaved={(p) => done(p.given ? `${self ? 'You now have' : 'They now have'} ${p.name} for free.` : 'The plan you gave was removed.')} />}
             <div className="adm-grid adm-grid--2-1">
               <Panel title="Projects">
@@ -87,7 +88,37 @@ export default function UserDetail() {
 }
 
 
-const GIVE = [['free', 'Free'], ['starter', 'Starter'], ['pro', 'Pro'], ['premium', 'Premium']];
+const GIVE = [['free', 'Free'], ['starter', 'Starter'], ['pro', 'Pro (everything unlocked, AI included)'], ['premium', 'Premium (everything unlocked, AI included)']];
+
+/** Give (or take back) credits: refunds by hand, goodwill, testers. */
+function CreditsPanel({ user, plan, onSaved }) {
+  const [amount, setAmount] = useState('100');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [balance, setBalance] = useState(plan.credits ?? 0);
+  const give = async (e) => {
+    e.preventDefault();
+    const n = parseInt(amount, 10);
+    if (!n) { setError('Enter a number of credits, like 100 or -50.'); return; }
+    setBusy(true); setError('');
+    try { const r = await admin.giveCredits(user.id, n); setBalance(r.credits); onSaved(r.credits); } catch (err) { setError(err.message); }
+    setBusy(false);
+  };
+  const unlocked = Object.keys(plan.unlocks || {});
+  return (
+    <Panel title="Credits">
+      <div className="adm-plan">
+        <p className="adm-plan__now"><b>{balance.toLocaleString()} credits</b>{unlocked.length > 0 && <span> · unlocked: {unlocked.join(', ')}</span>}</p>
+        <form className="adm-plan__form" onSubmit={give}>
+          <input className="field__input adm-credits" type="number" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Credits to give" step="1" />
+          <button className="adm-btn adm-btn--primary" disabled={busy}>{busy ? 'Saving…' : 'Give credits'}</button>
+        </form>
+        <small className="adm-plan__hint">A negative number takes credits back. Recorded in the activity log.</small>
+        {error && <p className="form-error" role="alert">{error}</p>}
+      </div>
+    </Panel>
+  );
+}
 const SOURCE = { subscription: 'paid subscription', trial: 'free trial', override: 'given by an admin', free: 'default' };
 
 /** Give someone a plan for free (yourself, a teammate, a tester), or take it back. */
