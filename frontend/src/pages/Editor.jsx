@@ -661,7 +661,7 @@ export default function Editor() {
                   <legend>Embeds <Opt /> <span className="up__count">{(d.embeds || []).length}/4</span></legend>
                   {(d.embeds || []).map((e, i) => (
                     <div className="ed__row" key={i}>
-                      <input className="field__input" type="url" value={e.url} placeholder="https://figma.com/proto/… · youtube.com/watch?v=… · loom.com/share/…"
+                      <input className="field__input" type="url" value={e.url} placeholder="youtube.com/watch?v=… · loom.com/share/… · figma.com/design/… (as a link)"
                         onChange={(ev) => setField('embeds', d.embeds.map((x, j) => (j === i ? { ...x, url: ev.target.value } : x)))} aria-label={`Embed link ${i + 1}`} />
                       <input className="field__input" value={e.title || ''} placeholder="Caption (optional)"
                         onChange={(ev) => setField('embeds', d.embeds.map((x, j) => (j === i ? { ...x, title: ev.target.value } : x)))} aria-label={`Embed caption ${i + 1}`} />
@@ -669,7 +669,7 @@ export default function Editor() {
                     </div>
                   ))}
                   {(d.embeds || []).length < 4 && <button type="button" className="ed__add" onClick={() => setField('embeds', [...(d.embeds || []), { url: '', title: '' }])}>+ Add an embed</button>}
-                  <small className="field__hint">Figma files and prototypes, YouTube, Loom or Vimeo play right inside your case study. Other links show as a link card. For Figma, set sharing to “Anyone with the link can view”.</small>
+                  <small className="field__hint">YouTube, Loom or Vimeo videos play right inside your case study. Other links, Figma files included, show as a link card visitors can open. To show Figma screens, add them as images (or build the case study from the Figma link).</small>
                 </fieldset>
 
                 <label className="field">

@@ -108,7 +108,7 @@
 .cs-tiles .tl-t { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; padding: clamp(14px, 2.2cqi, 24px); border-radius: 20px; background: var(--k-soft); }
 .cs-tiles .tl-t--cover { grid-column: span 2; grid-row: span 2; padding: 0; overflow: hidden; }
 .cs-tiles .tl-t--cover .csv, .cs-tiles .tl-t--cover .csv__media { height: 100%; aspect-ratio: auto !important; }
-.cs-tiles .tl-t--cover img { height: 100%; object-fit: cover; }
+.cs-tiles .tl-t--cover .csv__media > img:not(.csv__fill) { height: 100%; }
 .cs-tiles .tl-t--problem { grid-column: span 2; }
 .cs-tiles .tl-t--solution { grid-column: span 3; background: var(--k-ink); color: #fff; }
 .cs-tiles .tl-t--solution .tl-k { color: color-mix(in srgb, var(--k-accent) 55%, #fff); }

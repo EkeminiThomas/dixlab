@@ -21,7 +21,7 @@ const shared = {
   "form-action": ["'self'"],
   "frame-ancestors": ["'none'"],
   // Case study embeds: only the players Dixlab builds (components/case/extras.jsx).
-  "frame-src": ["https://www.figma.com", "https://www.youtube-nocookie.com", "https://www.loom.com", "https://player.vimeo.com"],
+  "frame-src": ["https://www.youtube-nocookie.com", "https://www.loom.com", "https://player.vimeo.com"],
   "worker-src": ["'self'", "blob:"],
 };
 

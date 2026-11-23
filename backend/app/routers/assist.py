@@ -351,7 +351,8 @@ def cv_check(body: CheckIn):
 
 # ---------------------------------------------------------------- case studies from project links
 
-# Links the case study can show live (its templates build the player from these, nothing else).
+# Links added to the case study's "embeds": videos play in place (the templates build the player
+# from the link, nothing else), and a Figma file shows as an "Open in Figma" card (no live viewer).
 EMBEDDABLE = re.compile(r"^https?://(?:www\.)?(?:figma\.com/(?:file|design|proto|board|slides|deck)/|youtube\.com/watch|youtu\.be/|"
                         r"youtube\.com/shorts/|loom\.com/share/|vimeo\.com/\d)", re.I)
 

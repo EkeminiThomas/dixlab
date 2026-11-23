@@ -1,9 +1,11 @@
 /* ==========================================================================
    Case study extras, shared by every template:
-   - Embeds: Figma files and prototypes, YouTube, Loom and Vimeo, played in
-     place. Only these providers, and the player address is built here from
-     the link (never taken from the link itself), so nothing else can be
-     framed. Other links become a plain link card.
+   - Embeds: YouTube, Loom and Vimeo, played in place. Only these providers,
+     and the player address is built here from the link (never taken from the
+     link itself), so nothing else can be framed. Other links, Figma files
+     included, become a plain link card: Figma's live viewer was slow and
+     showed an error page when it didn't load, and the file's screens are
+     already in the case study as images.
    - Before / after: drag (or use the arrow keys) to compare two images.
    - Count-up results: numbers count up once when they scroll into view.
    - Reading time and contents: a slim bar above the case study.
@@ -14,13 +16,12 @@ import { StaticSite } from '../sites/shared.jsx';
 
 /* ---------- Embeds ---------- */
 
-/** {kind, src} for links we can play in place, else null. */
+export const FIGMA_LINK = /^https?:\/\/(?:www\.)?figma\.com\/(file|design|proto|board|slides|deck)\/[A-Za-z0-9]+/i;
+
+/** {kind, src} for links we can play in place (videos), else null. */
 export function embedFor(url) {
   const u = String(url || '').trim();
   let m;
-  if ((m = /^https?:\/\/(?:www\.)?figma\.com\/(file|design|proto|board|slides|deck)\/[A-Za-z0-9]+/i.exec(u))) {
-    return { kind: 'Figma', src: `https://www.figma.com/embed?embed_host=dixlab&url=${encodeURIComponent(u)}`, ratio: '16 / 10' };
-  }
   if ((m = /^https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,15})/i.exec(u))) {
     return { kind: 'YouTube', src: `https://www.youtube-nocookie.com/embed/${m[1]}`, ratio: '16 / 9' };
   }
@@ -41,7 +42,8 @@ export function Embeds({ items = [] }) {
     <div className="cs-embeds">
       {list.map((e, i) => {
         const em = embedFor(e.url);
-        const title = e.title || (em ? `${em.kind} ${em.kind === 'Figma' ? 'file' : 'video'}` : 'Project link');
+        const figma = FIGMA_LINK.test(e.url);
+        const title = e.title || (em ? `${em.kind} video` : figma ? 'Open the design in Figma' : 'Project link');
         if (em && !staticSite) {
           return (
             <figure key={i} className="cs-embed">
@@ -57,8 +59,8 @@ export function Embeds({ items = [] }) {
         const href = safeHref(e.url);
         return href && (
           <a key={i} className="cs-linkcard" href={href} target="_blank" rel="noopener noreferrer">
-            <span className="cs-linkcard__k">{em ? em.kind : hostOf(href)}</span>
-            <b>{e.title || href.replace(/^https?:\/\/(www\.)?/, '').slice(0, 80)}</b>
+            <span className="cs-linkcard__k">{em ? em.kind : figma ? 'Figma' : hostOf(href)}</span>
+            <b>{e.title || (figma ? title : href.replace(/^https?:\/\/(www\.)?/, '').slice(0, 80))}</b>
             <span aria-hidden>↗</span>
           </a>
         );

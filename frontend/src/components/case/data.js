@@ -231,7 +231,8 @@ export function cs(data = {}) {
     contribution: t(data.contribution) || '',
     tradeoffs: t(data.tradeoffs) || '',
     solution: pick('solution', t(data.solution) || '', !t(data.solution)),
-    metrics: pick('metrics', metrics, !metrics.length),
+    // Never borrowed from the sample: made-up numbers look like the person's own results.
+    metrics,
     quote: t(data.quote) || '', quoteBy: t(data.quoteBy) || '',
     learned: t(data.learned) || '', next: t(data.next) || '', link: t(data.link) || '',
     cover: data.cover?.src ? data.cover : null,

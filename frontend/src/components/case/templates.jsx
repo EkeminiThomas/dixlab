@@ -1,10 +1,10 @@
 /* ==========================================================================
-import { safeSrc } from '../../safeUrl.js';
    Case study templates. Each renders a responsive page (it's a `.site`, so
    container queries, branding fonts, accent colour and motion all apply).
    Styles live in case.css.
    ========================================================================== */
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
+import { safeSrc } from '../../safeUrl.js';
 import { cs } from './data.js';
 import { hash, StaticSite } from '../sites/shared.jsx';
 import { fileExt, fileSize } from '../media.js';
@@ -19,15 +19,40 @@ const PALETTES = [
   ['#0b2545', '#8ecae6', '#ffb703'], ['#2a0f2f', '#f0abfc', '#67e8f9'], ['#18181b', '#e4e4e7', '#f97316'],
 ];
 
+/** "16 / 10" → 1.6 */
+const ratioOf = (r) => { const [w, h] = String(r).split('/').map(Number); return w > 0 && h > 0 ? w / h : 1.6; };
+
+/**
+ * One picture in its template's frame. People's images come in every shape (wide
+ * screenshots, tall phone screens, square artwork), so: when the picture is close
+ * to the frame's shape it fills the frame; otherwise it's shown whole, on a soft
+ * blurred copy of itself, so nothing is cropped away and grids stay even.
+ */
 export function Visual({ img, seed = '', i = 0, ratio = '16 / 10', className = '', caption }) {
   const h = parseInt(hash(`${seed}${i}`), 16);
   const [bg, fg, hi] = PALETTES[(h + i) % PALETTES.length];
   const kind = (h >> 3) % 3;
+  const [shape, setShape] = useState(0); // the picture's own width / height, once known
+  const box = ratioOf(ratio);
+  // cover: about the frame's shape, so fill it · contain: show it whole ·
+  // tall: a long page or phone screen, shown from the top at a readable width
+  const fit = !shape || Math.abs(shape / box - 1) <= 0.12 ? 'cover' : shape < 0.45 && shape < box ? 'tall' : 'contain';
+  const portrait = box < 1;
+  const alt = img?.caption || caption || '';
+  const src = img?.src;
   return (
     <figure className={`csv ${className}`}>
-      <div className="csv__media" style={{ aspectRatio: ratio, background: img?.src ? '#eee' : bg }}>
-        {img?.src && img.type === 'video' ? <video src={img.src} muted loop playsInline autoPlay preload="metadata" aria-label={img.caption || caption || 'Video'} />
-          : img?.src ? <img src={img.src} alt={img.caption || caption || ''} loading="lazy" /> : (
+      <div className={`csv__media ${src ? `is-${fit}${portrait ? ' is-portrait' : ''}` : ''}`} style={{ aspectRatio: ratio, background: src ? undefined : bg }}>
+        {src && fit !== 'cover' && (img.type === 'video'
+          ? <video className="csv__fill" src={src} muted loop playsInline autoPlay preload="metadata" aria-hidden tabIndex={-1} />
+          : <img className="csv__fill" src={src} alt="" aria-hidden loading="lazy" />)}
+        {src && img.type === 'video' ? (
+          <video src={src} muted loop playsInline autoPlay preload="metadata" aria-label={alt || 'Video'}
+            onLoadedMetadata={(e) => e.currentTarget.videoHeight && setShape(e.currentTarget.videoWidth / e.currentTarget.videoHeight)} />
+        ) : src ? (
+          <img src={src} alt={alt} loading="lazy" decoding="async"
+            onLoad={(e) => e.currentTarget.naturalHeight && setShape(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight)} />
+        ) : (
           <div className={`csv__art csv__art--${kind}`} style={{ '--fg': fg, '--hi': hi }} aria-hidden>
             <i /><i /><i /><b /><b /><b />
           </div>
@@ -425,7 +450,7 @@ function Deck({ data }) {
     ['Process', d.ghost.process, <Steps d={d} className="cs-steps--grid" />],
     ...(d.tradeoffs ? [['Trade-offs', false, <p className="cs-big">{d.tradeoffs}</p>]] : []),
     ['Solution', d.ghost.solution, <p className="cs-big">{d.solution}</p>],
-    ['Results', d.ghost.metrics, <Metrics d={d} />],
+    ...(d.metrics.length ? [['Results', false, <Metrics d={d} />]] : []),
   ];
   if (d.learned) slides.push(['Learnings', false, <p className="cs-big">{d.learned}</p>]);
   const total = slides.length + 1;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { assistCaseLinks, caseCheck, caseProjects, isSignedIn, usePlan } from '../api.js';
-import { embedFor } from './case/extras.jsx';
+import { embedFor, FIGMA_LINK } from './case/extras.jsx';
 import { MAX_GALLERY } from './case/data.js';
 import { FONT_PAIRS } from './sites/brand.js';
 
@@ -53,6 +53,7 @@ function mergeCase(cur, draft, replace, useBrand = true) {
 const KIND = (u) => {
   const e = embedFor(u);
   if (e) return e.kind;
+  if (FIGMA_LINK.test(u)) return 'Figma';
   if (/github\.com\/[^/]+\/[^/]+/i.test(u)) return 'GitHub repo';
   if (/gitlab\.com\/[^/]+\/[^/]+/i.test(u)) return 'GitLab project';
   return u.trim() ? 'Website' : '';
@@ -177,7 +178,7 @@ export default function CaseAssist({ project, onApply }) {
       {tab === 'links' && !isSignedIn() && <p className="aia__note">Log in to build a case study from your links.</p>}
       {tab === 'links' && isSignedIn() && (
         <div className="aia__body">
-          <p className="aia__lead">Paste links to the project. We read the repository’s README, stack and releases, and the live site. From a Figma file we take its screens, the words on them, its fonts, colours and page structure. Figma files and videos are also embedded so visitors can try them.</p>
+          <p className="aia__lead">Paste links to the project. We read the repository’s README, stack and releases, and the live site. From a Figma file we take its screens, the words on them, its fonts, colours and page structure, and add a link to open it in Figma. Videos are embedded so visitors can watch them.</p>
           {links.map((l, i) => (
             <div className="caselink" key={i}>
               <input className="field__input" value={l} inputMode="url" spellCheck={false} aria-label={`Project link ${i + 1}`}

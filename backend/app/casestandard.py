@@ -101,7 +101,7 @@ def check(c: dict) -> dict:
     if not has_cover:
         add("cover", "improve", "Add a cover image", "Your strongest final screen or photo.")
     if not (visuals or has_compare or embeds):
-        add("visuals", "improve", "Show the work", "Add visuals, a before/after comparison, or embed your Figma file or a video walkthrough.")
+        add("visuals", "improve", "Show the work", "Add visuals (screens from your Figma file, screenshots), a before/after comparison, or a video walkthrough.")
     else:
         add("visuals", "ok", "The work is shown")
     if not (_text(c.get("link")) or embeds):

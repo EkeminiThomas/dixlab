@@ -71,7 +71,16 @@
 /* Visuals */
 .csv { min-width: 0; }
 .csv__media { position: relative; overflow: hidden; border-radius: clamp(8px, 1.4cqi, 16px); }
-.csv__media img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.csv__media img, .csv__media video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.csv__media.is-cover, .csv__media.is-contain, .csv__media.is-tall { background: var(--k-soft, #f2f2f4); }
+/* A picture of a different shape is shown whole, over a soft blurred copy of itself. */
+.csv__media.is-contain > :not(.csv__fill) { position: relative; z-index: 1; object-fit: contain; }
+/* A long page or phone screen: from the top, at a readable width (the full width in tall frames). */
+.csv__media.is-tall > :not(.csv__fill) { position: relative; z-index: 1; width: 40%; height: auto; margin-inline: auto; object-fit: initial;
+  box-shadow: 0 10px 40px -12px rgba(0, 0, 0, 0.35); }
+.csv__media.is-tall.is-portrait > :not(.csv__fill) { width: 100%; box-shadow: none; }
+.csv__media .csv__fill { position: absolute; inset: -8%; width: 116%; height: 116%; object-fit: cover; filter: blur(28px) saturate(1.15); opacity: 0.55; transform: translateZ(0); pointer-events: none; }
+@media print { .csv__media .csv__fill { display: none; } }
 .csv figcaption { margin-top: 0.6em; font-size: 0.82em; color: var(--k-muted); }
 .csv__art { position: absolute; inset: 0; }
 .csv__art i, .csv__art b { position: absolute; display: block; }
