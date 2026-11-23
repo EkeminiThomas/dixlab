@@ -51,6 +51,25 @@ class TooBig(FigmaError):
     """The answer was over MAX_JSON."""
 
 
+class RateLimited(FigmaError):
+    """Figma's limit for the token. View and Collab seats (type "low") get a few file reads a
+    MONTH, and limits follow the plan the file lives in, so a server token reading someone
+    else's file is often "low": their own token is the fix."""
+
+    def __init__(self, kind: str = "", retry: str = ""):
+        self.low = kind.lower() == "low"
+        try:
+            wait = int(retry)
+        except ValueError:
+            wait = 0
+        if self.low or wait > 3600:
+            msg = ("Figma’s monthly limit for reading this file has been reached. Add your own Figma access token "
+                   "and try again: your own files then use your own Figma limits.")
+        else:
+            msg = "Figma is limiting how often files can be read right now. Try again in a minute."
+        super().__init__(msg)
+
+
 def parse_url(url: str) -> tuple[str, str, str | None] | None:
     """(kind, file key, node id or None) for a Figma file link, else None.
     A branch link reads the branch."""
@@ -86,7 +105,7 @@ def _get(path: str, token: str, params: dict | None = None) -> dict:
             if r.status_code == 404:
                 raise FigmaError("Figma couldn’t find that file. Check the link is to a design file or prototype.")
             if r.status_code == 429:
-                raise FigmaError("Figma is limiting how often files can be read right now. Try again in a few minutes.")
+                raise RateLimited(r.headers.get("X-Figma-Rate-Limit-Type", ""), r.headers.get("Retry-After", ""))
             if r.status_code != 200:
                 raise FigmaError(f"Figma answered {r.status_code}. Try again shortly.")
             data = bytearray()
@@ -382,16 +401,16 @@ def export(key_url: str, picked: list[dict], cover: dict | None, own_token: str 
         return []
     key = parsed[1]
     wanted = ([cover] if cover else []) + picked
-    groups: dict[float, list[str]] = {}
-    for s in wanted:
-        groups.setdefault(_scale(s["w"], s["h"]), []).append(s["id"])
+    # One export call for all the screens (each call counts against Figma's limit), at the
+    # scale that suits most of them: phones at 2x, desktop at 1x, never huge.
+    scales = sorted(_scale(s["w"], s["h"]) for s in wanted) if wanted else [1]
+    scale = scales[len(scales) // 2]
     urls: dict[str, str] = {}
-    for scale, ids in groups.items():
-        try:
-            r = _get(f"/images/{key}", token, {"ids": ",".join(ids), "format": "png", "scale": scale})
-            urls.update({k: v for k, v in (r.get("images") or {}).items() if v})
-        except FigmaError as e:
-            log.info("figma export failed: %s", e)
+    try:
+        r = _get(f"/images/{key}", token, {"ids": ",".join(s["id"] for s in wanted), "format": "png", "scale": scale})
+        urls.update({k: v for k, v in (r.get("images") or {}).items() if v})
+    except FigmaError as e:
+        log.info("figma export failed: %s", e)
     out, used = [], 0
     with httpx.Client(timeout=TIMEOUT, trust_env=False, follow_redirects=False) as client:
         for s in wanted:

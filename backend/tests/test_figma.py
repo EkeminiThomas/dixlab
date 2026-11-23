@@ -195,3 +195,54 @@ def test_a_huge_file_is_read_more_lightly(monkeypatch):
     info = figma.read("https://www.figma.com/design/AbCdEfGhIj12/Clinic", own_token="figd_" + "x" * 30)
     assert [c[2] for c in calls][:2] == [{"depth": 3}, {"depth": 2}] and info["screens"]
 
+
+
+def test_screens_wait_for_the_virus_scanner_only_once_and_say_why(monkeypatch):
+    from app import scan
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test")
+    monkeypatch.setattr(cfg, "FIGMA_TOKEN", "server-token-0123456789")
+    monkeypatch.setattr(figma, "_get", fake_get([]))
+    calls = []
+
+    def export(url, picked, cover, own, room):
+        out = []
+        for i, s in enumerate(([cover] if cover else []) + picked):
+            name = f"{0xf0 + i:032x}.png"
+            (cfg.UPLOAD_DIR / name).write_bytes(PNG)
+            out.append({"id": s["id"], "name": s["name"], "file": name, "size": len(PNG), "cover": s is cover})
+        return out
+
+    def down(path, ext):
+        calls.append(path)
+        raise scan.ScannerUnavailable()
+    monkeypatch.setattr(figma, "export", export)
+    monkeypatch.setattr(scan, "check", down)
+    monkeypatch.setattr(ai, "parse", lambda schema, *a, **k: (schema(
+        title="t", tagline="", role="", client="", timeline="", team="", background="", problem="", goals=[], research="", process=[],
+        contribution="", tradeoffs="", solution="", metrics=[], learned="", next="", skills=[]), None))
+    c = client(); h = sign_up(c, "figma-noscan@example.com")
+    admin_cli.main(["credits", "figma-noscan@example.com", "100"])
+    r = c.post("/api/assist/case-from-links", json={"urls": ["https://www.figma.com/design/AbCdEfGhIj12/Clinic"]}, headers=h)
+    assert r.status_code == 200
+    body = r.json()
+    assert len(calls) == 1 and body["draft"]["gallery"] == [] and body["draft"]["cover"] is None
+    assert "scan the images for viruses" in body["note"]
+    assert not any(cfg.UPLOAD_DIR.glob(f"{0xf0:030x}*.png"))   # nothing unscanned is left behind
+
+
+def test_a_monthly_figma_limit_asks_for_their_own_token():
+    assert "your own Figma access token" in str(figma.RateLimited("low", "200000"))
+    assert "Try again in a minute" in str(figma.RateLimited("high", "30"))
+
+
+def test_screens_are_exported_in_one_call(monkeypatch):
+    calls = []
+
+    def get(path, token, params=None):
+        calls.append(params)
+        return {"images": {}}
+    monkeypatch.setattr(figma, "_get", get)
+    screens = [{"id": "1:1", "name": "Phone", "w": 390, "h": 844}, {"id": "1:2", "name": "Desk", "w": 1440, "h": 900},
+               {"id": "1:3", "name": "Phone 2", "w": 390, "h": 844}]
+    figma.export("https://www.figma.com/design/AbCdEfGhIj12/x", screens, None, "figd_" + "x" * 30, 10**9)
+    assert len(calls) == 1 and calls[0]["ids"] == "1:1,1:2,1:3" and calls[0]["scale"] == 2

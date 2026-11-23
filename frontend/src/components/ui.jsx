@@ -239,6 +239,16 @@ export const TEMPLATES = {
   impact: { cs: true, name: 'Impact', desc: 'Numbers first', swatch: 'linear-gradient(135deg, #ffffff 50%, #059669 50%)' },
   deck: { cs: true, name: 'Deck', desc: 'Slides you scroll', swatch: 'linear-gradient(180deg, #e11d48 50%, #111114 50%)' },
   brief: { cs: true, name: 'Brief', desc: 'Swiss & compact', swatch: 'linear-gradient(135deg, #ffffff 65%, #e3261b 65%)' },
+  mockup: { cs: true, name: 'Mockup', desc: 'Launch-style showcase', swatch: 'linear-gradient(180deg, #ffffff 40%, #c7c2ff 40%, #c7c2ff 70%, #f3f2fb 70%)' },
+  styleguide: { cs: true, name: 'Styleguide', desc: 'Brand identity sheet', swatch: 'linear-gradient(90deg, #f6f4ef 50%, #111111 50%, #111111 70%, #ff6b3d 70%)' },
+  chapters: { cs: true, name: 'Chapters', desc: 'Story in numbered chapters', swatch: 'linear-gradient(135deg, #ffffff 55%, #4f46e5 55%)' },
+  pocket: { cs: true, name: 'Pocket', desc: 'Mobile app on phones', swatch: 'linear-gradient(90deg, #eef4ff 30%, #111111 30%, #111111 42%, #eef4ff 42%, #eef4ff 58%, #111111 58%, #111111 70%, #eef4ff 70%)' },
+  collage: { cs: true, name: 'Collage', desc: 'Images first', swatch: 'linear-gradient(135deg, #fbfaf8 40%, #d8cfc2 40%, #d8cfc2 65%, #8a7a66 65%)' },
+  split: { cs: true, name: 'Split', desc: 'Sticky index', swatch: 'linear-gradient(90deg, #f5f5f7 32%, #ffffff 32%)' },
+  tiles: { cs: true, name: 'Tiles', desc: 'Bento summary', swatch: 'linear-gradient(135deg, #4f46e5 30%, #f4f4f6 30%, #f4f4f6 60%, #111111 60%)' },
+  devlog: { cs: true, name: 'Devlog', desc: 'Engineering log', swatch: 'linear-gradient(135deg, #0d1117 65%, #3fb950 65%)' },
+  poster: { cs: true, name: 'Poster', desc: 'Swiss poster', swatch: 'linear-gradient(180deg, #ffffff 45%, #ff4b1f 45%, #ff4b1f 75%, #111111 75%)' },
+  aurora: { cs: true, name: 'Aurora', desc: 'Soft gradients', swatch: 'linear-gradient(135deg, #c7c2ff 0%, #ffc2e2 50%, #7ce8c0 100%)' },
   depth: { cs: true, three: true, name: 'Depth', desc: 'Dark & 3D', swatch: 'linear-gradient(135deg, #09090f 55%, #9d95ff 55%, #9d95ff 75%, #7ce8c0 75%)' },
 };
 

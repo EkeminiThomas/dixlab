@@ -40,6 +40,16 @@ CASE_TEMPLATES = {
     "deck": "scrolling slides, each section a numbered slide; presentations and pitches",
     "brief": "Swiss minimal, six numbered sections on a strict grid, red accent; compact",
     "depth": "dark 3D: layered hero, curved panels, process as cube towers, cover-flow gallery; product, engineering, brand",
+    "mockup": "launch-style: centred hero, work in a browser frame on a gradient stage, steps beside screens; product and UI",
+    "styleguide": "brand identity sheet: huge uppercase type, colour and type system tiles, moodboard grid; branding",
+    "chapters": "numbered chapters with huge serif numerals, one idea per chapter; storytelling, research",
+    "pocket": "mobile app: phone frames for the screens on a colour band; app designers and mobile engineers",
+    "collage": "masonry image wall first, words as captions, italic serif; illustration, photography, interiors",
+    "split": "sticky left column with facts and section index beside the story; recruiters, consulting",
+    "tiles": "bento grid summary up top (cover, problem, metrics, role, solution), then details; product",
+    "devlog": "dark monospace engineering log: commands as headings, process as a git log, results as a benchmark; developers",
+    "poster": "Swiss poster: huge tight type, full-width colour block with the headline number, strict grid; brand, marketing",
+    "aurora": "soft gradient glows and frosted glass cards, centred hero; SaaS and product",
 }
 
 # The 3D templates, and their extra settings (see frontend sites/brand.js).

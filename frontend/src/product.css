@@ -686,3 +686,17 @@
 .buyd__form { display: flex; flex-direction: column; gap: 10px; }
 .buyd__pick { margin: 0; font-size: 14px; color: var(--muted); } .buyd__pick b { color: var(--ink); }
 .buyd__demo { margin: 0; padding: 8px 10px; border-radius: 8px; font-size: 12.5px; line-height: 1.45; color: #fbbf24; background: rgba(251, 191, 36, 0.1); border: 1px dashed rgba(251, 191, 36, 0.4); }
+
+/* Editor: the design system from a Figma file (show / remove). */
+.ed__ds { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ed__ds .ed__del { flex: none; }
+
+/* "From my profile": the projects found on a profile. */
+.aia__projects { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.aia__projects li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(127, 127, 127, 0.22); }
+.aia__projects li > div { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.aia__projects b { color: var(--ink); font-weight: 600; overflow-wrap: anywhere; }
+.aia__projects small { color: var(--muted); font-size: 12px; }
+.aia__projects span { color: var(--muted); font-size: 13px; }
+.aia__projects .app-btn { flex: none; }
+@media (max-width: 520px) { .aia__projects li { flex-direction: column; align-items: stretch; } }

@@ -500,6 +500,7 @@ export const sendContact = (slug, { name, email, message, website = '' }) =>
 
 export const interviewNext = (transcript, hint, kind = 'case') => request('/api/interview/next', { method: 'POST', body: { transcript, hint, kind } });
 export const assistCaseLinks = (body) => request('/api/assist/case-from-links', { method: 'POST', body });
+export const caseProjects = (body) => request('/api/assist/case-projects', { method: 'POST', body });
 export const caseCheck = (c) => request('/api/assist/case-check', { method: 'POST', body: { case: c } });
 export const cvCheck = (cv) => request('/api/assist/cv-check', { method: 'POST', body: { cv } });
 export const assistTailorCv = (body) => request('/api/assist/tailor-cv', { method: 'POST', body });

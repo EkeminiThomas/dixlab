@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { assistCaseLinks, caseCheck, isSignedIn, usePlan } from '../api.js';
+import { assistCaseLinks, caseCheck, caseProjects, isSignedIn, usePlan } from '../api.js';
 import { embedFor } from './case/extras.jsx';
 import { MAX_GALLERY } from './case/data.js';
 import { FONT_PAIRS } from './sites/brand.js';
@@ -11,12 +11,15 @@ import { FONT_PAIRS } from './sites/brand.js';
  *   whole draft case study. Figma and videos are added as live embeds. A Figma
  *   file (when the server has a Figma token, or they add their own) also brings
  *   its screens as images, its fonts and colours, and its page structure.
+ * - "From my profile": a GitHub, GitLab or Hugging Face profile (or a Figma team or
+ *   project) lists their strongest projects; one click builds the whole case study,
+ *   pictures included, with nothing to type. An empty case study is filled at once.
  * - "Review my case study": scored against what hiring managers look for. Free,
  *   instant (no AI) and updated as they edit.
  * Nothing changes until they press Add or Replace, and both can be undone.
  */
 
-const TEXT = ['title', 'tagline', 'role', 'client', 'timeline', 'team', 'notes', 'problem', 'goals', 'research',
+const TEXT = ['title', 'tagline', 'role', 'client', 'timeline', 'team', 'notes', 'problem', 'goals', 'audience', 'constraints', 'research',
   'contribution', 'tradeoffs', 'solution', 'learned', 'next', 'skills', 'link'];
 const filled = (v) => (Array.isArray(v) ? v.some((x) => Object.values(x || {}).some((y) => String(y || '').trim())) : String(v ?? '').trim() !== '');
 
@@ -55,10 +58,18 @@ const KIND = (u) => {
   return u.trim() ? 'Website' : '';
 };
 
+/** Nothing written yet: a build can fill it straight away. */
+const isEmptyCase = (p) => !['title', 'problem', 'solution', 'notes', 'contribution'].some((k) => String(p[k] || '').trim())
+  && !(p.process || []).some((s) => s.title?.trim());
+
 export default function CaseAssist({ project, onApply }) {
   const { plan } = usePlan();
-  const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState('links');
+  const [open, setOpen] = useState(() => isEmptyCase(project));
+  const [tab, setTab] = useState('profile');
+  const [profile, setProfile] = useState('');
+  const [found, setFound] = useState(null);
+  const [finding, setFinding] = useState(false);
+  const [building, setBuilding] = useState('');
   const [links, setLinks] = useState(['', '']);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
@@ -72,12 +83,33 @@ export default function CaseAssist({ project, onApply }) {
   const hasFigma = links.some((l) => /figma\.com\/(file|design|proto|board|slides|deck)\//i.test(l));
   const urls = links.map((l) => l.trim()).filter(Boolean).map((l) => (/^https?:\/\//i.test(l) ? l : `https://${l}`));
 
-  const build = async () => {
+  const token = figmaToken.trim() ? { figmaToken: figmaToken.trim() } : {};
+  const run = async (body, auto) => {
     setBusy(true); setError(null); setResult(null); setUndo(null);
-    try { setResult(await assistCaseLinks({ urls, notes: notes.trim(), screens, ...(figmaToken.trim() ? { figmaToken: figmaToken.trim() } : {}) })); } catch (e) {
+    try {
+      const r = await assistCaseLinks({ screens, ...token, ...body });
+      setResult(r);
+      if (auto && isEmptyCase(project)) apply(mergeCase(project, r.draft, true, useBrand));  // nothing to keep: fill it in
+    } catch (e) {
       setError(e.status === 402 ? { text: e.message } : { text: e.body?.error || e.message, sources: e.body?.sources });
     }
-    setBusy(false);
+    setBusy(false); setBuilding('');
+  };
+  const build = () => run({ urls, notes: notes.trim() }, false);
+  const profileUrl = profile.trim() ? (/^https?:\/\//i.test(profile.trim()) ? profile.trim() : `https://${profile.trim()}`) : '';
+  const profileIsFigma = /figma\.com\//i.test(profileUrl);
+  const find = async (e) => {
+    e?.preventDefault();
+    setFinding(true); setError(null); setFound(null); setResult(null);
+    try {
+      const r = await caseProjects({ url: profileUrl, ...token });
+      if (r.single) { setFound(r); await buildFrom(r, r.projects[0]); } else setFound(r);
+    } catch (err) { setError({ text: err.body?.error || err.message }); }
+    setFinding(false);
+  };
+  const buildFrom = (f, proj) => {
+    setBuilding(proj.url);
+    return run({ urls: proj.links, owner: f.owner ? `${f.platform}:${f.owner}` : '' }, true);
   };
   const apply = (patch) => {
     setUndo(Object.fromEntries(Object.keys(patch).map((k) => [k, project[k] ?? (Array.isArray(patch[k]) ? [] : ['cover', 'design', 'brand'].includes(k) ? null : '')])));
@@ -88,7 +120,7 @@ export default function CaseAssist({ project, onApply }) {
     return (
       <button type="button" className="aia__open" onClick={() => setOpen(true)}>
         <span className="aia__spark" aria-hidden>✦</span>
-        <span><b>Build it from your project links</b> Paste your GitHub repo, Figma file or live site and we’ll draft the case study. Or review what you have against what hiring managers look for.</span>
+        <span><b>Build it from your profile or project links</b> Paste your GitHub, GitLab or Figma link and we’ll write the whole case study, pictures included. Or review what you have against what hiring managers look for.</span>
         <span aria-hidden>Open →</span>
       </button>
     );
@@ -102,11 +134,45 @@ export default function CaseAssist({ project, onApply }) {
         <button type="button" className="aia__x" onClick={() => setOpen(false)} aria-label="Close the case study assistant">✕</button>
       </div>
       <div className="aia__tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'links'} className={tab === 'links' ? 'is-on' : ''} onClick={() => setTab('links')}>Build from project links</button>
+        <button role="tab" aria-selected={tab === 'profile'} className={tab === 'profile' ? 'is-on' : ''} onClick={() => setTab('profile')}>From my profile</button>
+        <button role="tab" aria-selected={tab === 'links'} className={tab === 'links' ? 'is-on' : ''} onClick={() => setTab('links')}>From project links</button>
         <button role="tab" aria-selected={tab === 'review'} className={tab === 'review' ? 'is-on' : ''} onClick={() => setTab('review')}>Review my case study</button>
       </div>
 
       {tab === 'review' && <CaseReview project={project} />}
+
+      {tab === 'profile' && !isSignedIn() && <p className="aia__note">Log in to build a case study from your profile.</p>}
+      {tab === 'profile' && isSignedIn() && (
+        <div className="aia__body">
+          <p className="aia__lead">Paste your profile and pick a project. We read it, write every section, and add its pictures: screenshots from the README, the live site’s preview, or the screens of a Figma file. Nothing to type.</p>
+          <form className="caselink" onSubmit={find}>
+            <input className="field__input" value={profile} inputMode="url" spellCheck={false} aria-label="Your profile link" onChange={(e) => setProfile(e.target.value)}
+              placeholder="github.com/you · gitlab.com/you · huggingface.co/you · a Figma team or file link" />
+            <button type="submit" className="app-btn app-btn--primary" disabled={!profileUrl || finding || busy}>{finding ? 'Looking…' : 'Find my projects'}</button>
+          </form>
+          {profileIsFigma && (
+            <label className="field">
+              <span className="field__label">Figma access token <em className="field__opt">needed for teams and private files</em></span>
+              <input className="field__input" type="password" value={figmaToken} onChange={(e) => setFigmaToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder="figd_…" />
+              <small className="field__hint">In Figma: Settings → Security → Personal access tokens, with “File content: read only” and “Projects: read only”. Used for this read only, never saved.</small>
+            </label>
+          )}
+          {found && !found.single && (
+            <ul className="aia__projects">
+              {found.projects.map((p) => (
+                <li key={p.url}>
+                  <div><b>{p.title}</b><small>{[p.kind, ...p.meta].filter(Boolean).join(' · ')}</small>{p.desc && <span>{p.desc}</span>}</div>
+                  <button type="button" className="app-btn app-btn--ghost" disabled={busy} onClick={() => buildFrom(found, p)}>
+                    {building === p.url ? <><span className="cz__spin" aria-hidden /> Writing…</> : 'Build this one'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {busy && <p className="aia__note"><span className="cz__spin" aria-hidden /> Reading the project and writing your case study. This can take up to a minute.</p>}
+          <small className="aia__cost">Finding projects is free · building one costs 15 credits</small>
+        </div>
+      )}
 
       {tab === 'links' && !isSignedIn() && <p className="aia__note">Log in to build a case study from your links.</p>}
       {tab === 'links' && isSignedIn() && (
@@ -124,14 +190,14 @@ export default function CaseAssist({ project, onApply }) {
           {hasFigma && (
             <div className="aia__figma">
               <label className="aia__check"><input type="checkbox" checked={screens} onChange={(e) => setScreens(e.target.checked)} />
-                <span>Add the file’s screens to my case study as images <small>(uses your storage)</small></span></label>
+                <span>Add pictures to my case study: the file’s screens, README screenshots, the site’s preview <small>(uses your storage)</small></span></label>
               {!showToken ? (
-                <button type="button" className="aia__add" onClick={() => setShowToken(true)}>Private Figma file? Add your access token</button>
+                <button type="button" className="aia__add" onClick={() => setShowToken(true)}>Add your Figma access token (recommended: works for private files and uses your own Figma limits)</button>
               ) : (
                 <label className="field">
-                  <span className="field__label">Figma access token <em className="field__opt">for private files</em></span>
+                  <span className="field__label">Figma access token <em className="field__opt">recommended</em></span>
                   <input className="field__input" type="password" value={figmaToken} onChange={(e) => setFigmaToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder="figd_…" />
-                  <small className="field__hint">In Figma: Settings → Security → Personal access tokens, with “File content: read only”. We use it for this one read and never save it. Or set the file’s sharing to “Anyone with the link can view” and leave this empty.</small>
+                  <small className="field__hint">In Figma: Settings → Security → Personal access tokens, with “File content: read only”. We use it for this one read and never save it. Without it we try with Dixlab’s own access, which only opens files shared as “Anyone with the link can view” and is limited by Figma to a few reads a month.</small>
                 </label>
               )}
             </div>
@@ -157,7 +223,7 @@ export default function CaseAssist({ project, onApply }) {
         </div>
       )}
 
-      {tab === 'links' && result && (() => {
+      {tab !== 'review' && result && (() => {
         const d = result.draft;
         return (
           <div className="aia__result">
@@ -170,7 +236,7 @@ export default function CaseAssist({ project, onApply }) {
                 ))}
               </ul>
             )}
-            {result.figmaSetup && <p className="aia__note">We could only read your Figma file’s title. Add your Figma access token above to pull in its screens, fonts and colours.</p>}
+            {result.figmaSetup && <p className="aia__note">We could only read your Figma file’s title. Add your Figma access token above and build again to pull in its screens, fonts and colours.</p>}
             {result.note && <p className="aia__note">{result.note}</p>}
             {(d.cover || d.gallery?.length > 0) && (
               <div className="aia__shots" aria-label="Screens from your Figma file">

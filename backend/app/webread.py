@@ -46,8 +46,8 @@ def _public(host: str, port: int) -> bool:
     if not infos:
         return False
     for info in infos:
-        ip = ipaddress.ip_address(info[4][0].split("%")[0])
-        if getattr(ip, "ipv4_mapped", None):
+        ip = ipaddress.ip_address(str(info[4][0]).split("%")[0])  # drop an IPv6 zone ("fe80::1%eth0")
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:  # "::ffff:10.0.0.1" is really 10.0.0.1
             ip = ip.ipv4_mapped
         if not ip.is_global or ip.is_multicast:
             return False

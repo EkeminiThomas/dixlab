@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Chronicle, Snapshot, Blueprint, Spotlight, Framework, Lab, Showcase, Impact, Deck, Brief } from './templates.jsx';
 import { Depth } from './Depth.jsx';
+import { Mockup, Styleguide, Chapters, Pocket, Collage, Split, Tiles, Terminal, Poster, Aurora } from './templates2.jsx';
 import { CASE_SAMPLES } from './data.js';
 import { brandProps } from '../sites/brand.js';
 import { CaseMeta } from './extras.jsx';
@@ -29,6 +30,16 @@ export const CASE_TEMPLATES = {
   deck:      { name: 'Deck',      desc: 'Slides you scroll',       blurb: 'Each section is a numbered slide, ready to present in an interview or pitch.', tags: ['Presentation', 'New'], niches: ['business', 'brand', 'student'], sample: CASE_SAMPLES.ops, Component: Deck },
   brief:     { name: 'Brief',     desc: 'Swiss & compact',         blurb: 'Six numbered sections on a strict grid. Everything important, nothing extra.', tags: ['Minimal', 'New'], niches: ['design', 'research', 'visual'], sample: CASE_SAMPLES.ux, Component: Brief },
   depth:     { name: 'Depth',     desc: 'Dark & 3D',               blurb: 'A layered 3D hero, panels on a curved wall, your process as rising cubes, a cover-flow gallery and results that stand up.', tags: ['3D', 'New'], niches: ['design', 'eng', 'brand'], three: true, sample: CASE_SAMPLES.ux, Component: Depth },
+  mockup: { name: 'Mockup', desc: 'Launch-style showcase', blurb: 'A centred launch hero with your work in a browser frame, then each step beside a screen.', tags: ['Product', 'New'], niches: ['design', 'eng', 'student'], sample: CASE_SAMPLES.ux, Component: Mockup },
+  styleguide: { name: 'Styleguide', desc: 'Brand identity sheet', blurb: 'Huge type, a colour and type system, and a moodboard of the work. Built for identity projects.', tags: ['Brand', 'New'], niches: ['brand', 'visual', 'design'], sample: CASE_SAMPLES.brand, Component: Styleguide },
+  chapters: { name: 'Chapters', desc: 'Story in numbered chapters', blurb: 'Each part of the story is its own chapter with a big number. Calm, serif and easy to follow.', tags: ['Story', 'New'], niches: ['design', 'research', 'student'], sample: CASE_SAMPLES.research, Component: Chapters },
+  pocket: { name: 'Pocket', desc: 'Mobile app on phones', blurb: 'Your screens in phone frames, on a band of colour. For app and mobile product work.', tags: ['Mobile', 'New'], niches: ['design', 'eng'], sample: CASE_SAMPLES.app, Component: Pocket },
+  collage: { name: 'Collage', desc: 'Images first', blurb: 'A masonry wall of your images with the story as short captions. For visual, spatial and craft work.', tags: ['Visual', 'New'], niches: ['visual', 'brand'], sample: CASE_SAMPLES.brand, Component: Collage },
+  split: { name: 'Split', desc: 'Sticky index', blurb: 'A sticky column with the facts and an index beside the story. Easy for recruiters to skim.', tags: ['Recruiter-friendly', 'New'], niches: ['business', 'eng', 'design', 'research'], sample: CASE_SAMPLES.ops, Component: Split },
+  tiles: { name: 'Tiles', desc: 'Bento summary', blurb: 'The whole story as a bento grid up top (problem, role, results), then the detail.', tags: ['Bento', 'New'], niches: ['design', 'business', 'eng'], sample: CASE_SAMPLES.ux, Component: Tiles },
+  devlog: { name: 'Devlog', desc: 'Engineering log', blurb: 'Dark and monospaced: the process as a commit log and results as a benchmark. For engineers.', tags: ['Dark', 'Technical', 'New'], niches: ['eng'], sample: CASE_SAMPLES.eng, Component: Terminal },
+  poster: { name: 'Poster', desc: 'Swiss poster', blurb: 'Huge type, a full-width colour block for your headline number and a strict grid.', tags: ['Bold', 'New'], niches: ['brand', 'design', 'visual'], sample: CASE_SAMPLES.brand, Component: Poster },
+  aurora: { name: 'Aurora', desc: 'Soft gradients', blurb: 'Soft colour glows and glass cards. Friendly and modern, for product and SaaS work.', tags: ['Soft', 'New'], niches: ['design', 'business', 'student'], sample: CASE_SAMPLES.ux, Component: Aurora },
 };
 
 export const caseNicheLabels = (ids = []) => ids.map((id) => CASE_NICHES.find((n) => n.id === id)?.label).filter(Boolean);

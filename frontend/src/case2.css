@@ -1,0 +1,193 @@
+/* ==========================================================================
+   Case study templates, set 2 (components/case/templates2.jsx). Same rules as
+   case.css: each root is a `.site` container, sizes use cqi so a template
+   scales from the editor preview to a desktop, and colours come from the
+   --k-* tokens (the user's accent through --brand-accent).
+   ========================================================================== */
+.cs2 .mk-dots { display: flex; gap: 6px; padding: 10px 12px; }
+.cs2 .mk-dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(127, 127, 127, 0.45); }
+
+/* 1. Mockup ---------------------------------------------------------------- */
+.cs-mockup { --k-soft: #f3f2fb; }
+.cs-mockup .mk-hero { padding-top: clamp(36px, 8cqi, 110px); text-align: center; }
+.cs-mockup .mk-hero .cs-title, .cs-mockup .mk-hero .cs-tagline { margin-inline: auto; max-width: 22ch; }
+.cs-mockup .mk-hero .cs-tagline { max-width: 46ch; }
+.cs-mockup .mk-stage { margin: clamp(24px, 5cqi, 56px) calc(-1 * var(--pad)) 0; padding: clamp(24px, 6cqi, 80px) var(--pad);
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--k-accent) 28%, #fff) 0%, var(--k-soft) 60%); }
+.cs-mockup .mk-browser { max-width: 1000px; margin: 0 auto; overflow: hidden; border-radius: 14px; background: #fff;
+  box-shadow: 0 30px 80px -30px rgba(20, 16, 60, 0.45), 0 0 0 1px rgba(20, 16, 60, 0.08); }
+.cs-mockup .mk-browser .csv__media { border-radius: 0; }
+.cs-mockup .mk-facts { justify-content: center; }
+.cs-mockup .mk-intro { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 clamp(24px, 5cqi, 64px); }
+.cs-mockup .mk-rows { display: grid; gap: clamp(28px, 6cqi, 72px); margin-top: clamp(32px, 6cqi, 80px); }
+.cs-mockup .mk-row { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: clamp(20px, 5cqi, 64px); }
+.cs-mockup .mk-row:nth-child(even) > :first-child { order: 2; }
+.cs-mockup .mk-row h3 { margin-top: 0.3em; font-size: clamp(20px, 2.8cqi, 32px); letter-spacing: -0.02em; }
+.cs-mockup .mk-row .cs-p { margin-top: 0.5em; color: var(--k-muted); }
+.cs-mockup .mk-n { color: var(--k-accent); font-weight: 700; font-size: 0.85em; letter-spacing: 0.08em; }
+.cs-mockup .mk-metrics li { padding: 1.1em; border: 0; border-radius: 14px; background: var(--k-soft); }
+@container (max-width: 640px) { .cs-mockup .mk-row { grid-template-columns: 1fr; } .cs-mockup .mk-row:nth-child(even) > :first-child { order: 0; } }
+
+/* 2. Styleguide ------------------------------------------------------------ */
+.cs-styleguide { --k-bg: #f6f4ef; --k-soft: #ebe7de; --k-line: #d9d3c6; --k-head: 'Syne', 'Instrument Sans', sans-serif; }
+.cs-styleguide .sg-hero { padding-top: clamp(36px, 8cqi, 110px); }
+.cs-styleguide .sg-hero .cs-tagline { margin-top: clamp(14px, 2.4cqi, 28px); }
+.cs-styleguide .cs-title { font-size: clamp(30px, 6.6cqi, 92px); font-weight: 800; line-height: 0.95; letter-spacing: -0.035em; text-transform: uppercase; overflow-wrap: anywhere; hyphens: auto; }
+.cs-styleguide .sg-cover { margin-top: clamp(24px, 5cqi, 56px); }
+.cs-styleguide .sg-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 clamp(24px, 5cqi, 64px); }
+.cs-styleguide .sg-tiles { display: grid; grid-template-columns: 2fr 1fr 1fr 1.4fr; gap: 10px; }
+.cs-styleguide .sg-tile { display: flex; align-items: flex-end; min-height: clamp(110px, 18cqi, 220px); padding: 14px; border-radius: 12px; font-size: 0.85em; }
+.cs-styleguide .sg-tile--accent { background: var(--k-accent); color: var(--k-on); }
+.cs-styleguide .sg-tile--ink { background: var(--k-ink); color: #fff; }
+.cs-styleguide .sg-tile--soft { background: #fff; box-shadow: inset 0 0 0 1px var(--k-line); }
+.cs-styleguide .sg-tile--type { flex-direction: column; align-items: flex-start; justify-content: space-between; background: var(--k-soft); }
+.cs-styleguide .sg-tile--type span { font-family: var(--k-head); font-size: clamp(40px, 7cqi, 88px); font-weight: 800; line-height: 1; }
+.cs-styleguide .sg-board { columns: 3 200px; column-gap: 12px; margin-top: clamp(28px, 5cqi, 64px); }
+.cs-styleguide .sg-board .csv { break-inside: avoid; margin-bottom: 12px; }
+@container (max-width: 640px) { .cs-styleguide .sg-cols { grid-template-columns: 1fr; } .cs-styleguide .sg-tiles { grid-template-columns: 1fr 1fr; } }
+
+/* 3. Chapters -------------------------------------------------------------- */
+.cs-chapters { --k-head: 'Instrument Serif', Georgia, serif; }
+.cs-chapters .ch-hero { padding-top: clamp(36px, 8cqi, 110px); }
+.cs-chapters .cs-title { font-weight: 400; letter-spacing: -0.02em; }
+.cs-chapters .ch-ch { display: grid; grid-template-columns: clamp(70px, 16cqi, 200px) 1fr; gap: clamp(16px, 4cqi, 48px);
+  margin-top: clamp(32px, 6cqi, 80px); padding-top: clamp(20px, 3cqi, 36px); border-top: 1px solid var(--k-line); }
+.cs-chapters .ch-n { font-family: var(--k-head); font-size: clamp(56px, 12cqi, 160px); line-height: 0.8; color: var(--k-accent); }
+.cs-chapters .ch-ch .cs-h { font-size: clamp(24px, 3.6cqi, 44px); font-weight: 400; }
+.cs-chapters .ch-ch .cs-p { font-size: 1.08em; }
+.cs-chapters .ch-ch .csv { margin-top: 1.2em; }
+@container (max-width: 520px) { .cs-chapters .ch-ch { grid-template-columns: 1fr; } }
+
+/* 4. Pocket ---------------------------------------------------------------- */
+.cs-pocket { --k-soft: #eef4ff; }
+.cs-pocket .pk-hero { display: grid; grid-template-columns: 1.3fr 0.7fr; align-items: center; gap: clamp(20px, 5cqi, 64px); padding-top: clamp(32px, 7cqi, 96px); }
+.cs-pocket .pk-phone { position: relative; width: 100%; max-width: 300px; margin-inline: auto; padding: 10px; border-radius: 38px; background: #111;
+  box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.55); }
+.cs-pocket .pk-phone .csv__media { border-radius: 28px; overflow: hidden; }
+.cs-pocket .pk-phone .csv__media img { object-position: top; }
+.cs-pocket .pk-phone figcaption { display: none; }
+.cs-pocket .pk-notch { position: absolute; z-index: 1; top: 18px; left: 50%; width: 30%; height: 18px; margin-left: -15%; border-radius: 10px; background: #111; }
+.cs-pocket .pk-band { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(130px, 1fr); gap: clamp(12px, 3cqi, 32px); overflow-x: auto;
+  margin: clamp(32px, 6cqi, 80px) calc(-1 * var(--pad)) 0; padding: clamp(28px, 5cqi, 64px) var(--pad);
+  background: linear-gradient(180deg, var(--k-soft), color-mix(in srgb, var(--k-accent) 18%, var(--k-soft))); }
+.cs-pocket .pk-steps { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+.cs-pocket .pk-steps li { grid-template-columns: 1fr; gap: 0.4em; padding: 1em; border-radius: 16px; background: var(--k-soft); }
+@container (max-width: 560px) { .cs-pocket .pk-hero { grid-template-columns: 1fr; } .cs-pocket .pk-hero .pk-phone { max-width: 220px; } }
+
+/* 5. Collage --------------------------------------------------------------- */
+.cs-collage { --k-bg: #fbfaf8; --k-head: 'Playfair Display', Georgia, serif; }
+.cs-collage .cl-hero { display: grid; grid-template-columns: 1.3fr 1fr; align-items: end; gap: clamp(16px, 4cqi, 48px); padding-top: clamp(32px, 7cqi, 96px); }
+.cs-collage .cs-title { font-style: italic; font-weight: 500; }
+.cs-collage .cs-tagline { margin-top: 0; }
+.cs-collage .cl-wall { columns: 3 180px; column-gap: 10px; margin-top: clamp(24px, 5cqi, 56px); }
+.cs-collage .cl-wall .csv { break-inside: avoid; margin-bottom: 10px; }
+.cs-collage .cl-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0 clamp(20px, 4cqi, 48px); }
+.cs-collage .cl-notes .cs-h { font-size: 0.8em; font-family: 'Instrument Sans', sans-serif; letter-spacing: 0.12em; text-transform: uppercase; color: var(--k-muted); }
+.cs-collage .cl-list li + li { margin-top: 0.5em; }
+.cs-collage .cl-list b { font-weight: 650; }
+@container (max-width: 560px) { .cs-collage .cl-hero { grid-template-columns: 1fr; } }
+
+/* 6. Split ----------------------------------------------------------------- */
+.cs-split { display: grid; grid-template-columns: minmax(240px, 0.8fr) 2fr; gap: clamp(24px, 5cqi, 72px); padding-top: clamp(28px, 5cqi, 72px); }
+.cs-split .sp-side { position: sticky; top: 24px; align-self: start; }
+.cs-split .cs-title { font-size: clamp(26px, 3.8cqi, 46px); }
+.cs-split .cs-tagline { font-size: clamp(15px, 1.6cqi, 19px); }
+.cs-split .cs-facts { flex-direction: column; gap: 0.8em; }
+.cs-split .sp-toc { display: grid; gap: 2px; margin-top: clamp(20px, 3cqi, 36px); padding-top: 1em; border-top: 1px solid var(--k-line); }
+.cs-split .sp-toc a { display: flex; gap: 0.8em; padding: 0.3em 0; color: var(--k-muted); text-decoration: none; font-size: 0.92em; }
+.cs-split .sp-toc a span { color: var(--k-accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.cs-split .sp-toc a:hover { color: var(--k-ink); }
+.cs-split .sp-main > :first-child { margin-top: 0; }
+.cs-split .sp-main [id] { scroll-margin-top: 24px; }
+@container (max-width: 720px) { .cs-split { grid-template-columns: 1fr; } .cs-split .sp-side { position: static; } }
+
+/* 7. Tiles ----------------------------------------------------------------- */
+.cs-tiles { --k-bg: #f4f4f6; --k-soft: #ffffff; }
+.cs-tiles .tl-hero { padding-top: clamp(32px, 7cqi, 96px); }
+.cs-tiles .tl-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: minmax(120px, auto); grid-auto-flow: row dense; gap: 12px; margin-top: clamp(24px, 4cqi, 48px); }
+.cs-tiles .tl-t { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; padding: clamp(14px, 2.2cqi, 24px); border-radius: 20px; background: var(--k-soft); }
+.cs-tiles .tl-t--cover { grid-column: span 2; grid-row: span 2; padding: 0; overflow: hidden; }
+.cs-tiles .tl-t--cover .csv, .cs-tiles .tl-t--cover .csv__media { height: 100%; aspect-ratio: auto !important; }
+.cs-tiles .tl-t--cover img { height: 100%; object-fit: cover; }
+.cs-tiles .tl-t--problem { grid-column: span 2; }
+.cs-tiles .tl-t--solution { grid-column: span 3; background: var(--k-ink); color: #fff; }
+.cs-tiles .tl-t--solution .tl-k { color: color-mix(in srgb, var(--k-accent) 55%, #fff); }
+.cs-tiles .tl-t--metric, .cs-tiles .tl-t--metric2 { justify-content: flex-end; background: var(--k-accent); color: var(--k-on); }
+.cs-tiles .tl-t--metric2 { background: color-mix(in srgb, var(--k-accent) 16%, #fff); color: var(--k-ink); }
+.cs-tiles .tl-t b { font-family: var(--k-head); font-size: clamp(28px, 4.6cqi, 52px); line-height: 1; letter-spacing: -0.04em; }
+.cs-tiles .tl-t--skills { grid-column: 1 / -1; }
+.cs-tiles .tl-t .cs-tags { margin: 0; }
+.cs-tiles .tl-k { font-size: 0.72em; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--k-accent); }
+.cs-tiles .tl-t small { color: var(--k-muted); }
+.cs-tiles .tl-steps { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.cs-tiles .tl-steps li { grid-template-columns: 1fr; padding: 1em; border-radius: 16px; background: var(--k-soft); }
+@container (max-width: 640px) { .cs-tiles .tl-grid { grid-template-columns: 1fr 1fr; } .cs-tiles .tl-t--cover { grid-row: auto; } .cs-tiles .tl-t--solution { grid-column: 1 / -1; } }
+
+/* 8. Terminal -------------------------------------------------------------- */
+.cs-terminal { --k-bg: #0d1117; --k-ink: #e6edf3; --k-muted: #8b949e; --k-line: #30363d; --k-soft: #161b22;
+  --k-accent: var(--brand-accent, #3fb950); --k-head: 'Roboto Mono', ui-monospace, monospace; }
+.cs-terminal .tm-hero { padding-top: clamp(32px, 7cqi, 96px); }
+.cs-terminal .tm-path { font-family: var(--k-head); font-size: 0.85em; color: var(--k-muted); }
+.cs-terminal .tm-path b { color: var(--k-accent); font-weight: 500; }
+.cs-terminal .cs-title { font-size: clamp(28px, 5.4cqi, 64px); letter-spacing: -0.03em; }
+.cs-terminal .tm-window { margin-top: clamp(24px, 5cqi, 56px); overflow: hidden; border-radius: 12px; border: 1px solid var(--k-line); background: var(--k-soft); }
+.cs-terminal .tm-window .csv__media { border-radius: 0; }
+.cs-terminal .tm-block { margin-top: clamp(26px, 4.5cqi, 56px); }
+.cs-terminal .tm-cmd { margin-bottom: 0.7em; font-family: var(--k-head); font-size: clamp(14px, 1.6cqi, 18px); font-weight: 500; color: var(--k-ink); }
+.cs-terminal .tm-cmd span { color: var(--k-accent); }
+.cs-terminal .tm-goals li { font-family: var(--k-head); font-size: 0.92em; }
+.cs-terminal .tm-goals li + li { margin-top: 0.4em; }
+.cs-terminal .tm-log { display: grid; gap: 0; border-left: 2px solid var(--k-line); margin-left: 6px; }
+.cs-terminal .tm-log li { position: relative; display: grid; grid-template-columns: auto 1fr; gap: 1em; padding: 0.7em 0 0.7em 1.2em; }
+.cs-terminal .tm-log li::before { content: ''; position: absolute; left: -7px; top: 1.05em; width: 12px; height: 12px; border-radius: 50%; background: var(--k-bg); border: 2px solid var(--k-accent); }
+.cs-terminal .tm-log code { color: #d2a8ff; font-family: var(--k-head); font-size: 0.85em; padding-top: 0.15em; }
+.cs-terminal .tm-log b { font-weight: 600; }
+.cs-terminal .tm-log p { color: var(--k-muted); }
+.cs-terminal .tm-bench { width: 100%; border-collapse: collapse; font-family: var(--k-head); font-size: 0.92em; }
+.cs-terminal .tm-bench td { padding: 0.55em 0; border-bottom: 1px dashed var(--k-line); }
+.cs-terminal .tm-bench td:last-child { text-align: right; color: var(--k-accent); font-weight: 600; }
+.cs-terminal .tm-stack { font-family: var(--k-head); font-size: 0.9em; color: #79c0ff; overflow-wrap: anywhere; }
+.cs-terminal .cs-quote { border-color: var(--k-accent); }
+.cs-terminal .cs-tags li { border-color: var(--k-line); }
+
+/* 9. Poster ---------------------------------------------------------------- */
+.cs-poster { --k-accent: var(--brand-accent, #ff4b1f); --k-head: 'Space Grotesk', 'Instrument Sans', sans-serif; }
+.cs-poster .ps-hero { display: grid; grid-template-columns: 1.6fr 1fr; gap: clamp(16px, 4cqi, 48px); padding-top: clamp(32px, 6cqi, 88px); }
+.cs-poster .cs-title { font-size: clamp(40px, 10cqi, 140px); font-weight: 700; line-height: 0.88; letter-spacing: -0.055em; }
+.cs-poster .cs-title span:nth-child(3n + 2) { color: var(--k-accent); }
+.cs-poster .ps-side { align-self: end; padding-left: 1.2em; border-left: 3px solid var(--k-ink); }
+.cs-poster .ps-side .cs-facts { flex-direction: column; gap: 0.6em; }
+.cs-poster .ps-block { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.3em 1em; margin: clamp(24px, 5cqi, 56px) calc(-1 * var(--pad)) 0;
+  padding: clamp(18px, 4cqi, 44px) var(--pad); background: var(--k-accent); color: var(--k-on); }
+.cs-poster .ps-block b { font-family: var(--k-head); font-size: clamp(44px, 10cqi, 130px); line-height: 0.9; letter-spacing: -0.05em; }
+.cs-poster .ps-block span { max-width: 26ch; font-size: clamp(15px, 2cqi, 22px); font-weight: 500; }
+.cs-poster .ps-cover { margin-top: 0; }
+.cs-poster .ps-cover .csv__media { border-radius: 0; }
+.cs-poster .ps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 clamp(16px, 3cqi, 40px); border-bottom: 3px solid var(--k-ink); padding-bottom: clamp(20px, 4cqi, 48px); }
+.cs-poster .cs-h { text-transform: uppercase; letter-spacing: 0.02em; }
+.cs-poster .cs-k { display: inline-grid; place-items: center; width: 1.8em; height: 1.8em; font-size: 0.7em; background: var(--k-ink); color: #fff; }
+.cs-poster .ps-steps li { padding-bottom: 1em; border-bottom: 1px solid var(--k-line); }
+@container (max-width: 640px) { .cs-poster .ps-hero, .cs-poster .ps-grid { grid-template-columns: 1fr; } }
+
+/* 10. Aurora --------------------------------------------------------------- */
+.cs-aurora { position: relative; overflow: hidden; isolation: isolate; --k-bg: #fbfaff; --k-soft: rgba(255, 255, 255, 0.66);
+  --k-head: 'Bricolage Grotesque', 'Instrument Sans', sans-serif; }
+.cs-aurora .au-glow { position: absolute; z-index: -1; inset: 0 0 auto; height: clamp(500px, 80cqi, 1100px); pointer-events: none; filter: blur(60px); opacity: 0.55; }
+.cs-aurora .au-glow i { position: absolute; border-radius: 50%; }
+.cs-aurora .au-glow i:nth-child(1) { left: -10%; top: -10%; width: 55%; height: 60%; background: color-mix(in srgb, var(--k-accent) 70%, #fff); }
+.cs-aurora .au-glow i:nth-child(2) { right: -10%; top: 5%; width: 50%; height: 55%; background: #7ce8c0; }
+.cs-aurora .au-glow i:nth-child(3) { left: 30%; top: 35%; width: 45%; height: 40%; background: #ffc2e2; }
+.cs-aurora .au-hero { padding-top: clamp(36px, 8cqi, 110px); text-align: center; }
+.cs-aurora .au-hero .cs-title { margin-inline: auto; max-width: 20ch; font-weight: 650; }
+.cs-aurora .au-hero .cs-tagline { margin-inline: auto; max-width: 44ch; }
+.cs-aurora .au-hero .cs-facts { justify-content: center; }
+.cs-aurora .au-pill { display: inline-block; padding: 0.35em 0.9em; border-radius: 999px; background: var(--k-soft); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 2px 12px rgba(30, 20, 80, 0.08);
+  font-size: 0.8em; font-weight: 600; color: var(--k-ink); }
+.cs-aurora .au-shot { margin-top: clamp(24px, 5cqi, 56px); padding: clamp(8px, 1.4cqi, 14px); border-radius: 24px; background: var(--k-soft);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 30px 80px -30px rgba(40, 20, 120, 0.35); backdrop-filter: blur(12px); }
+.cs-aurora .au-shot .csv__media { border-radius: 16px; }
+.cs-aurora .au-metrics li { padding: 1.1em; border: 0; border-radius: 18px; background: var(--k-soft); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 8px 30px -12px rgba(40, 20, 120, 0.18); }
+.cs-aurora .au-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: clamp(28px, 5cqi, 64px); }
+.cs-aurora .au-card { padding: clamp(16px, 2.6cqi, 28px); border-radius: 20px; background: var(--k-soft); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9), 0 8px 30px -12px rgba(40, 20, 120, 0.18); }
+.cs-aurora .au-steps { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.cs-aurora .au-steps li { grid-template-columns: 1fr; gap: 0.4em; padding: 1em; border-radius: 18px; background: var(--k-soft); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9); }

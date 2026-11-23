@@ -89,6 +89,8 @@ class CaseDraft(BaseModel):
     background: str = Field(description="2-3 sentences of context.")
     problem: str = Field(description="The problem, specific, 1-3 sentences.")
     goals: list[str] = Field(description="What success looked like, 1-4 short items. Empty if never discussed.")
+    audience: str = Field(default="", description='Who it was for (users, customers, readers), one sentence, or "".')
+    constraints: str = Field(default="", description='Limits they worked within (time, budget, tech, rules), one sentence, or "".')
     research: str = Field(description='How they learned about the problem, or "".')
     process: list[Step] = Field(description="3-5 steps of what they did, in order.")
     contribution: str = Field(description="What they personally owned, first person.")

@@ -496,3 +496,6 @@ function Brief({ data }) {
 }
 
 export { Chronicle, Snapshot, Blueprint, Spotlight, Framework, Lab, Showcase, Impact, Deck, Brief };
+
+// Building blocks shared with templates2.jsx.
+export { Sec, Facts, Metrics, Steps, Goals, Tags, Quote, P, Cut, More, Gallery, LinkOut };

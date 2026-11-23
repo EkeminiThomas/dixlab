@@ -12,6 +12,7 @@ Pages are read by app.webread (public addresses only, with redirects checked);
 GitHub is read through its public API. LinkedIn and X need a login, so people
 paste text from them instead. Nothing is saved here: the editor shows the result
 and the person decides what to apply."""
+import logging
 import re
 from typing import Literal
 
@@ -23,6 +24,7 @@ from ..db import get_db
 from ..security import current_user
 
 router = APIRouter(prefix="/api/assist", tags=["assist"])
+log = logging.getLogger("dixlab.assist")
 
 MAX_LINKS = 5
 URL_RE = re.compile(r"^https?://[^\s/$.?#][^\s]*$", re.I)
@@ -359,7 +361,9 @@ class CaseLinksIn(BaseModel):
     notes: str = Field(default="", max_length=8000, description="Their own words: their role, what changed, the results.")
     # Their own Figma access token, for private files. Used for this request only: never stored or logged.
     figmaToken: str = Field(default="", max_length=200)
-    screens: bool = Field(default=True, description="Add the Figma file's screens to the case study as images.")
+    screens: bool = Field(default=True, description="Add pictures from the project (Figma screens, README screenshots, the site's preview).")
+    # Who the person is on the platform the links came from (from "Build from my profile"), e.g. "github:ada".
+    owner: str = Field(default="", max_length=80)
 
     @field_validator("urls")
     @classmethod
@@ -392,36 +396,87 @@ def _figma_read(urls: list[str], own_token: str) -> tuple[dict | None, str | Non
         return None, link, str(e)
 
 
-def _save_screens(db, user_id: str, info: dict, own_token: str) -> tuple[dict | None, list[dict], str]:
-    """Export the file's screens into the person's uploads: (cover, gallery, note)."""
-    from .. import figma, plans, scan, events
-    from ..security import now_ms
+def _room(db, user_id: str) -> int:
+    from .. import plans
     from .uploads import _used
-    room = plans.storage_limit(db, user_id) - _used(db, user_id)
-    if room < 512 * 1024:
-        return None, [], "Your storage is full, so the screens weren’t added. Free some space and try again."
-    saved = figma.export(info["url"], info["screens"], info.get("coverFrame"), own_token, room)
-    cover, gallery = None, []
+    return plans.storage_limit(db, user_id) - _used(db, user_id)
+
+
+def _store(db, user_id: str, saved: list[dict], source: str) -> tuple[dict | None, list[dict], bool]:
+    """Scan and record images already written to UPLOAD_DIR as the person's uploads.
+    saved: [{file, size, ctype, caption, cover}]. Returns (cover, gallery, scanner_was_down)."""
+    from .. import scan, events
+    from ..security import now_ms
+    cover, gallery, unscanned = None, [], False
     for s in saved:
         path = config.UPLOAD_DIR / s["file"]
+        if unscanned:  # the virus scanner is down: don't wait on it for every image
+            path.unlink(missing_ok=True)
+            continue
         try:
-            scan.check(path, "png")
-        except (scan.Rejected, scan.ScannerUnavailable):
+            scan.check(path, s["file"].rsplit(".", 1)[-1])
+        except scan.ScannerUnavailable:
+            unscanned = True
+            path.unlink(missing_ok=True)
+            continue
+        except scan.Rejected:
             path.unlink(missing_ok=True)
             continue
         db.execute("INSERT INTO uploads (name, user_id, content_type, size, created_at) VALUES (?, ?, ?, ?, ?)",
-                   (s["file"], user_id, "image/png", s["size"], now_ms()))
-        item = {"src": f"/uploads/{s['file']}", "caption": "" if s["cover"] else s["name"], "type": "image", "from": "figma"}
-        if s["cover"] and not cover:
+                   (s["file"], user_id, s.get("ctype", "image/png"), s["size"], now_ms()))
+        item = {"src": f"/uploads/{s['file']}", "caption": "" if s.get("cover") else s.get("caption", ""), "type": "image", "from": source}
+        if s.get("cover") and not cover:
             cover = item
         else:
             gallery.append(item)
     if saved:
-        events.log(db, "figma.screens", user_id, count=len(saved))
+        events.log(db, f"{source}.images", user_id, count=len(saved))
     if not cover and gallery:
         cover = {**gallery[0], "caption": ""}
-    note = "" if saved or not info["screens"] else "Figma didn’t send the screen images this time, so only the words were used."
+        if source != "figma":  # the first picture is the cover; don't show it twice
+            gallery = gallery[1:]
+    return cover, gallery, unscanned
+
+
+SCANNER_DOWN = "We couldn’t scan the images for viruses right now, so they weren’t added. Build again shortly to add them."
+
+
+def _save_screens(db, user_id: str, info: dict, own_token: str) -> tuple[dict | None, list[dict], str]:
+    """Export the Figma file's screens into the person's uploads: (cover, gallery, note)."""
+    from .. import figma
+    room = _room(db, user_id)
+    if room < 512 * 1024:
+        return None, [], "Your storage is full, so the screens weren’t added. Free some space and try again."
+    saved = figma.export(info["url"], info["screens"], info.get("coverFrame"), own_token, room)
+    cover, gallery, unscanned = _store(db, user_id, [{**s, "ctype": "image/png", "caption": s["name"]} for s in saved], "figma")
+    if unscanned:
+        note = SCANNER_DOWN
+    elif info["screens"] and not saved:
+        note = "Figma didn’t send the screen images this time, so only the words were used."
+    elif saved and not (cover or gallery):
+        note = "The screens couldn’t be added."
+    else:
+        note = ""
     return cover, gallery, note
+
+
+def _save_project_images(db, user_id: str, urls: list[str]) -> tuple[dict | None, list[dict], str]:
+    """Screenshots from a repository's README and the live site's preview image, as uploads."""
+    import secrets
+    from .. import project_images
+    room = _room(db, user_id)
+    if room < 512 * 1024:
+        return None, [], ""
+    saved, used = [], 0
+    for img in project_images.collect(urls):
+        if used + len(img["data"]) > room:
+            break
+        name = f"{secrets.token_hex(16)}.{img['ext']}"
+        (config.UPLOAD_DIR / name).write_bytes(img["data"])
+        used += len(img["data"])
+        saved.append({"file": name, "size": len(img["data"]), "ctype": img["ctype"], "caption": img["caption"]})
+    cover, gallery, unscanned = _store(db, user_id, saved, "project")
+    return cover, gallery, SCANNER_DOWN if unscanned else ""
 
 
 def _design_summary(info: dict) -> dict:
@@ -433,6 +488,29 @@ def _design_summary(info: dict) -> dict:
         "stats": {k: info["stats"][k] for k in ("pages", "screens", "components", "flows")},
         "pages": [s["page"] for s in info["structure"] if not s.get("skipped")][:10],
     }
+
+
+class CaseProjectsIn(BaseModel):
+    url: str = Field(max_length=500)
+    figmaToken: str = Field(default="", max_length=200)  # this request only, never stored
+
+
+@router.post("/case-projects")
+def case_projects(body: CaseProjectsIn, user=Depends(current_user)):
+    """The projects on a profile (GitHub, GitLab, Hugging Face, a Figma team or project),
+    strongest first, to build a case study from with one click. Free: no AI."""
+    from .. import figma, profile_projects
+    if ai.rate_limited(user["id"]):
+        return ai.error(429, "Too many requests. Try again in a moment.")
+    try:
+        found = profile_projects.projects(body.url, body.figmaToken.strip())
+    except figma.FigmaError as e:
+        return ai.error(422, str(e))
+    except webread.Unreadable as e:
+        return ai.error(422, str(e))
+    if not found["projects"]:
+        return ai.error(422, "We found no public projects on that profile.")
+    return found
 
 
 @router.post("/case-from-links")
@@ -470,7 +548,13 @@ def case_from_links(body: CaseLinksIn, user=Depends(current_user), db=Depends(ge
     if not pages and len(notes) < 40:  # nothing to go on: not charged
         return ai.error(422, "We couldn’t read any of those links. Add a few lines about the project instead.", sources=sources)
     from .interview import CaseDraft
-    content = (f"PROJECT MATERIALS\n{pages}\n\n" if pages else "") + (f"THE PERSON'S NOTES ABOUT THEIR PART\n{notes}" if notes else "")
+    who = ""
+    if re.fullmatch(r"(github|gitlab|huggingface|figma):[A-Za-z0-9_.\-]{1,60}", body.owner.strip()):
+        platform, handle = body.owner.strip().split(":", 1)
+        who = (f"THE PERSON\nThey are @{handle} on {platform.title()} and own this project (it is listed on their profile). "
+               "Unless the materials show otherwise, they created it: write the role (e.g. creator, maintainer, designer) and their "
+               "contribution from what the materials show they built.\n\n")
+    content = who + (f"PROJECT MATERIALS\n{pages}\n\n" if pages else "") + (f"THE PERSON'S NOTES ABOUT THEIR PART\n{notes}" if notes else "")
     out, err = ai.parse(CaseDraft, CASE_LINKS_SYSTEM + cvstandard.SEP + casestandard.STANDARD, content, max_tokens=6000, effort="medium")
     ai.track(user["id"], "assist_case_links", err)
     if err:
@@ -478,16 +562,32 @@ def case_from_links(body: CaseLinksIn, user=Depends(current_user), db=Depends(ge
     d = out.model_dump()
     figma_extra, note = {}, ""
     if info:
-        cover, gallery, note = _save_screens(db, user["id"], info, own) if body.screens else (None, [], "")
+        cover, gallery, note = None, [], ""
+        if body.screens:
+            try:  # the draft is already paid for: a problem with the images must not lose it
+                cover, gallery, note = _save_screens(db, user["id"], info, own)
+            except Exception:  # noqa: BLE001
+                log.exception("figma screens couldn't be saved")
+                note = "The screens couldn’t be added this time, so only the words were used."
         figma_extra = {"cover": cover, "gallery": gallery, "design": _design_summary(info),
                        "brand": {k: v for k, v in (("accent", info["accent"]), ("font", info["fontPair"])) if v}}
+    if body.screens and not figma_extra.get("cover"):
+        # No Figma screens: pictures from the project itself (README screenshots, the site's preview image).
+        try:
+            cover, gallery, more_note = _save_project_images(db, user["id"], [u for u in body.urls if not figma.parse_url(u)])
+            if cover:
+                figma_extra = {**figma_extra, "cover": cover, "gallery": gallery}
+            note = note or more_note
+        except Exception:  # noqa: BLE001
+            log.exception("project images couldn't be saved")
     embeds = [{"url": u, "title": ""} for u in body.urls if EMBEDDABLE.match(u)]
     # The link people can try: a live site first, else the repository.
     live = next((u for u in body.urls if not EMBEDDABLE.match(u) and webread.platform(u) == "web"), "") \
         or next((u for u in body.urls if webread.platform(u) in ("github", "gitlab")), "")
     draft = {
         "title": d["title"], "tagline": d["tagline"], "role": d["role"], "client": d["client"], "timeline": d["timeline"], "team": d["team"],
-        "notes": d["background"], "problem": d["problem"], "goals": "\n".join(d["goals"]), "research": d["research"], "process": d["process"],
+        "notes": d["background"], "problem": d["problem"], "goals": "\n".join(d["goals"]),
+        "audience": d.get("audience", ""), "constraints": d.get("constraints", ""), "research": d["research"], "process": d["process"],
         "contribution": d["contribution"], "tradeoffs": d["tradeoffs"], "solution": d["solution"], "metrics": d["metrics"],
         "learned": d["learned"], "next": d["next"], "skills": ", ".join(d["skills"]), "link": live, "embeds": embeds,
         **figma_extra,

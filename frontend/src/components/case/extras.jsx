@@ -110,7 +110,8 @@ export function DesignSpecs({ design }) {
   const d = cleanDesign(design);
   useGoogleFonts((d?.fonts || []).map((f) => f.family));
   if (!d || d.hidden) return null;
-  const stats = [[d.stats.screens, 'screens'], [d.stats.pages, 'pages'], [d.stats.components, 'components'], [d.stats.flows, 'prototype flows']].filter(([v]) => v);
+  const stats = [[d.stats.screens, d.stats.screens === 1 ? 'screen' : 'screens'], [d.stats.pages, d.stats.pages === 1 ? 'page' : 'pages'],
+    [d.stats.components, d.stats.components === 1 ? 'component' : 'components'], [d.stats.flows, d.stats.flows === 1 ? 'prototype flow' : 'prototype flows']].filter(([v]) => v);
   return (
     <section className="cs-ds" aria-label="Design system">
       <p className="cs-ds__k">Design system</p>
@@ -118,7 +119,7 @@ export function DesignSpecs({ design }) {
         <div className="cs-ds__type">
           {d.fonts.map((f) => (
             <div key={f.family} className="cs-ds__font">
-              <span className="cs-ds__aa" style={{ fontFamily: `"${f.family}", system-ui, sans-serif`, fontWeight: f.role === 'Headings' ? 700 : 400 }} aria-hidden>Aa</span>
+              <span className="cs-ds__aa" style={{ '--ds-font': `"${f.family}", system-ui, sans-serif`, fontWeight: f.role === 'Headings' ? 700 : 400 }} aria-hidden>Aa</span>
               <div>
                 <b>{f.family}</b>
                 <small>{[f.role, f.weights.length ? `weights ${f.weights.join(', ')}` : '', f.sizes.length ? `${f.sizes.join(' / ')} px` : ''].filter(Boolean).join(' · ')}</small>
@@ -228,7 +229,9 @@ export function CaseMeta({ data }) {
     const scan = () => {
       const seen = new Set();
       const found = [...root.querySelectorAll('.cs-h')].map((h) => {
-        const label = (h.textContent || '').replace(/^[\d§.\s]+/, '').trim();
+        // The title without its section marker ("01", "§2", the Poster's "A").
+        const k = h.querySelector('.cs-k')?.textContent || '';
+        const label = (h.textContent || '').slice(k.length).replace(/^[\d§.\s]+/, '').trim();
         let id = `cs-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
         while (seen.has(id)) id += '-2';
         seen.add(id);

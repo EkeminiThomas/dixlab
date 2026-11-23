@@ -46,5 +46,15 @@ export const CASE_CATALOG = {
   deck:      { name: 'Deck',      look: 'scrolling slides, each section a numbered slide; presentations and pitches' },
   brief:     { name: 'Brief',     look: 'Swiss minimal, six numbered sections on a strict grid, red accent; compact' },
   depth:     { name: 'Depth',     look: 'dark 3D: layered hero, curved panels, process as cube towers, cover-flow gallery; product, engineering, brand' },
+  mockup:    { name: 'Mockup', look: 'launch-style: centred hero, work in a browser frame on a gradient stage, steps beside screens; product and UI' },
+  styleguide:{ name: 'Styleguide', look: 'brand identity sheet: huge uppercase type, colour and type system tiles, moodboard grid; branding' },
+  chapters:  { name: 'Chapters', look: 'numbered chapters with huge serif numerals, one idea per chapter; storytelling, research' },
+  pocket:    { name: 'Pocket', look: 'mobile app: phone frames for the screens on a colour band; app designers and mobile engineers' },
+  collage:   { name: 'Collage', look: 'masonry image wall first, words as captions, italic serif; illustration, photography, interiors' },
+  split:     { name: 'Split', look: 'sticky left column with facts and section index beside the story; recruiters, consulting' },
+  tiles:     { name: 'Tiles', look: 'bento grid summary up top (cover, problem, metrics, role, solution), then details; product' },
+  devlog:    { name: 'Devlog', look: 'dark monospace engineering log: commands as headings, process as a git log, results as a benchmark; developers' },
+  poster:    { name: 'Poster', look: 'Swiss poster: huge tight type, full-width colour block with the headline number, strict grid; brand, marketing' },
+  aurora:    { name: 'Aurora', look: 'soft gradient glows and frosted glass cards, centred hero; SaaS and product' },
 };
 export const CASE_KEYS = Object.keys(CASE_CATALOG);

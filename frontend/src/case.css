@@ -317,6 +317,8 @@
 .cs-ds__type { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.8em 1.4em; }
 .cs-ds__font { display: flex; align-items: center; gap: 0.8em; min-width: 0; }
 .cs-ds__aa { flex: none; width: 2.1em; font-size: 2em; line-height: 1; }
+/* The samples show the file's own fonts, so the branding layer's font doesn't apply to them. */
+.cs-ds__aa, .brand--font .site .cs-ds__aa { font-family: var(--ds-font) !important; }
 .cs-ds__font b { display: block; font-weight: 600; overflow-wrap: anywhere; }
 .cs-ds__font small, .cs-ds__colors small { display: block; color: var(--k-muted, inherit); font-size: 0.82em; }
 .cs-ds__colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 0.8em; margin: 1.1em 0 0; padding: 0; list-style: none; }

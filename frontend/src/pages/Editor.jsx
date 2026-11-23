@@ -649,7 +649,7 @@ export default function Editor() {
                       {[(d.design.fonts || []).map((f) => f.family).join(', '), d.design.colors?.length ? `${d.design.colors.length} colours` : '',
                         d.design.stats?.screens ? `${d.design.stats.screens} screens` : ''].filter(Boolean).join(' · ')}
                     </p>
-                    <div className="ed__row">
+                    <div className="ed__ds">
                       <label className="aia__check"><input type="checkbox" checked={!d.design.hidden} onChange={(e) => setField('design', { ...d.design, hidden: !e.target.checked })} />
                         <span>Show the fonts, colours and size of the design on the case study</span></label>
                       <button type="button" className="ed__del" onClick={() => setField('design', null)} aria-label="Remove the design system">✕</button>
