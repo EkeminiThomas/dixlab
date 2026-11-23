@@ -188,11 +188,11 @@ export default function CaseAssist({ project, onApply }) {
             </div>
           ))}
           {links.length < 5 && <button type="button" className="aia__add" onClick={() => setLinks([...links, ''])}>+ Add another link</button>}
-          {hasFigma && (
+          {(urls.length > 0 || hasFigma) && (
             <div className="aia__figma">
               <label className="aia__check"><input type="checkbox" checked={screens} onChange={(e) => setScreens(e.target.checked)} />
-                <span>Add pictures to my case study: the file’s screens, README screenshots, the site’s preview <small>(uses your storage)</small></span></label>
-              {!showToken ? (
+                <span>Add pictures from the project: README and repo screenshots, the live site’s preview, Figma screens <small>(uses your storage)</small></span></label>
+              {hasFigma && (!showToken ? (
                 <button type="button" className="aia__add" onClick={() => setShowToken(true)}>Add your Figma access token (recommended: works for private files and uses your own Figma limits)</button>
               ) : (
                 <label className="field">
@@ -200,7 +200,7 @@ export default function CaseAssist({ project, onApply }) {
                   <input className="field__input" type="password" value={figmaToken} onChange={(e) => setFigmaToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder="figd_…" />
                   <small className="field__hint">In Figma: Settings → Security → Personal access tokens, with “File content: read only”. We use it for this one read and never save it. Without it we try with Dixlab’s own access, which only opens files shared as “Anyone with the link can view” and is limited by Figma to a few reads a month.</small>
                 </label>
-              )}
+              ))}
             </div>
           )}
           <label className="field">

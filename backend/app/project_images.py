@@ -1,5 +1,10 @@
-"""Pictures for a case study from the project itself: screenshots in a GitHub
-README, and the preview image (og:image) of the live site.
+"""Pictures for a case study from the project itself, best first:
+  1. the live site's preview image (og:image), including the site a GitHub repo lists;
+  2. screenshots in the README (GitHub and GitLab), demo GIFs included;
+  3. screenshot files in the repository (screenshots/, docs/, assets/ … or files
+     named screenshot, preview, demo …);
+  4. the repository's social preview card, so a GitHub link always brings a picture.
+Hugging Face Spaces and other pages give their preview image too.
 
 Every image is fetched like any other link (public addresses only, each
 redirect checked), recognised by its bytes (PNG, JPEG, WebP, GIF), and skipped if
@@ -18,9 +23,12 @@ from .webread import Unreadable, check_url
 
 MAX_IMAGES = 6
 MIN_WIDTH = 480
-MAX_IMAGE_BYTES = 6 * 1024 * 1024   # a big animated GIF isn't worth the wait or the storage
-PER_IMAGE_SECONDS = 10
-TOTAL_SECONDS = 25                   # pictures must never hold up the case study for long
+MAX_IMAGE_BYTES = 6 * 1024 * 1024   # stills; a demo GIF may be bigger (up to the upload limit)
+PER_IMAGE_SECONDS = 15
+TOTAL_SECONDS = 30                   # pictures must never hold up the case study for long
+IMG_FILE = re.compile(r"\.(png|jpe?g|webp|gif)$", re.I)
+SHOT_NAME = re.compile(r"(screen|shot|preview|demo|showcase|hero|mockup|example|ui[-_.]|app[-_.]|dashboard|walkthrough)", re.I)
+SHOT_DIRS = {"screenshots", "screenshot", "screens", "preview", "previews", "demo", "media", "images", "img", "assets", "docs", ".github"}
 TIMEOUT = httpx.Timeout(12.0, connect=5.0)
 SKIP = re.compile(r"(shields\.io|badge|badgen|travis-ci|circleci|codecov|coveralls|github\.com/.+/workflows/|"
                   r"img\.shields|\.svg(\?|$)|contrib\.rocks|star-history|komarev|vercel\.com/button|deploy-button|logo)", re.I)
@@ -42,11 +50,54 @@ def readme_images(owner: str, repo: str) -> list[tuple[str, str]]:
     except (ValueError, Unreadable):
         return []
     base = (r.get("download_url") or f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/README.md").rsplit("/", 1)[0] + "/"
+    return _images_in(text, base)  # in README order; a github.com/…/blob/… link becomes the file itself
+
+
+GH = "application/vnd.github+json"
+
+
+def _gh(path: str):
+    try:
+        return json.loads(webread.fetch(f"https://api.github.com{path}", accept=GH)[0])
+    except (ValueError, Unreadable):
+        return None
+
+
+def repo_info(owner: str, repo: str) -> dict:
+    """The repository's listed website, and screenshot files kept in the repo itself."""
+    meta = _gh(f"/repos/{quote(owner)}/{quote(repo)}") or {}
+    files: list[tuple[str, str]] = []
+    root = _gh(f"/repos/{quote(owner)}/{quote(repo)}/contents") or []
+    dirs = [i for i in root if isinstance(i, dict) and i.get("type") == "dir" and i.get("name", "").lower() in SHOT_DIRS]
+    for i in root if isinstance(root, list) else []:
+        if isinstance(i, dict) and i.get("type") == "file" and IMG_FILE.search(i.get("name", "")) and SHOT_NAME.search(i["name"]):
+            files.append((i.get("download_url") or "", i["name"]))
+    for d in sorted(dirs, key=lambda d: d["name"].lower() not in ("screenshots", "screenshot", "screens", "preview", "previews", "demo"))[:2]:
+        whole = d["name"].lower() in ("screenshots", "screenshot", "screens", "preview", "previews", "demo")
+        for i in _gh(f"/repos/{quote(owner)}/{quote(repo)}/contents/{quote(d['name'])}") or []:
+            if isinstance(i, dict) and i.get("type") == "file" and IMG_FILE.search(i.get("name", "")) and (whole or SHOT_NAME.search(i["name"])):
+                files.append((i.get("download_url") or "", i["name"]))
+    caption = lambda n: re.sub(r"[-_.]+", " ", n.rsplit(".", 1)[0]).strip().capitalize()[:60]  # noqa: E731
+    homepage = str(meta.get("homepage") or "").strip()
+    return {"homepage": homepage if re.match(r"^https?://", homepage) else "",
+            "files": [(u, caption(n)) for u, n in files if u.startswith("https://")][:8]}
+
+
+def gitlab_readme_images(path: str) -> list[tuple[str, str]]:
+    """Images in a GitLab project's README, as absolute URLs."""
+    try:
+        text = webread.fetch(f"https://gitlab.com/api/v4/projects/{quote(path, safe='')}/repository/files/README.md/raw?ref=HEAD",
+                             accept="text/plain")[0]
+    except Unreadable:
+        return []
+    return _images_in(text, f"https://gitlab.com/{path}/-/raw/HEAD/")
+
+
+def _images_in(text: str, base: str) -> list[tuple[str, str]]:
     found = [(m.group(2), m.group(1)) for m in MD_IMG.finditer(text)]
     for m in HTML_IMG.finditer(text):
         alt = HTML_ALT.search(m.group(0))
         found.append((m.group(1), alt.group(1) if alt else ""))
-    # Keep the order they appear in the README.
     found.sort(key=lambda f: text.find(f[0]))
     out, seen = [], set()
     for src, alt in found:
@@ -57,7 +108,6 @@ def readme_images(owner: str, repo: str) -> list[tuple[str, str]]:
             src = "https:" + src
         if not re.match(r"^https?://", src):
             src = urljoin(base, src.lstrip("./"))
-        # github.com/<o>/<r>/blob/<ref>/x.png shows a page: the file itself is ?raw=true
         src = re.sub(r"^https://github\.com/([^/]+)/([^/]+)/blob/", r"https://github.com/\1/\2/raw/", src)
         if src not in seen:
             seen.add(src)
@@ -139,7 +189,9 @@ def download(url: str, client: httpx.Client, deadline: float | None = None) -> t
     """(bytes, extension, content type) of a public image, or None (also when it's too big
     or too slow: past `deadline`, a time.monotonic() value)."""
     import time
-    deadline = min(deadline or 1e18, time.monotonic() + PER_IMAGE_SECONDS)
+    gif = url.lower().split("?")[0].endswith(".gif")
+    deadline = min(deadline or 1e18, time.monotonic() + PER_IMAGE_SECONDS * (2 if gif else 1))  # a demo GIF gets longer
+    cap = MAX_IMAGE_BYTES
     for _ in range(4):  # a few redirects (GitHub raw → CDN), each one checked
         try:
             check_url(url)
@@ -150,11 +202,13 @@ def download(url: str, client: httpx.Client, deadline: float | None = None) -> t
                     continue
                 if r.status_code != 200:
                     return None
-                if int(r.headers.get("content-length") or 0) > MAX_IMAGE_BYTES:
+                if r.headers.get("content-type", "").startswith("image/gif") or url.lower().split("?")[0].endswith(".gif"):
+                    cap = config.MAX_UPLOAD_BYTES  # a demo GIF is often the best picture a README has
+                if int(r.headers.get("content-length") or 0) > cap:
                     return None
                 for chunk in r.iter_bytes():
                     data += chunk
-                    if len(data) > min(MAX_IMAGE_BYTES, config.MAX_UPLOAD_BYTES) or time.monotonic() > deadline:
+                    if len(data) > min(cap, config.MAX_UPLOAD_BYTES) or time.monotonic() > deadline:
                         return None
         except (httpx.HTTPError, Unreadable):
             return None
@@ -165,34 +219,51 @@ def download(url: str, client: httpx.Client, deadline: float | None = None) -> t
     return None
 
 
+def _fetch_all(wanted: list[tuple[str, str, str]], deadline: float) -> list[dict]:
+    """Download these (url, caption, origin) at once; keep the ones that are real pictures, in order."""
+    from concurrent.futures import ThreadPoolExecutor
+    unique, seen = [], set()
+    for w in wanted:
+        if w[0] and w[0] not in seen:
+            seen.add(w[0]); unique.append(w)
+    unique = unique[:MAX_IMAGES * 2]  # a few spares for images that turn out tiny or too big
+    if not unique:
+        return []
+    with webread.client(TIMEOUT) as client, ThreadPoolExecutor(max_workers=4) as pool:
+        got = list(pool.map(lambda w: download(w[0], client, deadline), unique))  # in parallel, results in order
+    return [{"data": g[0], "ext": g[1], "ctype": g[2], "caption": cap, "from": origin}
+            for (src, cap, origin), g in zip(unique, got) if g]
+
+
 def collect(urls: list[str]) -> list[dict]:
-    """Pictures for these project links: the live site's preview first (a good cover), then
-    README screenshots. Returns [{data, ext, ctype, caption, from}] (at most MAX_IMAGES)."""
+    """Pictures for these project links, best first (see the top of this file).
+    Returns [{data, ext, ctype, caption, from}], at most MAX_IMAGES."""
+    import time
     from concurrent.futures import ThreadPoolExecutor as Pool
 
     def find(u: str) -> list[tuple[str, str, str]]:
         host = (urlsplit(u).hostname or "").lower().removeprefix("www.")
         path = [p for p in urlsplit(u).path.split("/") if p]
         if host == "github.com" and len(path) >= 2:
-            return [(src, alt, "readme") for src, alt in readme_images(path[0], path[1].removesuffix(".git"))]
-        if webread.platform(u) == "web":
+            owner, repo = path[0], path[1].removesuffix(".git")
+            with Pool(max_workers=3) as p:
+                readme, info, card = p.submit(readme_images, owner, repo), p.submit(repo_info, owner, repo),                     p.submit(og_image, f"https://github.com/{owner}/{repo}")
+                readme, info, card = readme.result(), info.result(), card.result()
+            site = og_image(info["homepage"]) if info["homepage"] and info["homepage"] not in urls else None
+            return ([(site, "", "site")] if site else []) + [(s, a, "readme") for s, a in readme]                 + [(s, a, "files") for s, a in info["files"]] + ([(card, "", "card")] if card else [])
+        if host == "gitlab.com" and len(path) >= 2:
+            return [(s, a, "readme") for s, a in gitlab_readme_images("/".join(path[:2]))]
+        if webread.platform(u) in ("web", "huggingface"):
             og = og_image(u)
             return [(og, "", "site")] if og else []
         return []
     with Pool(max_workers=4) as finders:  # every link is looked at at the same time
-        found = list(finders.map(find, urls[:4]))
-    # The live site's preview first (it makes a good cover), then README screenshots.
-    wanted = [w for f in found for w in f if w[2] == "site"] + [w for f in found for w in f if w[2] != "site"]
-    import time
-    from concurrent.futures import ThreadPoolExecutor
-    deadline = time.monotonic() + TOTAL_SECONDS
-    unique, seen = [], set()
-    for w in wanted:
-        if w[0] not in seen:
-            seen.add(w[0]); unique.append(w)
-    unique = unique[:MAX_IMAGES * 2]  # a few spares for images that turn out tiny or too big
-    with httpx.Client(timeout=TIMEOUT, trust_env=False, follow_redirects=False) as client, ThreadPoolExecutor(max_workers=4) as pool:
-        got = list(pool.map(lambda w: download(w[0], client, deadline), unique))  # in parallel, results in order
-    out = [{"data": g[0], "ext": g[1], "ctype": g[2], "caption": alt, "from": origin}
-           for (src, alt, origin), g in zip(unique, got) if g]
+        found = [w for f in finders.map(find, urls[:4]) for w in f]
+    deadline = time.monotonic() + TOTAL_SECONDS  # for the downloads: finding them has its own timeouts
+    # Real pictures first: the site's preview (a good cover), README and repo screenshots.
+    order = {"site": 0, "readme": 1, "files": 2}
+    best = sorted([w for w in found if w[2] != "card"], key=lambda w: order.get(w[2], 3))
+    out = _fetch_all(best, deadline)
+    if not out:  # nothing else: the repository's social preview card, so there's always a picture
+        out = _fetch_all([w for w in found if w[2] == "card"], deadline + 8)
     return out[:MAX_IMAGES]

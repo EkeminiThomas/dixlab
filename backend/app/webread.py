@@ -71,6 +71,35 @@ def check_url(url: str) -> str:
 
 # ---------------------------------------------------------------- fetching
 
+class _AnyFamily(httpx.BaseTransport):
+    """Connect like a browser does when one address family is broken: some networks
+    reach a host over IPv6 but not IPv4 (or the other way round), and httpx only tries
+    the first address it's given. When a connection can't be opened, try again over
+    IPv6 only, then IPv4 only. Nothing is retried once a connection is made."""
+
+    def __init__(self):
+        self._tries = [httpx.HTTPTransport(), httpx.HTTPTransport(local_address="::"), httpx.HTTPTransport(local_address="0.0.0.0")]
+
+    def handle_request(self, request):
+        last = None
+        for t in self._tries:
+            try:
+                return t.handle_request(request)
+            except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                last = e
+        raise last  # type: ignore[misc]
+
+    def close(self):
+        for t in self._tries:
+            t.close()
+
+
+def client(timeout=None, **kw) -> httpx.Client:
+    """An httpx client for outside requests (no proxies from the environment, no automatic
+    redirects: callers check each hop), that copes with a broken IPv4 or IPv6 route."""
+    return httpx.Client(timeout=timeout or TIMEOUT, follow_redirects=False, trust_env=False, transport=_AnyFamily(), **kw)
+
+
 def fetch(url: str, accept: str = "text/html,text/plain;q=0.9,*/*;q=0.1") -> tuple[str, str]:
     """(text, content type) of a public page, following a few checked redirects."""
     headers = {"User-Agent": USER_AGENT, "Accept": accept}
@@ -78,11 +107,11 @@ def fetch(url: str, accept: str = "text/html,text/plain;q=0.9,*/*;q=0.1") -> tup
     if config.GITHUB_TOKEN and urlsplit(url).hostname == "api.github.com":
         # Optional: raises GitHub's limit from 60 to 5,000 requests an hour for this server.
         headers["Authorization"] = f"Bearer {config.GITHUB_TOKEN}"
-    with httpx.Client(timeout=TIMEOUT, follow_redirects=False, trust_env=False) as client:
+    with client() as http:
         for _ in range(MAX_REDIRECTS + 1):
             check_url(url)
             try:
-                with client.stream("GET", url, headers=headers) as r:
+                with http.stream("GET", url, headers=headers) as r:
                     if r.status_code in (301, 302, 303, 307, 308) and r.headers.get("location"):
                         url = urljoin(url, r.headers["location"])
                         continue

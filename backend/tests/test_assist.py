@@ -185,8 +185,8 @@ def test_the_reader_checks_every_redirect(monkeypatch):
         seen.append(str(request.url))
         return httpx.Response(302, headers={"location": "http://169.254.169.254/latest/meta-data/"})
 
-    real = httpx.Client
-    monkeypatch.setattr(webread.httpx, "Client", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr(webread, "client", lambda timeout=None, **kw: httpx.Client(
+        transport=httpx.MockTransport(handler), follow_redirects=False, trust_env=False))
     with pytest.raises(webread.Unreadable):
         webread.fetch("http://public.example/job")
     assert seen == ["http://public.example/job"]                       # the metadata address was never requested

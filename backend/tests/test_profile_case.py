@@ -125,3 +125,44 @@ def test_the_projects_endpoint_needs_a_login_and_explains_bad_links(monkeypatch)
     monkeypatch.setattr(webread, "fetch", lambda url, accept="": (json.dumps(REPOS), "application/json"))
     r = c.post("/api/assist/case-projects", json={"url": "github.com/ada"}, headers=h)
     assert r.status_code == 200 and r.json()["projects"][0]["title"] == "ledger"
+
+
+def test_pictures_come_best_first_and_a_repo_always_brings_one(monkeypatch):
+    """The site's preview, README shots and repo screenshot files first; the social card only if nothing else works."""
+    monkeypatch.setattr(project_images, "readme_images", lambda o, r: [("https://x.example/readme.png", "Dashboard")])
+    monkeypatch.setattr(project_images, "repo_info", lambda o, r: {"homepage": "https://ledger.example.ng",
+                                                                    "files": [("https://x.example/screens/home.png", "Home")]})
+    monkeypatch.setattr(project_images, "og_image", lambda u: "https://x.example/card.png" if "github.com" in u else "https://x.example/site.png")
+    asked = []
+
+    def download(url, client, deadline=None):
+        asked.append(url)
+        return (png(), "png", "image/png") if "card" in url or ok.get(url) else None
+    monkeypatch.setattr(project_images, "download", download)
+    ok = {"https://x.example/site.png": True, "https://x.example/readme.png": True, "https://x.example/screens/home.png": True}
+    got = project_images.collect(["https://github.com/ada/ledger"])
+    assert [g["from"] for g in got] == ["site", "readme", "files"] and "https://x.example/card.png" not in asked
+    assert got[1]["caption"] == "Dashboard" and got[2]["caption"] == "Home"
+    ok.clear(); asked.clear()                                   # none of the real pictures work
+    got = project_images.collect(["https://github.com/ada/ledger"])
+    assert [g["from"] for g in got] == ["card"]
+
+
+def test_screenshot_files_in_the_repo_are_found(monkeypatch):
+    root = [{"type": "file", "name": "screenshot-dashboard.png", "download_url": "https://raw.example/screenshot-dashboard.png"},
+            {"type": "file", "name": "logo.png", "download_url": "https://raw.example/logo.png"},
+            {"type": "dir", "name": "screenshots"}, {"type": "dir", "name": "src"}]
+    shots = [{"type": "file", "name": "reports.jpg", "download_url": "https://raw.example/screenshots/reports.jpg"},
+             {"type": "file", "name": "notes.md", "download_url": "https://raw.example/screenshots/notes.md"}]
+
+    def gh(path):
+        if path.endswith("/contents"):
+            return root
+        if path.endswith("/contents/screenshots"):
+            return shots
+        return {"homepage": "https://ledger.example.ng"}
+    monkeypatch.setattr(project_images, "_gh", gh)
+    info = project_images.repo_info("ada", "ledger")
+    assert info["homepage"] == "https://ledger.example.ng"
+    assert info["files"] == [("https://raw.example/screenshot-dashboard.png", "Screenshot dashboard"),
+                             ("https://raw.example/screenshots/reports.jpg", "Reports")]

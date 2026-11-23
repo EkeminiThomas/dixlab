@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import httpx
 
-from . import config
+from . import config, webread
 from .webread import Unreadable, check_url
 
 log = logging.getLogger("dixlab.figma")
@@ -97,7 +97,7 @@ def available(own: str | None = None) -> bool:
 def _get(path: str, token: str, params: dict | None = None) -> dict:
     url = f"{API}{path}"
     try:
-        with httpx.Client(timeout=TIMEOUT, trust_env=False) as client, \
+        with webread.client(TIMEOUT) as client, \
                 client.stream("GET", url, params=params, headers={"X-Figma-Token": token, "Accept": "application/json"}) as r:
             if r.status_code in (401, 403):
                 raise FigmaError("Figma didn’t let us open that file. Set its sharing to “Anyone with the link can view”, "
@@ -412,7 +412,7 @@ def export(key_url: str, picked: list[dict], cover: dict | None, own_token: str 
     except FigmaError as e:
         log.info("figma export failed: %s", e)
     out, used = [], 0
-    with httpx.Client(timeout=TIMEOUT, trust_env=False, follow_redirects=False) as client:
+    with webread.client(TIMEOUT) as client:
         for s in wanted:
             src = urls.get(s["id"])
             if not src:
