@@ -32,7 +32,10 @@ export default function SignUp() {
       mode="signup"
       title="Start with what you have."
       lead="Create your account and turn your experience into a story worth sharing."
-      footer={<p className="auth__switch">Already have an account?&nbsp;&nbsp;<Link to="/login">Log in</Link></p>}
+      footer={<>
+        <p className="auth__switch">Already have an account?&nbsp;&nbsp;<Link to="/login">Log in</Link></p>
+        <p className="auth__legal">By creating an account you agree to our <Link to="/terms">Terms of use</Link> and <Link to="/privacy">Privacy policy</Link>.</p>
+      </>}
     >
       <form className="auth__form" onSubmit={submit} noValidate>
         <Field label="Your name" value={form.name} onChange={set('name')} placeholder="Alex Morgan" autoComplete="name" />

@@ -268,3 +268,17 @@
 .plan-unlock.is-on { color: var(--ink); } .plan-unlock b { color: #34d399; font-weight: 500; white-space: nowrap; }
 .plan-pay summary.plan-pay__k { cursor: pointer; }
 .plan-pay b.is-plus { color: #34d399; }
+
+/* Legal pages */
+.legal__main { max-width: 760px; margin: 0 auto; padding: 56px 24px 80px; color: var(--muted); font-size: 15.5px; line-height: 1.7; }
+.legal__h1 { margin: 10px 0 8px; font-family: var(--serif); font-size: clamp(36px, 6vw, 56px); line-height: 1.05; font-weight: 400; color: var(--ink); }
+.legal__lead { margin: 0 0 28px; }
+.legal__toc { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 16px 18px; border-radius: 14px; border: 1px solid var(--line); font-size: 13.5px; }
+.legal__toc a { color: var(--muted); text-decoration: none; } .legal__toc a:hover { color: var(--ink); }
+.legal__sec { padding-top: 32px; scroll-margin-top: 80px; }
+.legal__sec h2 { margin: 0 0 10px; font-size: 20px; color: var(--ink); letter-spacing: -0.01em; }
+.legal__sec p { margin: 0 0 12px; } .legal__sec ul { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.legal__sec b { color: var(--ink); font-weight: 600; } .legal__sec a { color: var(--accent); }
+.auth__legal { margin: 10px 0 0; font-size: 12.5px; color: var(--faint); text-align: center; } .auth__legal a { color: var(--muted); }
+.legal__main .prc__kicker { display: inline-block; width: auto; }
+.legal__sec ul { list-style: disc; } .legal__sec li::marker { color: var(--faint); }

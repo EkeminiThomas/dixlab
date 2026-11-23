@@ -343,8 +343,9 @@ export default function Landing() {
         <div className="footer__legal">
           <p>© 2026 Dixlab. Everyone has value worth showcasing.</p>
           <div>
-            <a href="#">Privacy policy</a>
-            <a href="#">Terms of use</a>
+            <Link to="/privacy">Privacy policy</Link>
+            <Link to="/terms">Terms of use</Link>
+            <Link to="/refunds">Refunds</Link>
             <span className="footer__lang"><Icon src={img.globe} size={13} />English</span>
           </div>
         </div>

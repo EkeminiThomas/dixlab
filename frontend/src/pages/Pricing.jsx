@@ -182,7 +182,7 @@ export default function Pricing() {
 
       <footer className="prc__foot">
         <span>© {new Date().getFullYear()} Dixlab · Payments by Bachs</span>
-        <span>Nigeria: prices in naira · Elsewhere: prices in US dollars. Taxes may apply.</span>
+        <span>Nigeria: prices in naira · Elsewhere: prices in US dollars. Taxes may apply. <Link to="/terms">Terms</Link> · <Link to="/privacy">Privacy</Link> · <Link to="/refunds">Refunds</Link></span>
       </footer>
     </div>
   );

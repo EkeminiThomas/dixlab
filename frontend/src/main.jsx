@@ -32,6 +32,7 @@ import ConfirmEmail from './pages/ConfirmEmail.jsx';
 import Recommend from './pages/Recommend.jsx';
 import Review from './pages/Review.jsx';
 import Gallery from './pages/Gallery.jsx';
+import Legal from './pages/Legal.jsx';
 // The admin dashboard loads only when an admin opens it.
 const AdminLayout = lazy(() => import('./admin/AdminLayout.jsx'));
 const AdminOverview = lazy(() => import('./admin/Overview.jsx'));
@@ -107,6 +108,9 @@ root.render(
         <Route path="/" element={<Landing />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/gallery" element={<Gallery />} />
+        <Route path="/terms" element={<Legal />} />
+        <Route path="/privacy" element={<Legal />} />
+        <Route path="/refunds" element={<Legal />} />
         <Route path="/billing/callback" element={<BillingCallback />} />
         <Route path="/billing/callback/:ref" element={<BillingCallback />} />
         <Route path="/signup" element={<SignUp />} />
