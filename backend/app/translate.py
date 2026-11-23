@@ -19,7 +19,7 @@ SKIP_KEYS = {
     "link", "href", "url", "website", "linkedin", "github", "portfolio", "behance", "dribbble", "twitter", "instagram",
     "bookingurl", "email", "phone", "name", "company", "school", "client", "from", "to", "start", "end", "year", "date",
     "timezone", "rate", "custom", "customize", "theme", "font", "fonts", "color", "colour", "accent", "motion",
-    "livestats", "cvprojectid", "availability", "stackoverflow", "location", "value",
+    "livestats", "cvprojectid", "availability", "stackoverflow", "location", "value", "design", "brand",
 }
 SKIP_VALUE = re.compile(r"^(?:https?://|mailto:|/|data:|#[0-9a-f]{3,8}$|[\d\s.,:%+\-–/()$€£₦]+$)", re.I)
 MAX_CHARS = 14000   # per project, across all batches

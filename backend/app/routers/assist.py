@@ -18,7 +18,8 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 
-from .. import ai, casestandard, cvstandard, webread
+from .. import ai, casestandard, config, cvstandard, webread
+from ..db import get_db
 from ..security import current_user
 
 router = APIRouter(prefix="/api/assist", tags=["assist"])
@@ -356,6 +357,9 @@ EMBEDDABLE = re.compile(r"^https?://(?:www\.)?(?:figma\.com/(?:file|design|proto
 class CaseLinksIn(BaseModel):
     urls: list[str] = Field(default_factory=list, max_length=MAX_LINKS)
     notes: str = Field(default="", max_length=8000, description="Their own words: their role, what changed, the results.")
+    # Their own Figma access token, for private files. Used for this request only: never stored or logged.
+    figmaToken: str = Field(default="", max_length=200)
+    screens: bool = Field(default=True, description="Add the Figma file's screens to the case study as images.")
 
     @field_validator("urls")
     @classmethod
@@ -363,27 +367,106 @@ class CaseLinksIn(BaseModel):
         return _clean_urls(v)
 
 
-CASE_LINKS_SYSTEM = """You write a case study from a project's own materials: its repository (README, stack, releases, contributors), its live site, its Figma file title, and the person's notes about their part.
+CASE_LINKS_SYSTEM = """You write a case study from a project's own materials: its repository (README, stack, releases, contributors), its live site, its Figma file (title, pages, frames, the words on its screens, fonts and colours), and the person's notes about their part.
 
 Rules:
 - Use only what the materials and notes say. Never invent results, numbers, users, clients, team members, dates or quotes. Leave a field empty ("" or []) when nothing supports it.
 - Their role and contribution come from their notes (or a repository they clearly own as the main contributor). If unclear, leave role empty rather than guess.
 - From a README, take what the project does, who it's for, the key decisions, the stack and how it's built; turn those into the process and solution.
 - Results: only numbers the materials state (stars, downloads, releases, users, performance figures). Say what a number measures.
+- From a Figma file: its pages, sections and frame names show how the work was done (for example Research, User flows, Wireframes, Visual design, Prototype). Use them, in order, for the process steps, and mention what each stage produced. The words on its screens show what the product does and who it's for: use them for the problem, audience and solution. Its fonts, colours, components and prototype flows describe the design itself: mention them in the solution where they explain a choice (a design system, accessibility, a brand). A file's numbers (screens, components) are not results.
+- Placeholder text on screens (lorem ipsum, "Button", sample names and prices) is not content.
 - Write in the first person, in plain words.
 - """ + SOURCE_RULE
 
 
+def _figma_read(urls: list[str], own_token: str) -> tuple[dict | None, str | None, str | None]:
+    """(what the first Figma link holds, its link, why it couldn't be read)."""
+    from .. import figma
+    link = next((u for u in urls if figma.parse_url(u)), None)
+    if not link or not figma.available(own_token):
+        return None, link, None
+    try:
+        return figma.read(link, own_token), link, None
+    except figma.FigmaError as e:
+        return None, link, str(e)
+
+
+def _save_screens(db, user_id: str, info: dict, own_token: str) -> tuple[dict | None, list[dict], str]:
+    """Export the file's screens into the person's uploads: (cover, gallery, note)."""
+    from .. import figma, plans, scan, events
+    from ..security import now_ms
+    from .uploads import _used
+    room = plans.storage_limit(db, user_id) - _used(db, user_id)
+    if room < 512 * 1024:
+        return None, [], "Your storage is full, so the screens weren’t added. Free some space and try again."
+    saved = figma.export(info["url"], info["screens"], info.get("coverFrame"), own_token, room)
+    cover, gallery = None, []
+    for s in saved:
+        path = config.UPLOAD_DIR / s["file"]
+        try:
+            scan.check(path, "png")
+        except (scan.Rejected, scan.ScannerUnavailable):
+            path.unlink(missing_ok=True)
+            continue
+        db.execute("INSERT INTO uploads (name, user_id, content_type, size, created_at) VALUES (?, ?, ?, ?, ?)",
+                   (s["file"], user_id, "image/png", s["size"], now_ms()))
+        item = {"src": f"/uploads/{s['file']}", "caption": "" if s["cover"] else s["name"], "type": "image", "from": "figma"}
+        if s["cover"] and not cover:
+            cover = item
+        else:
+            gallery.append(item)
+    if saved:
+        events.log(db, "figma.screens", user_id, count=len(saved))
+    if not cover and gallery:
+        cover = {**gallery[0], "caption": ""}
+    note = "" if saved or not info["screens"] else "Figma didn’t send the screen images this time, so only the words were used."
+    return cover, gallery, note
+
+
+def _design_summary(info: dict) -> dict:
+    """The file's design details, shown in the case study as a design system block."""
+    return {
+        "source": info["url"], "name": info["name"],
+        "fonts": [{"family": f["family"], "role": f.get("role", ""), "weights": f["weights"], "sizes": f["sizes"]} for f in info["fonts"]],
+        "colors": [{"hex": c["hex"], "name": c["name"]} for c in info["colors"]],
+        "stats": {k: info["stats"][k] for k in ("pages", "screens", "components", "flows")},
+        "pages": [s["page"] for s in info["structure"] if not s.get("skipped")][:10],
+    }
+
+
 @router.post("/case-from-links")
-def case_from_links(body: CaseLinksIn, user=Depends(current_user)):
-    """Draft a whole case study from project links (GitHub/GitLab repo, Figma, live site, video) and notes."""
+def case_from_links(body: CaseLinksIn, user=Depends(current_user), db=Depends(get_db)):
+    """Draft a whole case study from project links (GitHub/GitLab repo, Figma, live site, video) and notes.
+    A Figma link (with a Figma token on the server, or the person's own) also brings its screens
+    as images, its fonts and colours, and its page structure."""
+    from concurrent.futures import ThreadPoolExecutor
     notes = body.notes.strip()[:PASTED_CHARS]
     if not body.urls and len(notes) < 40:
         return ai.error(400, "Paste at least one project link (a repository, Figma file or live site), or describe the project.")
     blocked = ai.guard(user["id"], "assist_case_links")
     if blocked:
         return blocked
-    pages, sources = webread.gather(body.urls, PROFILE_CHARS)
+    from .. import figma
+    own = body.figmaToken.strip()
+    api_url = next((u for u in body.urls if figma.parse_url(u)), None) if figma.available(own) else None
+    others = [u for u in body.urls if u != api_url]
+    with ThreadPoolExecutor(max_workers=2) as pool:  # Figma and the other links are read at the same time
+        fig_job = pool.submit(_figma_read, body.urls, own)
+        pages, sources = webread.gather(others, PROFILE_CHARS) if others else ("", [])
+        info, fig_url, fig_err = fig_job.result()
+    if api_url and not info:  # the API couldn't open it: fall back to its title, like before
+        more, more_src = webread.gather([api_url], PROFILE_CHARS)
+        pages = f"{pages}\n\n{more}".strip()
+        sources = more_src + sources
+    if info:
+        pages = f"=== {fig_url}\n{info['text']}\n\n{pages}".strip()
+        sources.insert(0, {"url": fig_url, "platform": "figma", "read": True, "tip": None,
+                           "detail": f"{info['stats']['screens']} screens · {len(info['fonts'])} fonts · {len(info['colors'])} colours"})
+    elif fig_err:
+        for s in sources:
+            if s["url"] == fig_url:
+                s["tip"] = fig_err + (" We used its title only." if s["read"] else "")
     if not pages and len(notes) < 40:  # nothing to go on: not charged
         return ai.error(422, "We couldn’t read any of those links. Add a few lines about the project instead.", sources=sources)
     from .interview import CaseDraft
@@ -393,6 +476,11 @@ def case_from_links(body: CaseLinksIn, user=Depends(current_user)):
     if err:
         return err
     d = out.model_dump()
+    figma_extra, note = {}, ""
+    if info:
+        cover, gallery, note = _save_screens(db, user["id"], info, own) if body.screens else (None, [], "")
+        figma_extra = {"cover": cover, "gallery": gallery, "design": _design_summary(info),
+                       "brand": {k: v for k, v in (("accent", info["accent"]), ("font", info["fontPair"])) if v}}
     embeds = [{"url": u, "title": ""} for u in body.urls if EMBEDDABLE.match(u)]
     # The link people can try: a live site first, else the repository.
     live = next((u for u in body.urls if not EMBEDDABLE.match(u) and webread.platform(u) == "web"), "") \
@@ -402,8 +490,10 @@ def case_from_links(body: CaseLinksIn, user=Depends(current_user)):
         "notes": d["background"], "problem": d["problem"], "goals": "\n".join(d["goals"]), "research": d["research"], "process": d["process"],
         "contribution": d["contribution"], "tradeoffs": d["tradeoffs"], "solution": d["solution"], "metrics": d["metrics"],
         "learned": d["learned"], "next": d["next"], "skills": ", ".join(d["skills"]), "link": live, "embeds": embeds,
+        **figma_extra,
     }
-    return {"draft": draft, "sources": sources}
+    return {"draft": draft, "sources": sources, "figma": bool(info), "figmaSetup": bool(fig_url) and not info and not fig_err,
+            **({"note": note} if note else {})}
 
 
 class CaseCheckIn(BaseModel):

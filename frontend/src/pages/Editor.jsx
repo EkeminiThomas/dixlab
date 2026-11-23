@@ -641,6 +641,22 @@ export default function Editor() {
                   <small className="field__hint">Two images of the same screen or space. Visitors drag the slider to compare. Use the same size and framing for both.</small>
                 </fieldset>
 
+                {d.design && (
+                  <fieldset className="ed__set">
+                    <legend>Design system <Opt /></legend>
+                    <p className="field__hint">
+                      From {d.design.name ? `“${d.design.name}”` : 'your Figma file'}:{' '}
+                      {[(d.design.fonts || []).map((f) => f.family).join(', '), d.design.colors?.length ? `${d.design.colors.length} colours` : '',
+                        d.design.stats?.screens ? `${d.design.stats.screens} screens` : ''].filter(Boolean).join(' · ')}
+                    </p>
+                    <div className="ed__row">
+                      <label className="aia__check"><input type="checkbox" checked={!d.design.hidden} onChange={(e) => setField('design', { ...d.design, hidden: !e.target.checked })} />
+                        <span>Show the fonts, colours and size of the design on the case study</span></label>
+                      <button type="button" className="ed__del" onClick={() => setField('design', null)} aria-label="Remove the design system">✕</button>
+                    </div>
+                  </fieldset>
+                )}
+
                 <fieldset className="ed__set">
                   <legend>Embeds <Opt /> <span className="up__count">{(d.embeds || []).length}/4</span></legend>
                   {(d.embeds || []).map((e, i) => (

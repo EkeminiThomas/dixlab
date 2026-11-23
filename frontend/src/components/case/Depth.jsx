@@ -1,7 +1,7 @@
 import { useContext, useRef, useState } from 'react';
 import { cs } from './data.js';
 import { Visual, Files } from './templates.jsx';
-import { BeforeAfter, Embeds } from './extras.jsx';
+import { BeforeAfter, DesignSpecs, Embeds } from './extras.jsx';
 import { StaticSite } from '../sites/shared.jsx';
 import { usePointerTilt, scrollToPart } from '../sites/three.js';
 
@@ -141,6 +141,7 @@ export function Depth({ data }) {
         <Coverflow items={gallery} seed={d.title} />
         {d.compare && <BeforeAfter compare={d.compare} />}
         {d.embeds?.length > 0 && <Embeds items={d.embeds} />}
+        {d.design && <DesignSpecs design={d.design} />}
       </section>
 
       {d.metrics.length > 0 && (

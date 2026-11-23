@@ -310,3 +310,19 @@
 .site .cs-ba, .site .cs-embed { display: block; width: 100%; grid-column: 1 / -1; }
 .site .cs-ba figcaption, .site .cs-embed figcaption { display: block; margin-top: 0.5em; }
 .site .cs-embeds, .site .cs-linkcard { grid-column: 1 / -1; }
+
+/* Design system from a Figma file: typefaces, colours and the size of the design. */
+.cs-ds { margin-top: 1.6em; padding: 1.2em 1.3em; border-radius: 14px; border: 1px solid var(--k-line, rgba(127, 127, 127, 0.25)); background: var(--k-soft, transparent); }
+.cs-ds__k { margin: 0 0 0.9em; font-size: 0.75em; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--k-muted, inherit); }
+.cs-ds__type { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.8em 1.4em; }
+.cs-ds__font { display: flex; align-items: center; gap: 0.8em; min-width: 0; }
+.cs-ds__aa { flex: none; width: 2.1em; font-size: 2em; line-height: 1; }
+.cs-ds__font b { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.cs-ds__font small, .cs-ds__colors small { display: block; color: var(--k-muted, inherit); font-size: 0.82em; }
+.cs-ds__colors { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 0.8em; margin: 1.1em 0 0; padding: 0; list-style: none; }
+.cs-ds__colors li { min-width: 0; font-size: 0.88em; }
+.cs-ds__colors i { display: block; height: 3.2em; margin-bottom: 0.45em; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.28); }
+.cs-ds__colors b { font-weight: 600; font-variant-numeric: tabular-nums; }
+.cs-ds__stats { display: flex; flex-wrap: wrap; gap: 0.3em 1.3em; margin: 1.1em 0 0; color: var(--k-muted, inherit); font-size: 0.9em; }
+.cs-ds__stats b { color: var(--k-ink, inherit); font-weight: 700; }
+.site .cs-ds { grid-column: 1 / -1; }

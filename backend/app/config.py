@@ -23,6 +23,10 @@ TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN", "").strip()
 # Optional GitHub token (no scopes needed: public data only). Without it GitHub allows this
 # server 60 requests an hour, and reading one profile or repository takes 5-8.
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
+# Optional Figma access token (scope: file_content:read). With it, case studies built from a
+# Figma link get the file's screens as images, its words, fonts, colours and structure.
+# It opens files shared as "Anyone with the link can view"; without it only the title is read.
+FIGMA_TOKEN = os.getenv("FIGMA_TOKEN", "").strip()
 UPLOAD_DIR = _path("DIXLAB_UPLOADS", BASE_DIR / "uploads")
 CORS_ORIGINS = [o.strip() for o in os.getenv(
     "DIXLAB_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173"

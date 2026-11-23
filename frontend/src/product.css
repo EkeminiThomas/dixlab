@@ -339,6 +339,19 @@
 .aia__sources li { display: flex; gap: 8px; color: var(--muted); }
 .aia__sources li.is-ok > span { color: var(--plan-mint, #7ce8c0); } .aia__sources li.is-fail > span { color: #ff8a8a; }
 .aia__sources b { color: var(--ink); font-weight: 500; word-break: break-all; }
+
+.aia__figma { display: grid; gap: 8px; padding: 10px 12px; border-radius: 10px; background: rgba(127, 127, 127, 0.08); }
+.aia__check { display: flex; align-items: flex-start; gap: 8px; font-size: 13.5px; color: var(--ink); cursor: pointer; }
+.aia__check input { margin-top: 2px; accent-color: var(--plan-violet, #7b5cff); }
+.aia__check small { color: var(--muted); }
+.aia__shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.aia__shots figure { margin: 0; min-width: 0; }
+.aia__shots img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: top; border-radius: 8px; background: #fff; border: 1px solid rgba(127, 127, 127, 0.25); }
+.aia__shots figcaption { margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 11.5px; white-space: nowrap; text-overflow: ellipsis; }
+.aia__ds { display: grid; gap: 6px; font-size: 13.5px; color: var(--muted); }
+.aia__ds p { margin: 0; } .aia__ds b { margin-right: 6px; color: var(--ink); font-weight: 600; }
+.aia__swatches { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.aia__swatches i { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(127, 127, 127, 0.4); }
 .aia__sources small { display: block; margin-top: 2px; color: var(--faint); font-size: 12px; line-height: 1.5; }
 .aia__insights { margin: 0; padding-left: 18px; color: var(--ink); font-size: 13.5px; line-height: 1.55; }
 .aia__diff { display: grid; gap: 4px; margin: 0; padding: 14px; border-radius: 10px; background: var(--paper); border: 1px solid var(--line); max-height: 420px; overflow: auto; }

@@ -8,7 +8,7 @@ import { useContext } from 'react';
 import { cs } from './data.js';
 import { hash, StaticSite } from '../sites/shared.jsx';
 import { fileExt, fileSize } from '../media.js';
-import { BeforeAfter, CountUp, Embeds } from './extras.jsx';
+import { BeforeAfter, CountUp, DesignSpecs, Embeds } from './extras.jsx';
 
 const BADGE = { pdf: 'PDF', docx: 'DOC', pptx: 'PPT', xlsx: 'XLS' };
 
@@ -95,6 +95,7 @@ const Gallery = ({ d, className = '', ratio = '4 / 3', min = 0 }) => {
     <>
       {d.compare && <BeforeAfter compare={d.compare} />}
       {d.embeds?.length > 0 && <Embeds items={d.embeds} />}
+      {d.design && <DesignSpecs design={d.design} />}
       {items.length > 0 && (
         <div className={`cs-gallery ${className}`}>
           {items.map((g, i) => <Visual key={i} img={g} seed={d.title} i={i + 1} ratio={ratio} />)}

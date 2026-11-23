@@ -69,6 +69,76 @@ export function Embeds({ items = [] }) {
 
 const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'Link'; } };
 
+/* ---------- Design system (from a Figma file) ---------- */
+
+const HEX = /^#[0-9a-f]{6}$/i;
+const FAMILY = /^[A-Za-z0-9 \-]{1,40}$/;
+const SYSTEM_FONTS = /^(sf pro|sf compact|new york|helvetica|arial|segoe|system|-apple|times|georgia|courier)/i;
+
+/** Only safe values: hex colours, plain font names, small numbers. */
+export function cleanDesign(v) {
+  if (!v || typeof v !== 'object') return null;
+  const fonts = (v.fonts || []).filter((f) => FAMILY.test(String(f?.family || ''))).slice(0, 4).map((f) => ({
+    family: f.family, role: String(f.role || '').slice(0, 20),
+    weights: (f.weights || []).map(Number).filter((n) => n >= 100 && n <= 1000).slice(0, 6),
+    sizes: (f.sizes || []).map(Number).filter((n) => n > 0 && n < 400).slice(0, 6),
+  }));
+  const colors = (v.colors || []).filter((c) => HEX.test(String(c?.hex || ''))).slice(0, 8).map((c) => ({ hex: c.hex, name: String(c.name || '').slice(0, 40) }));
+  if (!fonts.length && !colors.length) return null;
+  const n = (x) => (Number.isFinite(Number(x)) && Number(x) > 0 ? Math.round(Number(x)) : 0);
+  const s = v.stats || {};
+  return { fonts, colors, name: String(v.name || '').slice(0, 120), hidden: Boolean(v.hidden),
+    stats: { pages: n(s.pages), screens: n(s.screens), components: n(s.components), flows: n(s.flows) } };
+}
+
+/** Load the file's fonts from Google Fonts when they're there (others fall back quietly). */
+function useGoogleFonts(families) {
+  const key = families.filter((f) => FAMILY.test(f) && !SYSTEM_FONTS.test(f)).join('|');
+  useEffect(() => {
+    if (!key || typeof document === 'undefined') return undefined;
+    const href = `https://fonts.googleapis.com/css2?${key.split('|').map((f) => `family=${encodeURIComponent(f).replace(/%20/g, '+')}:wght@400;700`).join('&')}&display=swap`;
+    if (document.querySelector(`link[data-dx-fonts="${CSS.escape(key)}"]`)) return undefined;
+    const link = Object.assign(document.createElement('link'), { rel: 'stylesheet', href });
+    link.dataset.dxFonts = key;
+    document.head.appendChild(link);
+    return undefined;
+  }, [key]);
+}
+
+/** Typography, colours and the size of the design, as a compact spec block. */
+export function DesignSpecs({ design }) {
+  const d = cleanDesign(design);
+  useGoogleFonts((d?.fonts || []).map((f) => f.family));
+  if (!d || d.hidden) return null;
+  const stats = [[d.stats.screens, 'screens'], [d.stats.pages, 'pages'], [d.stats.components, 'components'], [d.stats.flows, 'prototype flows']].filter(([v]) => v);
+  return (
+    <section className="cs-ds" aria-label="Design system">
+      <p className="cs-ds__k">Design system</p>
+      {d.fonts.length > 0 && (
+        <div className="cs-ds__type">
+          {d.fonts.map((f) => (
+            <div key={f.family} className="cs-ds__font">
+              <span className="cs-ds__aa" style={{ fontFamily: `"${f.family}", system-ui, sans-serif`, fontWeight: f.role === 'Headings' ? 700 : 400 }} aria-hidden>Aa</span>
+              <div>
+                <b>{f.family}</b>
+                <small>{[f.role, f.weights.length ? `weights ${f.weights.join(', ')}` : '', f.sizes.length ? `${f.sizes.join(' / ')} px` : ''].filter(Boolean).join(' · ')}</small>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {d.colors.length > 0 && (
+        <ul className="cs-ds__colors">
+          {d.colors.map((c) => (
+            <li key={c.hex}><i style={{ background: c.hex }} aria-hidden /><b>{c.hex.toUpperCase()}</b>{c.name && <small>{c.name}</small>}</li>
+          ))}
+        </ul>
+      )}
+      {stats.length > 0 && <p className="cs-ds__stats">{stats.map(([v, l]) => <span key={l}><b>{v}</b> {l}</span>)}</p>}
+    </section>
+  );
+}
+
 /* ---------- Before / after ---------- */
 
 export function BeforeAfter({ compare }) {
