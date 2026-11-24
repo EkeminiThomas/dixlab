@@ -168,15 +168,19 @@ def _focus(doc: dict, node: str | None) -> dict | None:
 
 
 def _pick(outline: list[dict], starts: list[str]) -> list[dict]:
-    """Up to MAX_SCREENS screens, spread over the pages in order, flow starting points first."""
-    first = [s for s in outline if s["id"] in starts]
-    rest = [s for s in outline if s["id"] not in starts]
+    """Up to MAX_SCREENS screens, spread over every page in order. `starts` (a linked frame or
+    section, prototype starting points) come first, but take at most half the places, so
+    the other pages are always in the case study too."""
+    by_id = {s["id"]: s for s in outline}
+    first = [by_id[i] for i in dict.fromkeys(starts) if i in by_id][:max(1, MAX_SCREENS // 2)]
+    taken = {s["id"] for s in first}
     pages: dict[str, list[dict]] = {}
-    for s in rest:
-        pages.setdefault(s["page"], []).append(s)
+    for s in outline:
+        if s["id"] not in taken:
+            pages.setdefault(s["page"], []).append(s)
     for frames in pages.values():
         frames.sort(key=lambda s: (s["y"] // 400, s["x"]))  # reading order on the canvas
-    picked = first[:MAX_SCREENS]
+    picked = list(first)
     while len(picked) < MAX_SCREENS and any(pages.values()):
         for frames in pages.values():
             if frames and len(picked) < MAX_SCREENS:
@@ -285,13 +289,15 @@ def read(url: str, own_token: str | None = None) -> dict:
                           "sections": sorted({f["section"] for f in frames if f["section"]})[:8],
                           "flows": [f.get("name", "")[:60] for f in p.get("flowStartingPoints") or []][:6]})
         outline += frames
-    if focus is not None and focus.get("type") != "DOCUMENT":  # the link points at one page, section or frame
-        if focus.get("type") in SCREEN_TYPES:
-            outline = [s for s in outline if s["id"] == focus["id"]] or outline
-        else:
-            ids = {s["id"] for s in _screens_in(focus, focus.get("name", ""))}
-            outline = [s for s in outline if s["id"] in ids] or outline
-    picked = _pick(outline, starts)
+    # The whole file is always read, every page. A copied link usually carries the page
+    # that was open (node-id=...): that's not a choice, so it's ignored. A link to a frame
+    # or section ("Copy link to selection") puts those screens first, then the rest.
+    first: list[str] = []
+    if focus is not None and focus.get("type") in SCREEN_TYPES:
+        first = [focus["id"]]
+    elif focus is not None and focus.get("type") == "SECTION":
+        first = [s["id"] for s in _screens_in(focus, focus.get("name", ""))]
+    picked = _pick(outline, first + [s for s in starts if s not in first])
 
     fonts, sizes, weights, colors, names, stats = Counter(), {}, {}, Counter(), {}, Counter()
     screen_text: dict[str, list[str]] = {}

@@ -78,10 +78,28 @@ def test_a_figma_file_is_read_into_structure_words_fonts_and_colours(monkeypatch
     assert calls[0][1] == "server-token-0123456789" and calls[0][2] == {"depth": 3}
 
 
-def test_a_link_to_one_frame_reads_just_that_frame(monkeypatch):
+def test_a_link_to_one_frame_puts_it_first_and_still_reads_every_page(monkeypatch):
     monkeypatch.setattr(figma, "_get", fake_get([]))
     info = figma.read("https://www.figma.com/design/AbCdEfGhIj12/Clinic?node-id=2-1", own_token="figd_" + "x" * 30)
-    assert [s["id"] for s in info["screens"]] == ["2:1"]
+    ids = [s["id"] for s in info["screens"]]
+    assert ids[0] == "2:1" and {"3:1", "3:2", "2:2"} <= set(ids)
+    assert {s["page"] for s in info["screens"]} == {"Research", "Final UI"}
+
+
+def test_a_link_copied_from_an_open_page_reads_every_page(monkeypatch):
+    """Links copied from the address bar carry the open page (node-id): all pages are still read."""
+    monkeypatch.setattr(figma, "_get", fake_get([]))
+    info = figma.read("https://www.figma.com/design/AbCdEfGhIj12/Clinic?node-id=0-2&t=abc", own_token="figd_" + "x" * 30)
+    assert {s["page"] for s in info["screens"]} == {"Research", "Final UI"}
+    assert info["stats"]["pages"] == 2 and "Page \"Research\"" in info["text"] and "Page \"Final UI\"" in info["text"]
+
+
+def test_a_big_linked_section_leaves_room_for_the_other_pages():
+    outline = [{"id": f"1:{i}", "name": f"S{i}", "page": "UI", "section": "Flow", "w": 400, "h": 800, "x": i * 500, "y": 0} for i in range(12)] \
+        + [{"id": f"2:{i}", "name": f"R{i}", "page": "Research", "section": "", "w": 1440, "h": 900, "x": i * 1600, "y": 0} for i in range(3)]
+    picked = figma._pick(outline, [f"1:{i}" for i in range(12)])
+    assert len(picked) == figma.MAX_SCREENS and sum(s["page"] == "Research" for s in picked) == 2  # pages take turns
+    assert [s["id"] for s in picked[:4]] == ["1:0", "1:1", "1:2", "1:3"]
 
 
 def test_screens_export_at_a_sensible_size():

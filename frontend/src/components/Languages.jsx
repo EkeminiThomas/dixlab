@@ -8,13 +8,18 @@ export const LANGS = {
 };
 const RTL = new Set(['ar']);
 
+// Fields a translation never replaces: links, addresses, images and files.
+const NOT_TRANSLATED = /^(link|href|url|website|linkedin|github|portfolio|behance|dribbble|twitter|instagram|bookingurl|email|phone|src|photo|poster|avatar|image|thumbnail|bgimage)$/i;
+
 /** The project with one translation swapped in ({ "path.to.field": "text" }). */
 export function applyTranslation(project, lang) {
   const overlay = project?.translations?.[lang];
   if (!overlay) return project;
   const out = structuredClone(project);
   for (const [path, text] of Object.entries(overlay)) {
+    if (typeof text !== 'string' || NOT_TRANSLATED.test(path.split('.').pop())) continue;
     const parts = path.split('.');
+    if (parts.some((p) => p === '__proto__' || p === 'constructor' || p === 'prototype')) continue;
     let node = out;
     for (const p of parts.slice(0, -1)) { node = node?.[Array.isArray(node) ? Number(p) : p]; if (node == null) break; }
     const last = parts[parts.length - 1];

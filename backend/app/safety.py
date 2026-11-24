@@ -55,8 +55,32 @@ def _scrub_text(value: str) -> str:
     return "" if m and m.group(1) in ("javascript", "vbscript") else value
 
 
+def _clean_translations(obj: Any) -> dict:
+    """translations = {lang: {"path.to.field": text}}. The page swaps each text into its
+    field, so a path ending in a link or media key is checked like that field would be
+    (a translated "projects.0.link" must not become a javascript: link)."""
+    out: dict = {}
+    if not isinstance(obj, dict):
+        return out
+    for lang, overlay in obj.items():
+        if not isinstance(overlay, dict) or not isinstance(lang, str) or len(lang) > 8:
+            continue
+        kept = {}
+        for path, text in overlay.items():
+            if not isinstance(path, str) or not isinstance(text, str):
+                continue
+            last = path.rsplit(".", 1)[-1].lower()
+            if last in MEDIA_KEYS:
+                continue  # images and files aren't translated
+            kept[path] = safe_link(text) if last in LINK_KEYS else _scrub_text(text)
+        out[lang] = kept
+    return out
+
+
 def clean(obj: Any, key: str | None = None) -> Any:  # same shape out as in (a dict stays a dict)
     """Return a copy of `obj` with unsafe links and media addresses removed."""
+    if isinstance(obj, dict) and (key or "").lower() == "translations":
+        return _clean_translations(obj)
     if isinstance(obj, dict):
         return {k: clean(v, k) for k, v in obj.items()}
     if isinstance(obj, list):

@@ -38,20 +38,26 @@ class Unreadable(Exception):
 
 # ---------------------------------------------------------------- safety
 
-def _public(host: str, port: int) -> bool:
+def _is_public_ip(raw: str) -> bool:
+    ip = ipaddress.ip_address(str(raw).split("%")[0])  # drop an IPv6 zone ("fe80::1%eth0")
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:  # "::ffff:10.0.0.1" is really 10.0.0.1
+        ip = ip.ipv4_mapped
+    return ip.is_global and not ip.is_multicast
+
+
+def public_addresses(host: str, port: int) -> list[str]:
+    """Every address `host` resolves to, in the system's order, if ALL of them are public;
+    [] if any is private, local or reserved (or it doesn't resolve)."""
     try:
         infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except (socket.gaierror, UnicodeError):
-        return False
-    if not infos:
-        return False
-    for info in infos:
-        ip = ipaddress.ip_address(str(info[4][0]).split("%")[0])  # drop an IPv6 zone ("fe80::1%eth0")
-        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:  # "::ffff:10.0.0.1" is really 10.0.0.1
-            ip = ip.ipv4_mapped
-        if not ip.is_global or ip.is_multicast:
-            return False
-    return True
+        return []
+    ips = list(dict.fromkeys(str(i[4][0]).split("%")[0] for i in infos))
+    return ips if ips and all(_is_public_ip(ip) for ip in ips) else []
+
+
+def _public(host: str, port: int) -> bool:
+    return bool(public_addresses(host, port))
 
 
 def check_url(url: str) -> str:
@@ -71,33 +77,47 @@ def check_url(url: str) -> str:
 
 # ---------------------------------------------------------------- fetching
 
-class _AnyFamily(httpx.BaseTransport):
-    """Connect like a browser does when one address family is broken: some networks
-    reach a host over IPv6 but not IPv4 (or the other way round), and httpx only tries
-    the first address it's given. When a connection can't be opened, try again over
-    IPv6 only, then IPv4 only. Nothing is retried once a connection is made."""
+class _Pinned(httpx.BaseTransport):
+    """Connects only to the addresses it has just checked are public.
+
+    Checking a host and then letting the connection look it up again would let a
+    domain whose DNS answers "public" for the check and "127.0.0.1" (or a cloud
+    metadata address) for the connection reach inside the server (DNS rebinding).
+    So the host is resolved once here, every address must be public, and the
+    connection is made to those exact addresses, with the real name kept for TLS
+    (certificate checks and SNI) and the Host header.
+
+    Each address is tried in turn, like a browser: some networks reach a host over
+    IPv6 but not IPv4 (or the other way round). Nothing is retried once connected."""
 
     def __init__(self):
-        self._tries = [httpx.HTTPTransport(), httpx.HTTPTransport(local_address="::"), httpx.HTTPTransport(local_address="0.0.0.0")]
+        self._t = httpx.HTTPTransport()
 
     def handle_request(self, request):
+        host = request.url.host
+        port = request.url.port or (443 if request.url.scheme == "https" else 80)
+        ips = public_addresses(host, port)
+        if not ips:
+            raise httpx.ConnectError("That address isn't a public website.", request=request)
         last = None
-        for t in self._tries:
+        for ip in ips:
+            pinned = httpx.Request(request.method, request.url.copy_with(host=ip), headers=request.headers,
+                                   stream=request.stream, extensions={**request.extensions, "sni_hostname": host})
             try:
-                return t.handle_request(request)
+                return self._t.handle_request(pinned)
             except (httpx.ConnectError, httpx.ConnectTimeout) as e:
                 last = e
         raise last  # type: ignore[misc]
 
     def close(self):
-        for t in self._tries:
-            t.close()
+        self._t.close()
 
 
 def client(timeout=None, **kw) -> httpx.Client:
-    """An httpx client for outside requests (no proxies from the environment, no automatic
-    redirects: callers check each hop), that copes with a broken IPv4 or IPv6 route."""
-    return httpx.Client(timeout=timeout or TIMEOUT, follow_redirects=False, trust_env=False, transport=_AnyFamily(), **kw)
+    """An httpx client for outside requests: public addresses only, pinned to the address
+    that was checked (see _Pinned), no proxies from the environment, and no automatic
+    redirects (callers check each hop)."""
+    return httpx.Client(timeout=timeout or TIMEOUT, follow_redirects=False, trust_env=False, transport=_Pinned(), **kw)
 
 
 def fetch(url: str, accept: str = "text/html,text/plain;q=0.9,*/*;q=0.1") -> tuple[str, str]:

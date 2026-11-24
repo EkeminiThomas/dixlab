@@ -124,18 +124,23 @@ def set_domain(project_id: str, body: DomainIn, user=Depends(current_user), db: 
     if not HOST.match(domain) or domain == own or any(r in domain for r in RESERVED):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Enter a domain you own, like alexmorgan.com or work.alexmorgan.com. "
                             f"For a free {config.SUBDOMAIN_BASE} address, use “Your Dixlab address”.")
-    taken = db.execute("SELECT user_id, project_id FROM domains WHERE domain = ?", (domain,)).fetchone()
+    taken = db.execute("SELECT user_id, project_id, verified_at, kind FROM domains WHERE domain = ?", (domain,)).fetchone()
     if taken and (taken["user_id"], taken["project_id"]) != (user["id"], project_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, "That domain is already connected to another Dixlab page.")
+        if taken["verified_at"] or taken["kind"] != "custom":
+            raise HTTPException(status.HTTP_409_CONFLICT, "That domain is already connected to another Dixlab page.")
+        # Someone else typed it in but never proved they own it: that mustn't lock out the
+        # real owner. Whoever adds the DNS record proves ownership.
+        db.execute("DELETE FROM domains WHERE domain = ?", (domain,))
+        events.log(db, "domain.unclaimed", taken["user_id"], domain=domain, by=user["id"])
     old = db.execute("SELECT * FROM domains WHERE user_id = ? AND project_id = ? AND kind = 'custom'", (user["id"], project_id)).fetchone()
     if old and old["domain"] == domain:
         return _out(old)
     if old:
         db.execute("DELETE FROM domains WHERE domain = ?", (old["domain"],))
         _vercel("DELETE", f"/v9/projects/{config.VERCEL_PROJECT_ID}/domains/{old['domain']}")
-    added = _vercel("POST", f"/v10/projects/{config.VERCEL_PROJECT_ID}/domains", {"name": domain})
+    # Not attached to the website's host yet: only once the DNS record proves it's theirs (check_domain).
     db.execute("INSERT INTO domains (domain, user_id, project_id, slug, token, vercel, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-               (domain, user["id"], project_id, pub["slug"], secrets.token_hex(12), "added" if added else None, now_ms()))
+               (domain, user["id"], project_id, pub["slug"], secrets.token_hex(12), None, now_ms()))
     events.log(db, "domain.added", user["id"], domain=domain)
     return _out(db.execute("SELECT * FROM domains WHERE domain = ?", (domain,)).fetchone())
 
@@ -151,7 +156,8 @@ def check_domain(project_id: str, user=Depends(current_user), db: sqlite3.Connec
     if owned and not row["verified_at"]:
         db.execute("UPDATE domains SET verified_at = ? WHERE domain = ?", (now_ms(), domain))
         events.log(db, "domain.verified", user["id"], domain=domain)
-    if row["vercel"] != "added" and _vercel("POST", f"/v10/projects/{config.VERCEL_PROJECT_ID}/domains", {"name": domain}):
+    verified = owned or bool(row["verified_at"])
+    if verified and row["vercel"] != "added" and _vercel("POST", f"/v10/projects/{config.VERCEL_PROJECT_ID}/domains", {"name": domain}):
         db.execute("UPDATE domains SET vercel = 'added' WHERE domain = ?", (domain,))
     out = _out(db.execute("SELECT * FROM domains WHERE domain = ?", (domain,)).fetchone())
     return {**out, "owned": owned, "pointed": pointed}

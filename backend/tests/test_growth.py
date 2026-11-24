@@ -55,9 +55,13 @@ def test_own_domains_are_free_to_connect(monkeypatch):
     txt = next(r for r in d["records"] if r["type"] == "TXT")
     assert txt["name"] == "_dixlab.dom.dev" and next(r for r in d["records"] if r["type"] == "A")["value"] == domains.A_TARGET
     assert c.get("/api/domains/resolve?host=dom.dev").json() == {"slug": None}            # not verified yet
+    # An unverified claim doesn't lock the domain: someone else can claim it, and whoever adds
+    # the DNS record first proves it's theirs. (Squatting someone's domain used to block them.)
     other = sign_up(c, "dom-other@example.com")
     _publish(c, other, "p-d2", {"type": "portfolio", "template": "folio", "name": "Other"})
-    assert c.put("/api/projects/p-d2/domain", json={"domain": "dom.dev"}, headers=other).status_code == 409
+    assert c.put("/api/projects/p-d2/domain", json={"domain": "dom.dev"}, headers=other).status_code == 200
+    d = c.put("/api/projects/p-d/domain", json={"domain": "dom.dev"}, headers=h).json()   # the real owner takes it back
+    txt = next(r for r in d["records"] if r["type"] == "TXT")
 
     r = c.post("/api/projects/p-d/domain/check", headers=h).json()
     assert not r["owned"] and not r["verified"]
@@ -67,6 +71,9 @@ def test_own_domains_are_free_to_connect(monkeypatch):
     assert r["owned"] and r["pointed"] and r["verified"]
     assert c.get("/api/domains/resolve?host=dom.dev").json() == {"slug": slug}
     assert c.get("/api/domains/resolve?host=www.dom.dev").json() == {"slug": slug}
+    # Once verified, nobody else can take it.
+    assert c.put("/api/projects/p-d2/domain", json={"domain": "dom.dev"}, headers=other).status_code == 409
+    assert c.get("/api/domains/resolve?host=dom.dev").json() == {"slug": slug}
     assert c.delete("/api/projects/p-d/domain", headers=h).status_code == 204
     assert c.get("/api/domains/resolve?host=dom.dev").json() == {"slug": None}
 
