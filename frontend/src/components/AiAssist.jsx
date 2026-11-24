@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { assistTailorCv, assistProfiles, cvCheck, isSignedIn, usePlan } from '../api.js';
+import { FigmaAccess, FigmaFilePicker, useFigmaReturn } from './FigmaAccess.jsx';
 
 /*
  * The editor's AI assistant.
@@ -54,10 +55,12 @@ function Sources({ sources }) {
 export default function AiAssist({ kind, project, onApply }) {
   const { plan } = usePlan();
   const isCv = kind === 'cv';
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => Boolean(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('figma')));
   const [tab, setTab] = useState(isCv ? 'job' : 'profiles');
   const [jobUrl, setJobUrl] = useState('');
   const [figmaToken, setFigmaToken] = useState('');  // this request only: never saved
+  const [figmaLinks, setFigmaLinks] = useState([]);
+  const figmaBack = useFigmaReturn();  // back from Figma's sign-in: open the assistant again
   const [jobText, setJobText] = useState('');
   const [links, setLinks] = useState(START_LINKS);
   const [text, setText] = useState('');
@@ -98,7 +101,8 @@ export default function AiAssist({ kind, project, onApply }) {
     return { type: 'job', ...res, experience: cv.experience };
   });
   const readProfiles = () => run(async () => {
-    const res = await assistProfiles({ kind, urls: profileUrls(links), text: text.trim(), ...(figmaToken.trim() ? { figmaToken: figmaToken.trim() } : {}) });
+    const urls = [...profileUrls(links), ...(isCv ? [] : figmaLinks)];
+    const res = await assistProfiles({ kind, urls, text: text.trim(), ...(figmaToken.trim() ? { figmaToken: figmaToken.trim() } : {}) });
     return { type: 'profiles', ...res };
   });
 
@@ -180,20 +184,20 @@ export default function AiAssist({ kind, project, onApply }) {
       {signedIn && tab === 'profiles' && (
         <div className="aia__body">
           <p className="aia__lead">Paste your public profiles. We’ll read your work, the products you build and how you solve problems, then {isCv ? 'draft your CV' : 'write your portfolio'} from them.</p>
-          <ProfileLinks rows={links} onChange={setLinks} portfolio={!isCv} />
-          {!isCv && links.some((r) => r.platform === 'figma' && r.value.trim()) && (
-            <label className="field">
-              <span className="field__label">Figma access token <em className="field__opt">needed for Figma</em></span>
-              <input className="field__input" type="password" value={figmaToken} onChange={(e) => setFigmaToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder="figd_…" />
-              <small className="field__hint">Figma profiles only open for signed-in people, so we read your files with your own token. In Figma: Settings → Security → Personal access tokens, with “File content: read only” and “Projects: read only”. Used for this read only, never saved.</small>
-            </label>
+          <ProfileLinks rows={links} onChange={setLinks} />
+          {!isCv && (
+            <section className="fgs" aria-label="Figma">
+              <p className="fgs__h"><b>Figma</b> <span>For designers: your design files become portfolio projects, each with its picture.</span></p>
+              <FigmaAccess token={figmaToken} onToken={setFigmaToken} back={figmaBack} />
+              <FigmaFilePicker token={figmaToken} onChange={setFigmaLinks} />
+            </section>
           )}
           <label className="field">
             <span className="field__label">Text from LinkedIn or X <em className="field__opt">optional</em></span>
             <textarea className="field__input aia__text" value={text} onChange={(e) => setText(e.target.value)} placeholder="LinkedIn and X only show profiles to signed-in members, so we can’t read them. Copy your About and Experience sections, or a few posts, and paste them here." />
           </label>
           <div className="aia__row">
-            <button type="button" className="app-btn app-btn--primary" disabled={busy || (!profileUrls(links).length && text.trim().length < 40)} onClick={readProfiles}>
+            <button type="button" className="app-btn app-btn--primary" disabled={busy || (!profileUrls(links).length && !figmaLinks.length && text.trim().length < 40)} onClick={readProfiles}>
               {busy ? <><span className="cz__spin" aria-hidden /> Reading your profiles…</> : 'Read my profiles'}
             </button>
             <small className="aia__cost">15 credits{busy ? ' · this can take up to a minute' : ''}</small>
@@ -376,8 +380,6 @@ const PLATFORMS = [
   { id: 'devto', label: 'Dev.to', prefix: 'dev.to/', placeholder: 'yourname', hint: 'Your articles and tags' },
   { id: 'hashnode', label: 'Hashnode', prefix: '', placeholder: 'yourname.hashnode.dev', hint: 'Your blog’s address' },
   { id: 'website', label: 'Website', prefix: '', placeholder: 'yoursite.com', hint: 'Your personal site or blog', many: true },
-  { id: 'figma', label: 'Figma', prefix: '', placeholder: 'figma.com/@you, a team link or a file link', many: true, portfolio: true,
-    hint: 'Your design files: what’s on them, and a picture of each. Add your profile for your name and photo, and a team link (open your team in Figma and copy the address) for your files.' },
 ];
 const BY_ID = Object.fromEntries(PLATFORMS.map((x) => [x.id, x]));
 const START_LINKS = [{ key: 'github', platform: 'github', value: '' }];
@@ -395,9 +397,9 @@ function toUrl({ platform, value }) {
 }
 export const profileUrls = (rows) => rows.map(toUrl).filter(Boolean);
 
-function ProfileLinks({ rows, onChange, portfolio = false }) {
+function ProfileLinks({ rows, onChange }) {
   const [menu, setMenu] = useState(false);
-  const available = PLATFORMS.filter((x) => (!x.portfolio || portfolio) && (x.many || !rows.some((r) => r.platform === x.id)));
+  const available = PLATFORMS.filter((x) => x.many || !rows.some((r) => r.platform === x.id));
   const add = (id) => {
     onChange([...rows, { key: `${id}-${Date.now()}`, platform: id, value: '', fresh: true }]);
     setMenu(false);

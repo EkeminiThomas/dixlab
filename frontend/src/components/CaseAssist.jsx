@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { assistCaseLinks, caseCheck, caseProjects, isSignedIn, request, usePlan } from '../api.js';
 import { embedFor, FIGMA_LINK } from './case/extras.jsx';
 import { MAX_GALLERY } from './case/data.js';
+import { FigmaAccess, useFigmaReturn } from './FigmaAccess.jsx';
 import { FONT_PAIRS } from './sites/brand.js';
 
 /*
@@ -65,7 +66,7 @@ const isEmptyCase = (p) => !['title', 'problem', 'solution', 'notes', 'contribut
 
 export default function CaseAssist({ project, onApply }) {
   const { plan } = usePlan();
-  const [open, setOpen] = useState(() => isEmptyCase(project));
+  const [open, setOpen] = useState(() => isEmptyCase(project) || Boolean(typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('figma')));
   const [tab, setTab] = useState('profile');
   const [profile, setProfile] = useState('');
   const [found, setFound] = useState(null);
@@ -78,7 +79,7 @@ export default function CaseAssist({ project, onApply }) {
   const [result, setResult] = useState(null);
   const [undo, setUndo] = useState(null);
   const [figmaToken, setFigmaToken] = useState('');  // only for this request: never saved
-  const [showToken, setShowToken] = useState(false);
+  const figmaBack = useFigmaReturn();  // back from Figma's sign-in
   const [screens, setScreens] = useState(true);
   const [useBrand, setUseBrand] = useState(true);
   const hasFigma = links.some((l) => /figma\.com\/(file|design|proto|board|slides|deck)\//i.test(l));
@@ -166,13 +167,7 @@ export default function CaseAssist({ project, onApply }) {
               placeholder="github.com/you · gitlab.com/you · huggingface.co/you · a Figma team or file link" />
             <button type="submit" className="app-btn app-btn--primary" disabled={!profileUrl || finding || busy}>{finding ? 'Looking…' : 'Find my projects'}</button>
           </form>
-          {profileIsFigma && (
-            <label className="field">
-              <span className="field__label">Figma access token <em className="field__opt">needed for teams and private files</em></span>
-              <input className="field__input" type="password" value={figmaToken} onChange={(e) => setFigmaToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder="figd_…" />
-              <small className="field__hint">In Figma: Settings → Security → Personal access tokens, with “File content: read only” and “Projects: read only”. Used for this read only, never saved.</small>
-            </label>
-          )}
+          {profileIsFigma && <FigmaAccess token={figmaToken} onToken={setFigmaToken} back={figmaBack} />}
           {found && !found.single && (
             <ul className="aia__projects">
               {found.projects.map((p) => (
@@ -207,15 +202,7 @@ export default function CaseAssist({ project, onApply }) {
             <div className="aia__figma">
               <label className="aia__check"><input type="checkbox" checked={screens} onChange={(e) => setScreens(e.target.checked)} />
                 <span>Add pictures from the project: README and repo screenshots, the live site’s preview, Figma screens <small>(uses your storage)</small></span></label>
-              {hasFigma && (!showToken ? (
-                <button type="button" className="aia__add" onClick={() => setShowToken(true)}>Add your Figma access token (recommended: works for private files and uses your own Figma limits)</button>
-              ) : (
-                <label className="field">
-                  <span className="field__label">Figma access token <em className="field__opt">recommended</em></span>
-                  <input className="field__input" type="password" value={figmaToken} onChange={(e) => setFigmaToken(e.target.value)} autoComplete="off" spellCheck={false} placeholder="figd_…" />
-                  <small className="field__hint">In Figma: Settings → Security → Personal access tokens, with “File content: read only”. We use it for this one read and never save it. Without it we try with Dixlab’s own access, which only opens files shared as “Anyone with the link can view” and is limited by Figma to a few reads a month.</small>
-                </label>
-              ))}
+              {hasFigma && <FigmaAccess token={figmaToken} onToken={setFigmaToken} back={figmaBack} />}
             </div>
           )}
           <label className="field">

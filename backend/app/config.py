@@ -27,6 +27,12 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "").strip()
 # Figma link get the file's screens as images, its words, fonts, colours and structure.
 # It opens files shared as "Anyone with the link can view"; without it only the title is read.
 FIGMA_TOKEN = os.getenv("FIGMA_TOKEN", "").strip()
+# "Connect Figma" (OAuth): a public Figma app's client ID and secret. Without them the button is
+# hidden and people paste a personal access token instead. Figma reviews public apps before anyone
+# can connect. The return address to register in the app: <DIXLAB_PUBLIC_URL>/api/figma/callback
+FIGMA_CLIENT_ID = os.getenv("FIGMA_CLIENT_ID", "").strip()
+FIGMA_CLIENT_SECRET = os.getenv("FIGMA_CLIENT_SECRET", "").strip()
+FIGMA_OAUTH_SCOPES = os.getenv("FIGMA_OAUTH_SCOPES", "current_user:read,file_content:read").strip()
 UPLOAD_DIR = _path("DIXLAB_UPLOADS", BASE_DIR / "uploads")
 CORS_ORIGINS = [o.strip() for o in os.getenv(
     "DIXLAB_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173"

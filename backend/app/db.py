@@ -135,6 +135,25 @@ CREATE TABLE IF NOT EXISTS domains (
     created_at  INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_domains_owner ON domains(user_id, project_id);
+-- "Connect Figma": a person's Figma sign-in (OAuth), tokens encrypted (figma_auth.py).
+CREATE TABLE IF NOT EXISTS figma_connections (
+    user_id       TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    access_token  TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expires_at    INTEGER NOT NULL,     -- ms
+    figma_user    TEXT NOT NULL DEFAULT '',
+    handle        TEXT NOT NULL DEFAULT '',
+    photo         TEXT NOT NULL DEFAULT '',
+    created_at    INTEGER NOT NULL
+);
+-- One-time "state" values for the Figma sign-in round trip (stops another site linking its account to yours).
+CREATE TABLE IF NOT EXISTS figma_oauth_states (
+    state      TEXT PRIMARY KEY,
+    user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    return_to  TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
 -- Domains bought in Dixlab (through pxxl.app). Paid with Bachs first, then registered.
 -- status: awaiting_payment -> paid -> registering -> active, or failed (refunded).
 CREATE TABLE IF NOT EXISTS domain_orders (

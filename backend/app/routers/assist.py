@@ -226,7 +226,8 @@ def from_profiles(body: ProfilesIn, user=Depends(current_user), db=Depends(get_d
     fig = {"text": "", "sources": [], "files": [], "me": {}}
     from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=2) as pool:  # Figma and the other profiles are read at the same time
-        fig_job = pool.submit(figma_portfolio.gather, fig_urls, body.figmaToken.strip()) if fig_urls else None
+        from .. import figma_auth
+        fig_job = pool.submit(figma_portfolio.gather, fig_urls, figma_auth.pick(db, user["id"], body.figmaToken)) if fig_urls else None
         pages, sources = webread.gather(others, PROFILE_CHARS) if others else ("", [])
         if fig_job:
             fig = fig_job.result()
@@ -595,14 +596,15 @@ class CaseProjectsIn(BaseModel):
 
 
 @router.post("/case-projects")
-def case_projects(body: CaseProjectsIn, user=Depends(current_user)):
+def case_projects(body: CaseProjectsIn, user=Depends(current_user), db=Depends(get_db)):
     """The projects on a profile (GitHub, GitLab, Hugging Face, a Figma team or project),
     strongest first, to build a case study from with one click. Free: no AI."""
     from .. import figma, profile_projects
     if ai.rate_limited(user["id"]):
         return ai.error(429, "Too many requests. Try again in a moment.")
     try:
-        found = profile_projects.projects(body.url, body.figmaToken.strip())
+        from .. import figma_auth
+        found = profile_projects.projects(body.url, figma_auth.pick(db, user["id"], body.figmaToken))
     except figma.FigmaError as e:
         return ai.error(422, str(e))
     except webread.Unreadable as e:
@@ -624,8 +626,8 @@ def case_from_links(body: CaseLinksIn, user=Depends(current_user), db=Depends(ge
     blocked = ai.guard(user["id"], "assist_case_links")
     if blocked:
         return blocked
-    from .. import figma
-    own = body.figmaToken.strip()
+    from .. import figma, figma_auth
+    own = figma_auth.pick(db, user["id"], body.figmaToken)  # a pasted token, else their Connect Figma sign-in
     api_url = next((u for u in body.urls if figma.parse_url(u)), None) if figma.available(own) else None
     others = [u for u in body.urls if u != api_url]
     with ThreadPoolExecutor(max_workers=2) as pool:  # Figma and the other links are read at the same time

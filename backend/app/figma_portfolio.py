@@ -20,6 +20,9 @@ from .webread import Unreadable
 MAX_FILES = 6
 READ_IN_FULL = 3
 PROFILE = re.compile(r"^https?://(?:www\.)?figma\.com/@([A-Za-z0-9_.\-]{1,60})", re.I)
+# Profile links (figma.com/@name) only bring a name and photo (Figma doesn't share a profile's
+# files with apps), so they're switched off for now and quietly skipped. True brings them back.
+READ_PROFILES = False
 
 
 def is_figma(url: str) -> bool:
@@ -32,21 +35,23 @@ def gather(urls: list[str], own_token: str) -> dict:
     sources, files, me, notes = [], [], {}, []
     for url in urls:
         m = PROFILE.match(url)
+        if m and not READ_PROFILES:
+            continue
         try:
             if m:
                 if not own_token.strip():
-                    raise Unreadable("Figma profiles only open for people signed in to Figma. Add your Figma access token, "
-                                     "and your team link (open your team in Figma and copy the address) to bring in your designs.")
+                    raise Unreadable("Figma profiles only open for people signed in to Figma. Connect Figma (or add a Figma access "
+                                     "token), and add your files’ links to bring in your designs.")
                 who = figma._get("/me", figma.token_for(own_token))
                 # /v1/me gives {id, email, handle, img_url}; "handle" is their display name. Their email isn't used.
                 me = {"name": str(who.get("handle") or "")[:80], "handle": m.group(1)[:60], "photo": str(who.get("img_url") or "")}
                 notes.append(f"Figma profile: {me['name'] or me['handle']} (@{me['handle']}).")
                 tip = None if any(not PROFILE.match(u) for u in urls if is_figma(u)) else \
-                    "Figma doesn’t list a profile’s files to other apps. Add your team link to bring in your designs too."
+                    "Figma doesn’t list a profile’s files to other apps. Add your files’ links to bring in your designs too."
                 sources.append({"url": url, "platform": "figma", "read": True, "tip": tip, "detail": f"@{me['handle']}"})
                 continue
             if not token:
-                raise Unreadable("Add your Figma access token to read your Figma files.")
+                raise Unreadable("Connect Figma (or add a Figma access token) to read your Figma files.")
             listed = profile_projects.projects(url, own_token)["projects"]
             for p in listed:
                 if all(f["link"] != p["links"][0] for f in files):

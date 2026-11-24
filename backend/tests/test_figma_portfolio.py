@@ -29,9 +29,19 @@ def fake_read(url, own_token=None):
     return {"name": "Clinic booking" if "AbCd" in url else "Ledger app", "thumbnail": "", "text": f"Figma design file: pages Research, Final UI ({url})"}
 
 
-def test_a_figma_profile_without_a_token_explains_what_to_do():
+def test_figma_profile_links_are_skipped_for_now():
+    """A profile only brings a name and photo (Figma doesn't share its files), so it's skipped quietly."""
+    got = figma_portfolio.gather(["https://www.figma.com/@ada"], "figd_" + "x" * 30)
+    assert got == {"text": "", "sources": [], "files": [], "me": {}}
+
+
+def test_profile_links_still_work_when_switched_back_on(monkeypatch):
+    monkeypatch.setattr(figma_portfolio, "READ_PROFILES", True)
+    monkeypatch.setattr(figma, "_get", fake_get)
     got = figma_portfolio.gather(["https://www.figma.com/@ada"], "")
-    assert got["sources"][0]["read"] is False and "access token" in got["sources"][0]["tip"] and "team link" in got["sources"][0]["tip"]
+    assert got["sources"][0]["read"] is False and "Connect Figma" in got["sources"][0]["tip"]
+    got = figma_portfolio.gather(["https://www.figma.com/@ada"], "figd_" + "x" * 30)
+    assert got["me"] == {"name": "Ada Obi", "handle": "ada", "photo": "https://s3.example/ada.png"}
 
 
 def test_figma_links_become_design_projects_with_pictures(monkeypatch):
@@ -64,16 +74,15 @@ def test_figma_links_become_design_projects_with_pictures(monkeypatch):
     d = body["draft"]
     system, content = prompts[0]
     assert "Figma design files are their own design work" in system
-    assert "Figma profile: Ada Obi (@ada)" in content and "Clinic booking" in content and "Ledger app" in content
-    assert d["name"] == "Ada Obi" and d["photo"].startswith("/uploads/")                      # from the Figma profile
+    assert "Figma profile" not in content and "Clinic booking" in content and "Ledger app" in content   # the profile link is skipped
+    assert d["name"] == "" and not d.get("photo")
     titles = [p["title"] for p in d["projects"]]
     assert titles == ["Clinic booking", "Ledger app"]                                           # a file the AI left out is added
     assert all(p["media"][0]["src"].startswith("/uploads/") for p in d["projects"])          # each with its thumbnail
     assert d["projects"][0]["link"].startswith("https://www.figma.com/design/AbCdEfGhIj12/")
-    assert ("https://s3.example/ada.png", 96) in downloaded                                    # a small photo is fine
-    assert [s["detail"] for s in body["sources"]] == ["@ada", "2 files"]
+    assert [s["detail"] for s in body["sources"]] == ["2 files"]
     # The pictures are the person's uploads: they're served.
-    assert c.get(d["photo"]).status_code == 200
+    assert c.get(d["projects"][0]["media"][0]["src"]).status_code == 200
 
 
 def test_cvs_dont_read_figma(monkeypatch):

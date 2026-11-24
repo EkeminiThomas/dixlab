@@ -30,7 +30,7 @@ log = logging.getLogger("dixlab.figma")
 API = "https://api.figma.com/v1"
 TIMEOUT = httpx.Timeout(25.0, connect=6.0)
 MAX_JSON = 25 * 1024 * 1024          # a file's outline or picked screens, as JSON
-MAX_SCREENS = 8                      # images added to the gallery (the case study holds 8)
+MAX_SCREENS = 10                      # images added to the gallery (the case study holds 10)
 MAX_TEXT = 6000                      # characters of the file described for the AI
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-]{20,200}$")
 URL_RE = re.compile(r"^https?://(?:www\.)?figma\.com/(file|design|proto|board|slides|deck)/([A-Za-z0-9]{10,64})"
@@ -82,10 +82,18 @@ def parse_url(url: str) -> tuple[str, str, str | None] | None:
 
 
 def token_for(own: str | None) -> str:
+    """Their own access: a pasted personal token, or 'Bearer <token>' from Connect Figma
+    (figma_auth). Otherwise the server's token, if it has one."""
     own = (own or "").strip()
+    if own.startswith("Bearer ") and re.fullmatch(r"[A-Za-z0-9_\-.~+/=]{20,2000}", own[7:]):
+        return own
     if own and TOKEN_RE.match(own):
         return own
     return config.FIGMA_TOKEN
+
+
+def _auth_header(token: str) -> dict:
+    return {"Authorization": token} if token.startswith("Bearer ") else {"X-Figma-Token": token}
 
 
 def available(own: str | None = None) -> bool:
@@ -98,7 +106,7 @@ def _get(path: str, token: str, params: dict | None = None) -> dict:
     url = f"{API}{path}"
     try:
         with webread.client(TIMEOUT) as client, \
-                client.stream("GET", url, params=params, headers={"X-Figma-Token": token, "Accept": "application/json"}) as r:
+                client.stream("GET", url, params=params, headers={**_auth_header(token), "Accept": "application/json"}) as r:
             if r.status_code in (401, 403):
                 raise FigmaError("Figma didn’t let us open that file. Set its sharing to “Anyone with the link can view”, "
                                  "or add your own Figma access token so we can open your private files.")

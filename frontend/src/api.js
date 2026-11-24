@@ -501,6 +501,11 @@ export const sendContact = (slug, { name, email, message, website = '' }) =>
 export const interviewNext = (transcript, hint, kind = 'case') => request('/api/interview/next', { method: 'POST', body: { transcript, hint, kind } });
 export const assistCaseLinks = (body) => request('/api/assist/case-from-links', { method: 'POST', body });
 export const caseProjects = (body) => request('/api/assist/case-projects', { method: 'POST', body });
+// Connect Figma, and turning pasted Figma links into a list of files to pick from.
+export const figmaStatus = () => request('/api/figma/status');
+export const figmaConnect = (returnTo) => request('/api/figma/connect', { method: 'POST', body: { returnTo } });
+export const figmaDisconnect = () => request('/api/figma/connection', { method: 'DELETE' });
+export const figmaFiles = (body) => request('/api/figma/files', { method: 'POST', body });
 export const caseCheck = (c) => request('/api/assist/case-check', { method: 'POST', body: { case: c } });
 export const cvCheck = (cv) => request('/api/assist/cv-check', { method: 'POST', body: { cv } });
 export const assistTailorCv = (body) => request('/api/assist/tailor-cv', { method: 'POST', body });
