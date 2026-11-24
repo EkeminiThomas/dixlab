@@ -151,6 +151,8 @@ class ProfilesIn(BaseModel):
     kind: Literal["cv", "portfolio"] = "cv"
     urls: list[str] = Field(default_factory=list, max_length=MAX_LINKS)
     text: str = Field(default="", max_length=15000, description="Profile text the person pasted (LinkedIn, X, ...).")
+    # Their own Figma access token (Figma profile, team, project or file links). This request only, never stored.
+    figmaToken: str = Field(default="", max_length=200)
 
     @field_validator("urls")
     @classmethod
@@ -205,11 +207,12 @@ Rules:
 - Use only what the text says. Never invent employers, dates, numbers, projects, users, stars, awards or skills. Leave a field empty ("" or []) when the text doesn't say.
 - Show how they think: in project descriptions and bullets, name the problem, what they did about it and what came of it, when the text says.
 - Concrete and short. Lead with outcomes and what the thing does, not with the technology.
+- Figma design files are their own design work: make each one a project, with the file's link as its link. Say what the product is and who it's for from its pages and the words on its screens; the page and frame names show how they worked (research, flows, wireframes, final UI). Their role is designer unless the text says otherwise. A file's numbers (screens, components) are not results.
 - """ + SOURCE_RULE + cvstandard.SEP + SOURCES_GUIDE
 
 
 @router.post("/profiles")
-def from_profiles(body: ProfilesIn, user=Depends(current_user)):
+def from_profiles(body: ProfilesIn, user=Depends(current_user), db=Depends(get_db)):
     if not body.urls and len(body.text.strip()) < 40:
         return ai.error(400, "Paste at least one profile link, or some profile text.")
     blocked = ai.guard(user["id"], "assist_profiles")
@@ -217,7 +220,19 @@ def from_profiles(body: ProfilesIn, user=Depends(current_user)):
         return blocked
     kind = "CV" if body.kind == "cv" else "portfolio website"
     pasted = body.text.strip()[:PASTED_CHARS]
-    pages, sources = webread.gather(body.urls, PROFILE_CHARS)
+    from .. import figma_portfolio
+    fig_urls = [u for u in body.urls if figma_portfolio.is_figma(u)] if body.kind == "portfolio" else []
+    others = [u for u in body.urls if u not in fig_urls]
+    fig = {"text": "", "sources": [], "files": [], "me": {}}
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=2) as pool:  # Figma and the other profiles are read at the same time
+        fig_job = pool.submit(figma_portfolio.gather, fig_urls, body.figmaToken.strip()) if fig_urls else None
+        pages, sources = webread.gather(others, PROFILE_CHARS) if others else ("", [])
+        if fig_job:
+            fig = fig_job.result()
+    if fig["text"]:
+        pages = (pages + "\n\n=== Figma\n" + fig["text"]).strip()
+    sources = fig["sources"] + sources
     if not pages and len(pasted) < 40:  # nothing to go on: not charged
         return ai.error(422, "We couldn’t read any of those links. Paste the profile text instead.", sources=sources)
     content = (f"PROFILE PAGES\n{pages}\n\n" if pages else "") + (f"TEXT THE PERSON PASTED FROM THEIR PROFILES\n{pasted}" if pasted else "")
@@ -237,7 +252,90 @@ def from_profiles(body: ProfilesIn, user=Depends(current_user)):
             "projects": [{"title": p["title"], "desc": p["desc"], "link": p["link"], "role": p["role"], "year": p["year"],
                           "tools": ", ".join(p["tools"]), "details": p["details"]} for p in d["projects"]],
         }
+        try:  # the draft is already paid for: a problem with the pictures must not lose it
+            _portfolio_pictures(db, user["id"], draft, fig)
+        except Exception:  # noqa: BLE001
+            log.exception("portfolio pictures couldn't be saved")
     return {"draft": draft, "insights": d["insights"], "sources": sources}
+
+
+MAX_PROJECT_PICTURES = 6
+
+
+def _portfolio_pictures(db, user_id: str, draft: dict, fig: dict) -> None:
+    """A picture for each project, saved as the person's uploads (when there's room):
+      - a Figma file: its Figma thumbnail (design files the AI left out are added too);
+      - a GitHub / GitLab repository or a website: the best picture the project has (the site's
+        preview, README or repo screenshots, else the repository's preview card);
+    and the Figma profile photo as the portfolio's photo."""
+    import secrets
+    from .. import figma, project_images
+    from concurrent.futures import ThreadPoolExecutor
+    if not draft.get("name") and fig["me"].get("name"):
+        draft["name"] = fig["me"]["name"]
+    key = lambda u: (figma.parse_url(u) or (None, u))[1]  # noqa: E731  (a Figma file's key: links differ in their name part)
+    projects = draft["projects"]
+    for f in fig["files"]:
+        hit = next((p for p in projects if p.get("link") and key(p["link"]) == key(f["link"])), None)
+        if hit is None and f["title"]:
+            hit = next((p for p in projects if p.get("title", "").strip().lower() == f["title"].strip().lower()), None)
+        if hit:
+            hit["link"] = f["link"]
+        elif len(projects) < 8:  # a design file the AI left out still belongs in their portfolio
+            projects.append({"title": f["title"] or "Design file", "desc": "", "link": f["link"], "role": "Designer",
+                             "year": "", "tools": "Figma", "details": ""})
+    thumbs = {key(f["link"]): f["thumb"] for f in fig["files"] if f.get("thumb")}
+    room = _room(db, user_id)
+    if room < 512 * 1024:
+        return
+
+    def link_of(p) -> str:
+        u = str(p.get("link") or "").strip()
+        return u if not u or u.startswith(("http://", "https://")) else f"https://{u}"
+
+    def picture(job):
+        """(bytes, ext, ctype) for one job, or None."""
+        what, url = job
+        if what == "photo" or what.startswith("thumb:"):
+            with project_images.webread.client(project_images.TIMEOUT) as client:
+                return project_images.download(url, client, min_width=96 if what == "photo" else 320)
+        got = project_images.collect([url])  # a repository or a site: its best picture
+        return (got[0]["data"], got[0]["ext"], got[0]["ctype"]) if got else None
+
+    jobs = []
+    for i, p in enumerate(projects):
+        u = link_of(p)
+        if p.get("media") or not u or len(jobs) >= MAX_PROJECT_PICTURES:
+            continue
+        if figma.parse_url(u):
+            if key(u) in thumbs:
+                jobs.append((f"thumb:{i}", thumbs[key(u)]))
+        elif webread.platform(u) in ("github", "gitlab", "huggingface", "web"):
+            jobs.append((f"project:{i}", u))
+    if fig["me"].get("photo") and not draft.get("photo"):
+        jobs.append(("photo", fig["me"]["photo"]))
+    if not jobs:
+        return
+    with ThreadPoolExecutor(max_workers=4) as pool:  # every project's picture is fetched at the same time
+        got = list(pool.map(picture, jobs))
+    saved, used = {}, 0
+    for (what, _), g in zip(jobs, got):
+        if not g or used + len(g[0]) > room:
+            continue
+        name = f"{secrets.token_hex(16)}.{g[1]}"
+        (config.UPLOAD_DIR / name).write_bytes(g[0])
+        used += len(g[0])
+        saved[what] = {"file": name, "size": len(g[0]), "ctype": g[2], "caption": ""}
+    cover, gallery, _down = _store(db, user_id, list(saved.values()), "portfolio")
+    stored = {it["src"] for it in ([cover] if cover else []) + gallery}
+    for what, item in saved.items():
+        src = f"/uploads/{item['file']}"
+        if src not in stored:
+            continue  # the virus scan refused it, or the scanner was down
+        if what == "photo":
+            draft["photo"] = src
+        else:
+            projects[int(what.split(":")[1])]["media"] = [{"src": src, "type": "image", "caption": ""}]
 
 
 def _cv_fields(d: dict) -> dict:
@@ -434,7 +532,7 @@ def _store(db, user_id: str, saved: list[dict], source: str) -> tuple[dict | Non
         events.log(db, f"{source}.images", user_id, count=len(saved))
     if not cover and gallery:
         cover = {**gallery[0], "caption": ""}
-        if source != "figma":  # the first picture is the cover; don't show it twice
+        if source == "project":  # case study pictures: the first is the cover; don't show it twice
             gallery = gallery[1:]
     return cover, gallery, unscanned
 

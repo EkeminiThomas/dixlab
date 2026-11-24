@@ -282,7 +282,7 @@ class AdminIn(BaseModel):
 
 @router.patch("/users/{user_id}/admin")
 def set_admin(user_id: str, body: AdminIn, admin=Depends(require_admin), db: sqlite3.Connection = Depends(get_db)):
-    row = _get_user(db, user_id)
+    _get_user(db, user_id)  # 404 if the user doesn't exist
     if not body.isAdmin:
         _not_self(admin, user_id, "remove admin from")
     db.execute("UPDATE users SET is_admin = ? WHERE id = ?", (1 if body.isAdmin else 0, user_id))

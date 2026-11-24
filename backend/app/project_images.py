@@ -179,13 +179,13 @@ def width(data: bytes) -> int:
     return size(data)[0]
 
 
-def looks_like_a_picture(data: bytes) -> bool:
+def looks_like_a_picture(data: bytes, min_width: int = MIN_WIDTH) -> bool:
     """Big enough to show, and not shaped like a logo, banner or badge (very wide and short)."""
     w, h = size(data)
-    return w >= MIN_WIDTH and h >= 200 and w / max(h, 1) <= 3.2
+    return w >= min_width and h >= min(200, min_width) and w / max(h, 1) <= 3.2
 
 
-def download(url: str, client: httpx.Client, deadline: float | None = None) -> tuple[bytes, str, str] | None:
+def download(url: str, client: httpx.Client, deadline: float | None = None, min_width: int = MIN_WIDTH) -> tuple[bytes, str, str] | None:
     """(bytes, extension, content type) of a public image, or None (also when it's too big
     or too slow: past `deadline`, a time.monotonic() value)."""
     import time
@@ -213,7 +213,7 @@ def download(url: str, client: httpx.Client, deadline: float | None = None) -> t
         except (httpx.HTTPError, Unreadable):
             return None
         kind = _kind(bytes(data[:16]))
-        if not kind or not looks_like_a_picture(bytes(data)):
+        if not kind or not looks_like_a_picture(bytes(data), min_width):
             return None
         return bytes(data), kind[0], kind[1]
     return None

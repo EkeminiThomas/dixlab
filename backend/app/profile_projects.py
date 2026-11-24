@@ -136,8 +136,9 @@ def figma_files(kind: str, ident: str, own_token: str | None) -> list[dict]:
             if not f.get("key"):
                 continue
             link = f"https://www.figma.com/design/{f['key']}/{quote(re.sub(r'[^A-Za-z0-9]+', '-', f.get('name', 'file')).strip('-') or 'file')}"
-            out.append((f.get("last_modified", ""), _project(f.get("name", "Figma file"), pr.get("name", ""), [link],
-                                                            [f"edited {str(f.get('last_modified', ''))[:10]}"], link, "Figma file")))
+            proj = _project(f.get("name", "Figma file"), pr.get("name", ""), [link], [f"edited {str(f.get('last_modified', ''))[:10]}"], link, "Figma file")
+            proj["thumb"] = str(f.get("thumbnail_url") or "")  # Figma's own preview of the file (a temporary image link)
+            out.append((f.get("last_modified", ""), proj))
     if not out:
         raise NoProjects("That Figma team or project has no files we can open with this token.")
     out.sort(key=lambda x: x[0], reverse=True)  # most recently edited first

@@ -11,7 +11,7 @@ import secrets
 import sqlite3
 import time
 
-from fastapi import Depends, Header, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, Response, status
 
 from .config import PRODUCTION, SESSION_DAYS, SESSION_IDLE_DAYS
 from .db import get_db

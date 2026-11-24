@@ -7,7 +7,7 @@ import secrets
 import sqlite3
 import zipfile
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 
 from ..config import MAX_FILE_BYTES, MAX_UPLOAD_BYTES, MAX_VIDEO_BYTES, UPLOAD_DIR
