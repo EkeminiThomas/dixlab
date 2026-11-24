@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { assistCaseLinks, caseCheck, caseProjects, isSignedIn, usePlan } from '../api.js';
+import { assistCaseLinks, caseCheck, caseProjects, isSignedIn, request, usePlan } from '../api.js';
 import { embedFor, FIGMA_LINK } from './case/extras.jsx';
 import { MAX_GALLERY } from './case/data.js';
 import { FONT_PAIRS } from './sites/brand.js';
@@ -111,6 +111,21 @@ export default function CaseAssist({ project, onApply }) {
   const buildFrom = (f, proj) => {
     setBuilding(proj.url);
     return run({ urls: proj.links, owner: f.owner ? `${f.platform}:${f.owner}` : '' }, true);
+  };
+  /** Take one picture out of the draft before it's added; its file is deleted unless still used. */
+  const removeShot = (src) => {
+    const d = result.draft;
+    let gallery = (d.gallery || []).filter((g) => g.src !== src);
+    let cover = d.cover;
+    if (d.cover?.src === src) {  // the next picture becomes the cover (and isn't shown twice)
+      cover = gallery[0] ? { ...gallery[0], caption: '' } : null;
+      gallery = gallery.slice(1);
+    }
+    setResult({ ...result, draft: { ...d, cover, gallery } });
+    // Free the space now, unless the picture is still used (the new cover, or already in the case study).
+    const used = [cover?.src, ...gallery.map((g) => g.src), project.cover?.src, ...(project.gallery || []).map((g) => g.src)];
+    const name = /^\/uploads\/([a-f0-9]{32}\.[a-z0-9]+)$/.exec(src)?.[1];
+    if (name && !used.includes(src)) request(`/api/uploads/${name}`, { method: 'DELETE' }).catch(() => {});
   };
   const apply = (patch) => {
     setUndo(Object.fromEntries(Object.keys(patch).map((k) => [k, project[k] ?? (Array.isArray(patch[k]) ? [] : ['cover', 'design', 'brand'].includes(k) ? null : '')])));
@@ -240,11 +255,21 @@ export default function CaseAssist({ project, onApply }) {
             {result.figmaSetup && <p className="aia__note">We could only read your Figma file’s title. Add your Figma access token above and build again to pull in its screens, fonts and colours.</p>}
             {result.note && <p className="aia__note">{result.note}</p>}
             {(d.cover || d.gallery?.length > 0) && (
-              <div className="aia__shots" aria-label="Screens from your Figma file">
-                {[d.cover, ...(d.gallery || [])].filter(Boolean).slice(0, 9).map((g, i) => (
-                  <figure key={g.src + i}><img src={g.src} alt={g.caption || (i === 0 ? 'Cover' : 'Screen')} loading="lazy" /><figcaption>{i === 0 && d.cover ? 'Cover' : g.caption}</figcaption></figure>
-                ))}
-              </div>
+              <>
+                <div className="aia__shots" aria-label="Pictures for your case study">
+                  {[d.cover, ...(d.gallery || [])].filter(Boolean).slice(0, 9).map((g, i) => {
+                    const label = i === 0 && d.cover ? 'Cover' : g.caption || `Picture ${i + 1}`;
+                    return (
+                      <figure key={g.src + i}>
+                        <img src={g.src} alt={label} loading="lazy" />
+                        <figcaption>{label}</figcaption>
+                        {!undo && <button type="button" className="aia__shot-x" onClick={() => removeShot(g.src)} aria-label={`Remove ${label}`} title="Remove">✕</button>}
+                      </figure>
+                    );
+                  })}
+                </div>
+                {!undo && <small className="aia__note">Remove any you don’t want before adding. If you remove the cover, the next picture becomes the cover.</small>}
+              </>
             )}
             {d.design && (
               <div className="aia__ds">
