@@ -144,7 +144,9 @@ export default function PublicPage({ domainSlug }) {
     body = (
       <>
         <div className="pub__cv">
-          <ScaledDoc template={p.template} data={data} />
+          {/* Desktop: the page as it prints. Phones: the same CV at the screen's width, readable without zooming. */}
+          <div className="pub__cv-page"><ScaledDoc template={p.template} data={data} /></div>
+          <div className="pub__cv-read"><CvDoc template={p.template} data={data} /></div>
           {state.pdf && <button className="app-btn app-btn--primary pub__pdf" onClick={printCv}>Download PDF</button>}
         </div>
         <div className="cvprint" aria-hidden><CvDoc template={p.template} data={data} /></div>

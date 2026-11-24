@@ -64,15 +64,22 @@ export function ScaledCase({ template, data, base = 1100, height = 420, classNam
   useLayoutEffect(() => {
     const measure = () => {
       if (!box.current || !inner.current) return;
-      const scale = box.current.clientWidth / base;
+      const scale = box.current.getBoundingClientRect().width / base;
       const pan = Math.max(0, inner.current.offsetHeight * scale - box.current.clientHeight);
       setM((p) => (p.scale === scale && p.pan === pan ? p : { scale, pan }));
     };
     measure();
+    // Measured again once layout settles: the first measure can run while the box is still
+    // being laid out (a card at a fraction of its width), and a box that later widens without
+    // a resize event would keep a tiny scale.
+    let f2;
+    const f1 = requestAnimationFrame(() => { measure(); f2 = requestAnimationFrame(measure); });
+    const later = setTimeout(measure, 500);
     const ro = new ResizeObserver(measure);
     ro.observe(box.current);
     ro.observe(inner.current);
-    return () => ro.disconnect();
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); cancelAnimationFrame(f1); cancelAnimationFrame(f2); clearTimeout(later); window.removeEventListener('resize', measure); };
   }, [base]);
   return (
     <div ref={box} className={`scaled ${className}`} style={{ height, '--pan': `${-m.pan}px`, '--pan-dur': `${Math.min(9, Math.max(2, m.pan / 160)).toFixed(1)}s` }} aria-hidden>

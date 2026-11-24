@@ -212,11 +212,13 @@ export default function Editor() {
           : !isSignedIn() ? 'Saved in this browser'
           : { syncing: 'Saving…', saved: 'Saved to your account', offline: 'Offline · saved in this browser', error: 'Couldn’t save to your account' }[sync] || 'Saved in this browser'}</p>
         {saved() && <button className="app-btn app-btn--ghost ed__del" onClick={() => setConfirming(true)} aria-label="Delete this project" title="Delete"><TrashIcon /></button>}
-        <button className="app-btn app-btn--ghost" onClick={exportPdf}>Export PDF</button>
-        <button className="app-btn app-btn--ghost" onClick={() => setLanguages(true)} title="Offer your page in more languages">Languages</button>
-        <button className="app-btn app-btn--ghost" onClick={() => { if (dirty.current) persist(d); setFeedback(true); }}>Feedback</button>
-        <button className="app-btn app-btn--ghost ed__publish" onClick={() => { if (dirty.current) persist(d); setPublishing(true); }}>{d.status === 'Published' ? 'Published ✓' : 'Publish'}</button>
-        <button className="app-btn app-btn--primary" onClick={finish}>Done</button>
+        <div className="ed__actions">
+          <button className="app-btn app-btn--ghost" onClick={exportPdf}>Export PDF</button>
+          <button className="app-btn app-btn--ghost" onClick={() => setLanguages(true)} title="Offer your page in more languages">Languages</button>
+          <button className="app-btn app-btn--ghost" onClick={() => { if (dirty.current) persist(d); setFeedback(true); }}>Feedback</button>
+          <button className="app-btn app-btn--ghost ed__publish" onClick={() => { if (dirty.current) persist(d); setPublishing(true); }}>{d.status === 'Published' ? 'Published ✓' : 'Publish'}</button>
+          <button className="app-btn app-btn--primary" onClick={finish}>Done</button>
+        </div>
       </header>
 
       <div className="ed__body">

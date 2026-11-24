@@ -954,3 +954,56 @@ body::after {
 .cfm__link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13.5px; text-decoration: underline;
   text-underline-offset: 3px; text-decoration-color: var(--line-strong); cursor: pointer; }
 .cfm__link:disabled { color: var(--faint); text-decoration: none; cursor: default; }
+
+/* Phones: the preview header's buttons wrap instead of running off the screen. */
+@media (max-width: 560px) {
+  .ed__preview-head { flex-wrap: wrap; row-gap: 8px; }
+  .ed__preview-meta { flex-wrap: wrap; justify-content: flex-end; row-gap: 6px; min-width: 0; }
+}
+
+/* Tablets: the editor bar has up to nine controls; let them wrap (the title gets its own row) instead of running off the screen. */
+@media (max-width: 1100px) {
+  .ed__bar { flex-wrap: wrap; row-gap: 10px; }
+  .ed__title { order: 5; flex-basis: 100%; }
+}
+/* Small phones: a row of segment buttons scrolls sideways rather than widening the page. */
+@media (max-width: 480px) {
+  .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .seg::-webkit-scrollbar { display: none; }
+  .seg__btn { flex: none; white-space: nowrap; }
+}
+@media (max-width: 480px) {
+  .seg { min-width: 0; }
+  .adm-panel__head { flex-wrap: wrap; }
+  .adm-panel__actions { min-width: 0; max-width: 100%; }
+}
+
+/* ---------- Phones: editor and dashboard ---------- */
+.ed__actions { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 760px) {
+  /* Steps: one compact scrolling row; the strength meter becomes a slim bar at its end. */
+  .ed__steps { align-items: center; gap: 6px; padding: 10px 12px; scrollbar-width: none; }
+  .ed__steps::-webkit-scrollbar { display: none; }
+  .ed__step { padding: 8px 12px; align-items: center; }
+  .ed__step > span:last-child { width: auto; }
+  .ed__step-t { white-space: nowrap; }
+  .ed__strength { flex: 0 0 150px; margin: 0 0 0 4px; padding: 8px 10px; }
+  .ed__strength-k, .ed__strength-list { display: none; }
+  .ed__strength-bar { margin-top: 6px; }
+  /* Dashboard: the sections become one row of chips you can swipe. */
+  .dash { grid-template-columns: minmax(0, 1fr); }
+  .dash__nav { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  .dash__nav::-webkit-scrollbar { display: none; }
+  .dash__nav-btn { flex: none; white-space: nowrap; padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; }
+  .dash__nav-btn.is-active { border-color: transparent; }
+  .dash__nav-k--gap { display: none; }
+}
+@media (max-width: 560px) {
+  /* The editor bar scrolls away with the page instead of covering a third of the screen,
+     and its buttons sit on one row you can swipe. */
+  .ed__bar { position: static; gap: 8px; }
+  .ed__actions { order: 6; flex: 1 1 100%; overflow-x: auto; gap: 8px; margin: 0 -16px; padding: 2px 16px; scrollbar-width: none; }
+  .ed__actions::-webkit-scrollbar { display: none; }
+  .ed__actions .app-btn { flex: none; padding: 8px 14px; font-size: 13px; }
+  .ed__actions .app-btn--primary { margin-left: auto; }
+}

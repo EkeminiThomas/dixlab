@@ -37,13 +37,15 @@
 
 /* Scaled live preview ---------------------------------------------------- */
 .scaled { position: relative; overflow: hidden; width: 100%; }
+/* The size (scale) applies at once; only the slow scroll on hover (translate) is animated.
+   (Animating the whole transform made every preview grow from tiny over several seconds.) */
 .scaled__inner {
   position: absolute; top: 0; left: 0; transform-origin: 0 0;
-  transform: translateY(0) scale(var(--s, 0.5));
-  transition: transform var(--pan-dur, 4s) cubic-bezier(0.45, 0, 0.25, 1);
+  scale: var(--s, 0.5); translate: 0 0;
+  transition: translate var(--pan-dur, 4s) cubic-bezier(0.45, 0, 0.25, 1);
   pointer-events: none;
 }
-.scaled:hover .scaled__inner, .is-panning .scaled__inner { transform: translateY(var(--pan, 0)) scale(var(--s, 0.5)); }
+.scaled:hover .scaled__inner, .is-panning .scaled__inner { translate: 0 var(--pan, 0); }
 
 /* ==========================================================================
    FOLIO — personal & minimal

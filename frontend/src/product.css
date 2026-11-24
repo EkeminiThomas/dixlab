@@ -729,3 +729,36 @@
 .fgp__name { display: grid; min-width: 0; font-size: 12.5px; }
 .fgp__name b { overflow: hidden; color: var(--ink); font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
 .fgp__name small { color: var(--muted); font-size: 11.5px; }
+
+/* ---------- A published CV on a phone: a reading view instead of a shrunken A4 page ---------- */
+.pub__cv-page { width: 100%; }
+.pub__cv-read { display: none; width: 100%; }
+@media (max-width: 700px) {
+  .pub__cv { padding: 16px 12px 28px; }
+  .pub__cv-page { display: none; }
+  .pub__cv-read { display: block; }
+  .pub__cv-read .cvdoc { width: 100%; min-height: 0; padding: 28px 20px 32px; border-radius: 12px; font-size: calc(14.5px * var(--cv-scale, 1));
+    box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.7); overflow-wrap: anywhere; }
+  /* Side columns and label columns stack: one column, top to bottom. */
+  .pub__cv-read :is(.cv-cols, .cv-cols--3, .cv-split, .cv-grid) { grid-template-columns: minmax(0, 1fr) !important; gap: 0; }
+  .pub__cv-read .cv-meridian { grid-template-columns: minmax(0, 1fr); padding: 0; }
+  .pub__cv-read .cv-meridian .cv-side { padding: 28px 20px; }
+  .pub__cv-read :is(.cv-margin .cv-row, .cv-timeline .cv-line > li) { grid-template-columns: minmax(0, 1fr); gap: 0.35em; }
+  .pub__cv-read :is(.cv-exec, .cv-margin, .cv-timeline) .cv-head { flex-direction: column; align-items: flex-start; gap: 0.8em; }
+  .pub__cv-read .cv-exec .cv-head, .pub__cv-read .cv-canvas .cv-head { padding: 28px 20px; }
+  .pub__cv-read .cv-exec { padding: 0; }
+  .pub__cv-read .cv-canvas .cv-name { font-size: 3em; }
+  .pub__cv-read .cv-item__head { flex-wrap: wrap; gap: 0.1em 1em; }
+  .pub__cv-read .cv-contact { gap: 0.3em 1em; }
+}
+@media (max-width: 700px) {
+  .pub__cv-read .cv-exec .cv-body { padding: 4px 20px 28px; }
+  .pub__cv-read .cv-canvas :is(.cv-main, .cv-body, .cv-side) { padding-left: 20px; padding-right: 20px; }
+}
+@media (max-width: 700px) {
+  /* Templates whose page has no outer padding (coloured header and side panels reach the edges). */
+  .pub__cv-read :is(.cv-canvas, .cv-meridian, .cv-exec) { padding: 0; }
+  .pub__cv-read .cv-meridian .cv-main { padding: 24px 20px 32px; }
+  .pub__cv-read .cv-exec .cv-head .cv-contact { align-items: flex-start; }
+}
+@media (max-width: 700px) { .pub__cv-read .cvdoc { overflow: hidden; } }

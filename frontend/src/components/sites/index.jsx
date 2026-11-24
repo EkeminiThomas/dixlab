@@ -145,15 +145,22 @@ export function ScaledSite({ template, data, base = 760, height = 420, className
   useLayoutEffect(() => {
     const measure = () => {
       if (!box.current || !inner.current) return;
-      const scale = box.current.clientWidth / base;
+      const scale = box.current.getBoundingClientRect().width / base;
       const pan = Math.max(0, inner.current.offsetHeight * scale - box.current.clientHeight);
       setM((prev) => (prev.scale === scale && prev.pan === pan ? prev : { scale, pan }));
     };
     measure();
+    // Measured again once layout settles: the first measure can run while the box is still
+    // being laid out (a card at a fraction of its width), and a box that later widens without
+    // a resize event would keep a tiny scale.
+    let f2;
+    const f1 = requestAnimationFrame(() => { measure(); f2 = requestAnimationFrame(measure); });
+    const later = setTimeout(measure, 500);
     const ro = new ResizeObserver(measure);
     ro.observe(box.current);
     ro.observe(inner.current);
-    return () => ro.disconnect();
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); cancelAnimationFrame(f1); cancelAnimationFrame(f2); clearTimeout(later); window.removeEventListener('resize', measure); };
   }, [base]);
 
   return (

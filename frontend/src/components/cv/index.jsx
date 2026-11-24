@@ -62,15 +62,22 @@ export function ScaledDoc({ template, data, height, className = '' }) {
   useLayoutEffect(() => {
     const measure = () => {
       if (!box.current || !inner.current) return;
-      const scale = box.current.clientWidth / PAGE_W;
+      const scale = box.current.getBoundingClientRect().width / PAGE_W;
       const h = inner.current.offsetHeight * scale;
       setM((p) => (p.scale === scale && p.h === h ? p : { scale, h }));
     };
     measure();
+    // Measured again once layout settles: the first measure can run while the box is still
+    // being laid out (a card at a fraction of its width), and a box that later widens without
+    // a resize event would keep a tiny scale.
+    let f2;
+    const f1 = requestAnimationFrame(() => { measure(); f2 = requestAnimationFrame(measure); });
+    const later = setTimeout(measure, 500);
     const ro = new ResizeObserver(measure);
     ro.observe(box.current);
     ro.observe(inner.current);
-    return () => ro.disconnect();
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); cancelAnimationFrame(f1); cancelAnimationFrame(f2); clearTimeout(later); window.removeEventListener('resize', measure); };
   }, []);
 
   const boxH = height ?? m.h;

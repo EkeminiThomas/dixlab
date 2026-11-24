@@ -443,15 +443,16 @@ function Impact({ data }) {
 /* ---------- 9. Deck: slides you scroll ---------- */
 function Deck({ data }) {
   const d = cs(data);
+  // A slide only when there's something on it (or the faded sample shows in the editor).
   const slides = [
-    ['Context', d.ghost.context, <p className="cs-big">{d.context}</p>],
-    ['Problem', d.ghost.problem, <p className="cs-big">{d.problem}</p>],
-    ['Goals', d.ghost.goals, <Goals d={d} />],
-    ['Process', d.ghost.process, <Steps d={d} className="cs-steps--grid" />],
-    ...(d.tradeoffs ? [['Trade-offs', false, <p className="cs-big">{d.tradeoffs}</p>]] : []),
-    ['Solution', d.ghost.solution, <p className="cs-big">{d.solution}</p>],
-    ...(d.metrics.length ? [['Results', false, <Metrics d={d} />]] : []),
-  ];
+    [d.context, 'Context', d.ghost.context, <p className="cs-big">{d.context}</p>],
+    [d.problem, 'Problem', d.ghost.problem, <p className="cs-big">{d.problem}</p>],
+    [d.goals.length, 'Goals', d.ghost.goals, <Goals d={d} />],
+    [d.process.length, 'Process', d.ghost.process, <Steps d={d} className="cs-steps--grid" />],
+    [d.tradeoffs, 'Trade-offs', false, <p className="cs-big">{d.tradeoffs}</p>],
+    [d.solution, 'Solution', d.ghost.solution, <p className="cs-big">{d.solution}</p>],
+    [d.metrics.length, 'Results', false, <Metrics d={d} />],
+  ].filter(([has]) => has).map(([, ...rest]) => rest);
   if (d.learned) slides.push(['Learnings', false, <p className="cs-big">{d.learned}</p>]);
   const total = slides.length + 1;
   return (
