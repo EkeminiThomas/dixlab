@@ -100,9 +100,9 @@ export function InsetIcon({ src, size, inset, bleed, mask, maskOffset }) {
 export const AppArrow = () => <InsetIcon src={img.arrowUpRightWhiteSm} size={18} inset="29.17%" bleed="-11.34%" />;
 export const AppArrowAccent = () => <InsetIcon src={img.arrowUpRightAccentSm} size={20} inset="29.17%" bleed="-10.2%" />;
 /**
- * An icon from the design system's icon set (Figma → Designs → "Huge Icon Set v2.0"),
+ * An icon from the design system's icon set (Figma file "Dixlab" → Icons, node 1796:12946),
  * served from /assets/icons and drawn in the text colour around it (currentColor).
- * Names: idea, bubble-chat, bubble-chat-edit, compass, layers, image, edit, customize.
+ * Names: wand, sparkles, mic, type, script, search, layers, image, settings.
  */
 export const DsIcon = ({ name, size = 15, className = '', label }) => (
   <span className={`ds-icon ${className}`} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}

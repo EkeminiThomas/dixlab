@@ -51,7 +51,7 @@ export function GetInTouch({ s, title = 'Get in touch', lead }) {
   };
 
   return (
-    <section className="git" id="contact">
+    <section className="git" id="contact" data-part="contact">
       <div className="git__intro">
         <h2 className="git__title">{title}</h2>
         <p className="git__lead">{intro}</p>

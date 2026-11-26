@@ -1,5 +1,6 @@
 import { site, Shot, Glyph, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { Tool } from './tools.jsx';
 
@@ -19,7 +20,7 @@ export default function Punch({ data }) {
       <header className="punch__head">
         <Avatar s={s} className="punch__logo" />
         <nav className="punch__nav">
-          <span>Work</span><span>About</span>
+          <NavTo part="work">Work</NavTo>{s.paras.length > 0 && <NavTo part="about">About</NavTo>}
           <MailLink email={s.email} className="punch__cta">Hire me</MailLink>
         </nav>
       </header>
@@ -39,13 +40,13 @@ export default function Punch({ data }) {
       </div>
 
       {s.paras.length > 0 && (
-        <section className="punch__sec">
+        <section className="punch__sec" data-part="about">
           <h2 className="punch__h2">About me</h2>
           <div className="punch__box">{s.paras.map((p, i) => <p key={i}>{p}</p>)}</div>
         </section>
       )}
 
-      <section className="punch__sec">
+      <section className="punch__sec" data-part="work">
         <h2 className="punch__h2">Things I’ve made</h2>
         <div className="punch__cards">
           {s.projects.map((p, i) => (
@@ -70,7 +71,7 @@ export default function Punch({ data }) {
         </section>
       )}
 
-      <section className="punch__contact">
+      <section className="punch__contact" data-part="contact">
         <h2>Let’s make something great.</h2>
         <MailLink email={s.email} className="punch__btn">{s.email || 'Say hello'} <Glyph name="right" size={14} stroke={2.4} /></MailLink>
       </section>

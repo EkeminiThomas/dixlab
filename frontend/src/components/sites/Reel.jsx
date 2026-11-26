@@ -1,5 +1,6 @@
 import { useContext } from 'react';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { Tool } from './tools.jsx';
 import { site, Shot, Glyph, ProjectLink, MailLink, StaticSite } from './shared.jsx';
@@ -24,11 +25,11 @@ export default function Reel({ data }) {
     <div className="site reel">
       <header className="rl__nav">
         <span className="rl__logo">{s.name}</span>
-        <nav><span className="is-on">Reel</span><span>Work</span><span>Info</span></nav>
+        <nav aria-label="Sections"><NavTo part="top" className="is-on">Reel</NavTo><NavTo part="work">Work</NavTo><NavTo part="info">Info</NavTo></nav>
         <MailLink email={s.email} className="rl__cta">Contact</MailLink>
       </header>
 
-      <section className="rl__hero">
+      <section className="rl__hero" data-part="top">
         <div className="rl__player">
           {s.reel
             ? <video className="rl__video" src={isStatic ? `${s.reel.src}#t=0.1` : s.reel.src} muted loop playsInline preload="metadata" autoPlay={!isStatic} aria-label="Showreel" />
@@ -58,7 +59,7 @@ export default function Reel({ data }) {
         </div>
       </div>
 
-      <section className="rl__sec">
+      <section className="rl__sec" data-part="work">
         <div className="rl__head"><h2>Selected work</h2><span>{String(s.projects.length).padStart(2, '0')} films</span></div>
         <div className="rl__grid">
           {s.projects.map((p, i) => (
@@ -74,7 +75,7 @@ export default function Reel({ data }) {
         </div>
       </section>
 
-      <section className="rl__sec rl__info">
+      <section className="rl__sec rl__info" data-part="info">
         <div>
           <h2>Info</h2>
           {s.paras.map((p, i) => <p key={i} className="rl__p">{p}</p>)}
@@ -85,7 +86,7 @@ export default function Reel({ data }) {
         </div>
       </section>
 
-      <section className="rl__contact">
+      <section className="rl__contact" data-part="contact">
         <p className="rl__k">Now booking</p>
         <MailLink email={s.email} className="rl__mail">{s.email || 'your@email.com'}</MailLink>
       </section>

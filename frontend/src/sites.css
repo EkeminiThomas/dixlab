@@ -145,7 +145,7 @@
 .bento__top { display: flex; align-items: center; justify-content: space-between; padding: 16px 4px; }
 .bento__logo { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; background: var(--b-ink); color: #fff; font-size: 10px; font-weight: 700; }
 .bento__nav { display: flex; gap: 2px; padding: 3px; border-radius: 100px; background: #fff; border: 1px solid var(--b-line); font-size: 10.5px; }
-.bento__nav span { padding: 5px 11px; border-radius: 100px; color: var(--b-muted); }
+.bento__nav :is(span, button) { padding: 5px 11px; border-radius: 100px; color: var(--b-muted); }
 .bento__nav .is-on { background: var(--b-ink); color: #fff; }
 
 .bento__grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
@@ -221,7 +221,7 @@
 .term__dots i:nth-child(3) { background: #28c840; }
 .term__path { font-size: 10px; color: var(--t-dim); }
 .term__tabs { display: flex; border-bottom: 1px solid var(--t-line); font-size: 10px; }
-.term__tabs span { padding: 7px 14px; color: var(--t-dim); border-right: 1px solid var(--t-line); }
+.term__tabs :is(span, button) { padding: 7px 14px; color: var(--t-dim); border-right: 1px solid var(--t-line); }
 .term__tabs .is-on { color: var(--t-fg); background: var(--t-bg); box-shadow: inset 0 1px 0 var(--t-green); }
 .term__body { display: flex; flex-direction: column; gap: 6px; padding: 22px 24px 28px; }
 .term__cmd { margin-top: 18px; color: var(--t-fg); }
@@ -973,3 +973,9 @@ span.git__input { color: var(--g-muted); }
   -webkit-mask-image: linear-gradient(#000 55%, transparent);
           mask-image: linear-gradient(#000 55%, transparent);
 }
+
+/* Section links in the template navs (shared.jsx NavTo): look like the text they replaced. */
+:where(.site) .navto { font: inherit; color: inherit; letter-spacing: inherit; text-transform: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: pointer; }
+:where(.site) .navto:hover { text-decoration: underline; text-underline-offset: 3px; }
+.site .navto:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 3px; }
+.site [data-part] { scroll-margin-top: 64px; }

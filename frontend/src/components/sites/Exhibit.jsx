@@ -1,5 +1,6 @@
 import { site, Shot, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -20,7 +21,7 @@ export default function Exhibit({ data }) {
     <div className="site exhibit">
       <header className="exhibit__head">
         <span className="exhibit__name">{s.name}</span>
-        <nav className="exhibit__nav"><span className="is-on">Work</span><span>Info</span><span>Contact</span></nav>
+        <nav className="exhibit__nav" aria-label="Sections"><NavTo part="work" className="is-on">Work</NavTo><NavTo part="info">Info</NavTo><NavTo part="contact">Contact</NavTo></nav>
       </header>
 
       <section className="exhibit__intro">
@@ -29,7 +30,7 @@ export default function Exhibit({ data }) {
         <h1>{headline}</h1>
       </section>
 
-      <div className="exhibit__wall">
+      <div className="exhibit__wall" data-part="work">
         {s.projects.map((p, i) => (
           <ProjectLink key={i} project={i} href={p.link} className={`exhibit__piece exhibit__piece--${i % 4}`}>
             <Shot media={p.media?.[0]} title={p.title} i={i} palette={WALL} />
@@ -41,7 +42,7 @@ export default function Exhibit({ data }) {
         ))}
       </div>
 
-      <section className="exhibit__info">
+      <section className="exhibit__info" data-part="info">
         <div>
           <p className="exhibit__k">Info</p>
           {s.paras.map((p, i) => <p key={i} className="exhibit__p">{p}</p>)}

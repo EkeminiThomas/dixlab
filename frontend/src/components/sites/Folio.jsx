@@ -1,5 +1,6 @@
 import { site, Shot, Glyph, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -19,7 +20,7 @@ export default function Folio({ data }) {
     <div className="site folio">
       <header className="folio__bar">
         <span className="folio__brand"><Avatar s={s} className="folio__mono" /><span>{s.name}</span></span>
-        <nav className="folio__links"><span>Work</span><span>About</span><span>Contact</span></nav>
+        <nav className="folio__links" aria-label="Sections"><NavTo part="work">Work</NavTo>{(s.paras.length > 0 || stats.length > 0) && <NavTo part="about">About</NavTo>}<NavTo part="contact">Contact</NavTo></nav>
         <MailLink email={s.email} className="folio__hello">Say hello <Glyph name="arrow" size={12} /></MailLink>
       </header>
 
@@ -47,7 +48,7 @@ export default function Folio({ data }) {
 
       <div className="folio__col">
         {(s.paras.length > 0 || stats.length > 0) && (
-          <section className="folio__sec">
+          <section className="folio__sec" data-part="about">
             <p className="folio__k">About</p>
             {s.paras.map((p, i) => <p key={i} className={i === 0 ? 'folio__lead' : 'folio__p'}>{p}</p>)}
             {stats.length > 0 && (
@@ -59,7 +60,7 @@ export default function Folio({ data }) {
           </section>
         )}
 
-        <section className="folio__sec">
+        <section className="folio__sec" data-part="work">
           <div className="folio__head"><p className="folio__k">Selected work</p><span>({String(s.projects.length).padStart(2, '0')})</span></div>
           <div className="folio__grid">
             {s.projects.map((p, i) => (
@@ -89,7 +90,7 @@ export default function Folio({ data }) {
           </section>
         )}
 
-        <section className="folio__sec folio__contact">
+        <section className="folio__sec folio__contact" data-part="contact">
           <h2>Let’s work together.</h2>
           <p className="folio__p">Have a project in mind, or just want to say hello? My inbox is always open.</p>
           <MailLink email={s.email} className="folio__btn">Start a conversation <Glyph name="right" size={12} /></MailLink>

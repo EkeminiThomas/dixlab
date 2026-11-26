@@ -381,7 +381,7 @@ export default function Editor() {
             {sid === 'story' && (
               <>
                 <div>
-                  <p className="section-label"><DsIcon name="bubble-chat-edit" /><span>A little help finding the words</span></p>
+                  <p className="section-label"><DsIcon name="wand" /><span>A little help finding the words</span></p>
                   <h2 className="ed__h2">Three questions bring your contribution into focus.</h2>
                 </div>
                 {QUESTIONS.map(([k, , q, eg]) => (
@@ -391,7 +391,7 @@ export default function Editor() {
                   </label>
                 ))}
                 <div className="ed__note">
-                  <DsIcon name="bubble-chat" size={18} />
+                  <DsIcon name="mic" size={18} />
                   <p>AI rewriting isn’t connected in this build. The preview arranges your own words, so your experience remains the source of truth.</p>
                 </div>
               </>
@@ -487,7 +487,7 @@ export default function Editor() {
             {sid === 'cs-problem' && (
               <>
                 <div>
-                  <p className="section-label"><DsIcon name="compass" /><span>Problem & goals</span></p>
+                  <p className="section-label"><DsIcon name="search" /><span>Problem & goals</span></p>
                   <h2 className="ed__h2">What needed solving, and why it mattered.</h2>
                 </div>
                 <label className="field">
@@ -712,7 +712,7 @@ export default function Editor() {
             {sid === 'cv-exp' && (
               <>
                 <div>
-                  <p className="section-label"><DsIcon name="edit" /><span>Experience</span></p>
+                  <p className="section-label"><DsIcon name="script" /><span>Experience</span></p>
                   <h2 className="ed__h2">Where you’ve worked, and what changed because you were there.</h2>
                 </div>
                 <fieldset className="ed__set">

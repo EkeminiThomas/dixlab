@@ -37,10 +37,6 @@ export const img = {
   browserDotDark: a('46919.svg'),
 
   // Icons
-  sparkles14: a('8e2e2.svg'),
-  sparkles18: a('8767e.svg'),
-  sparkles15: a('1f5fa.svg'),
-  sparkles13: a('a1fd0.svg'),
   check14: a('9b74b.svg'),
   check19: a('e5f26.svg'),
   stickyNote15: a('3cea2.svg'),
@@ -53,12 +49,6 @@ export const img = {
   globe: a('59049.svg'),
 
   // App (inset) icon glyphs + masks
-  sparklesMask13: a('b407b.svg'),
-  sparklesGlyph13: a('38cad.svg'),
-  sparklesMask15: a('3268f.svg'),
-  sparklesGlyph15: a('2f391.svg'),
-  sparklesMask18: a('5288b.svg'),
-  sparklesGlyph18: a('4e804.svg'),
   stickyNoteGlyph: a('78f07.svg'),
   fileCheckGlyph: a('2296b.svg'),
 

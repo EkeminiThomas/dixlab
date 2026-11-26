@@ -28,7 +28,7 @@ export default function Customize({ project, onPatch, template, kind = 'site' })
   return (
     <>
       <div>
-        <p className="section-label"><DsIcon name="customize" /><span>Customize</span></p>
+        <p className="section-label"><DsIcon name="settings" /><span>Customize</span></p>
         <h2 className="ed__h2">Make {t?.name || 'your template'} unmistakably yours.</h2>
       </div>
       <p className="ed__lead">The template’s defaults stay in place. Describe a change in your own words, or fine-tune each setting below.{isDoc ? ' Your CV stays print-ready A4.' : ''}</p>
@@ -283,7 +283,7 @@ function PromptPanel({ project, template, onPatch, kind = 'site' }) {
   return (
     <section className="cz__ai" aria-label="Describe a change">
       <div className="cz__ai-head">
-        <span className="cz__ai-icon"><DsIcon name="idea" size={13} /></span>
+        <span className="cz__ai-icon"><DsIcon name="wand" size={13} /></span>
         <div>
           <p className="cz__ai-t">Describe a change</p>
           <p className="cz__ai-d">{isDoc ? 'Colours, fonts, text size, template, headline or summary, in plain words.' : 'Colours, fonts, animation, template or wording, in plain words.'}</p>

@@ -59,7 +59,7 @@ export default function AuthAside() {
           <p className="focus__q">“I redesigned the sign-up flow for a student project. I did interviews and made prototypes.”</p>
         </div>
         <div className="focus__draft">
-          <p className="focus__k focus__k--accent"><DsIcon name="edit" size={13} />A CLEARER WAY TO SAY IT</p>
+          <p className="focus__k focus__k--accent"><DsIcon name="type" size={13} />A CLEARER WAY TO SAY IT</p>
           <p className="focus__text">I explored where students struggled with sign-up, then translated interview insights into a simpler onboarding experience.</p>
         </div>
       </div>

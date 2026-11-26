@@ -137,7 +137,7 @@ export default function CaseAssist({ project, onApply }) {
   if (!open) {
     return (
       <button type="button" className="aia__open" onClick={() => setOpen(true)}>
-        <DsIcon name="idea" size={16} className="aia__spark" />
+        <DsIcon name="wand" size={16} className="aia__spark" />
         <span><b>Build it from your profile or project links</b> Paste your GitHub, GitLab or Figma link and we’ll write the whole case study, pictures included. Or review what you have against what hiring managers look for.</span>
         <span aria-hidden>Open →</span>
       </button>
@@ -147,7 +147,7 @@ export default function CaseAssist({ project, onApply }) {
   return (
     <section className="aia" aria-label="Case study assistant">
       <div className="aia__head">
-        <p className="aia__title"><DsIcon name="idea" size={16} className="aia__spark" />Case study assistant</p>
+        <p className="aia__title"><DsIcon name="wand" size={16} className="aia__spark" />Case study assistant</p>
         {plan?.enforced && <span className="aia__units">{(plan.credits ?? 0).toLocaleString()} credits</span>}
         <button type="button" className="aia__x" onClick={() => setOpen(false)} aria-label="Close the case study assistant">✕</button>
       </div>

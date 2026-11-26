@@ -212,8 +212,8 @@
 .bl__about-text { display: grid; gap: 18px; }
 .bl__lede { font-family: var(--bl-serif); font-size: clamp(24px, 3.4cqi, 48px); line-height: 1.12; letter-spacing: -0.01em; }
 .bl__certs { display: flex; flex-wrap: wrap; gap: 8px; }
-.bl__certs li { display: inline-flex; gap: 8px; padding: 6px 14px; border-radius: 999px; background: var(--bl-paper); font-size: 0.86em; font-weight: 500; }
-.bl__certs span { color: var(--bl-accent); }
+.bl__certs li { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: var(--bl-paper); font-size: 0.86em; font-weight: 500; }
+.bl__certs svg { flex: none; color: var(--bl-accent); }
 
 /* Experience: newer roles in front, older ones recede */
 .bl__rail { position: relative; margin-top: clamp(28px, 4cqi, 56px); perspective: 1100px; perspective-origin: 70% 40%; }

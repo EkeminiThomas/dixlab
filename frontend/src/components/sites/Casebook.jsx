@@ -1,5 +1,6 @@
 import { site, Shot, Glyph, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -21,7 +22,7 @@ export default function Casebook({ data }) {
     <div className="site casebook">
       <header className="cb__nav">
         <span className="cb__brand"><i />{s.name}</span>
-        <nav><span className="is-on">Case studies</span><span>Process</span><span>About</span></nav>
+        <nav aria-label="Sections"><NavTo part="work" className="is-on">Case studies</NavTo><NavTo part="process">Process</NavTo>{s.experience.length > 0 && <NavTo part="about">About</NavTo>}</nav>
         <MailLink email={s.email} className="cb__cta">Let’s talk</MailLink>
       </header>
 
@@ -35,7 +36,7 @@ export default function Casebook({ data }) {
         )}
       </section>
 
-      <section className="cb__sec">
+      <section className="cb__sec" data-part="work">
         <div className="cb__head"><h2>Selected case studies</h2><span>{String(s.projects.length).padStart(2, '0')} projects</span></div>
         <div className="cb__cases">
           {s.projects.map((p, i) => (
@@ -56,7 +57,7 @@ export default function Casebook({ data }) {
         </div>
       </section>
 
-      <section className="cb__sec cb__process">
+      <section className="cb__sec cb__process" data-part="process">
         <h2>How I work</h2>
         <ol className="cb__steps">
           {PROCESS.map((p, i) => <li key={p}><span>0{i + 1}</span>{p}</li>)}
@@ -82,7 +83,7 @@ export default function Casebook({ data }) {
       )}
 
       {s.experience.length > 0 && (
-        <section className="cb__sec">
+        <section className="cb__sec" data-part="about">
           <h2>Experience</h2>
           <ul className="cb__xp">
             {s.experience.map((e, i) => (
@@ -92,7 +93,7 @@ export default function Casebook({ data }) {
         </section>
       )}
 
-      <section className="cb__contact">
+      <section className="cb__contact" data-part="contact">
         <h2>How can I help you?</h2>
         {s.skills.length > 0
           ? <><p className="cb__help">The skills and tools I bring to a project:</p><ToolList items={s.skills} size="lg" className="cb__help-tools" label="Skills and tools" /></>

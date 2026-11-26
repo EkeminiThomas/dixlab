@@ -1,5 +1,6 @@
 import { site, hash, Glyph, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -13,7 +14,7 @@ export default function Sentinel({ data }) {
       <header className="sn__bar">
         <span className="sn__status"><i />SECURE</span>
         <span className="sn__handle">{s.handle || 'analyst'}@sentinel</span>
-        <nav><span>Research</span><span>Certs</span><span>Contact</span></nav>
+        <nav aria-label="Sections"><NavTo part="research">Research</NavTo>{s.certs.length > 0 && <NavTo part="certs">Certs</NavTo>}<NavTo part="contact">Contact</NavTo></nav>
       </header>
 
       <section className="sn__hero">
@@ -31,7 +32,7 @@ export default function Sentinel({ data }) {
       </section>
 
       {s.certs.length > 0 && (
-        <section className="sn__sec">
+        <section className="sn__sec" data-part="certs">
           <p className="sn__label">Certifications</p>
           <ul className="sn__certs">
             {s.certs.map((c) => <li key={c}><Glyph name="award" size={13} /><span>{c}</span></li>)}
@@ -39,7 +40,7 @@ export default function Sentinel({ data }) {
         </section>
       )}
 
-      <section className="sn__sec">
+      <section className="sn__sec" data-part="research">
         <p className="sn__label">Research &amp; engagements</p>
         <div className="sn__grid">
           {s.projects.map((p, i) => (
@@ -84,7 +85,7 @@ export default function Sentinel({ data }) {
         </section>
       )}
 
-      <section className="sn__contact">
+      <section className="sn__contact" data-part="contact">
         <Glyph name="lock" size={18} />
         <h2>Enquiries &amp; responsible disclosure</h2>
         <MailLink email={s.email} className="sn__btn">{s.email || 'Add your email'}</MailLink>

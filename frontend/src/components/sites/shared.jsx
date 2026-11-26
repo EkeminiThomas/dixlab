@@ -153,7 +153,7 @@ const PATHS = {
   chev: 'M9 6l6 6-6 6',
   arrow: 'M7 17 17 7M8 7h9v9',
   right: 'M5 12h14M13 6l6 6-6 6',
-  spark: 'M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8',
+  spark: 'M9.93694 15.5002C9.84766 15.1542 9.66728 14.8384 9.41456 14.5856C9.16184 14.3329 8.84601 14.1525 8.49994 14.0632L2.36494 12.4812C2.26027 12.4515 2.16815 12.3885 2.10255 12.3017C2.03696 12.2149 2.00146 12.1091 2.00146 12.0002C2.00146 11.8914 2.03696 11.7856 2.10255 11.6988C2.16815 11.612 2.26027 11.549 2.36494 11.5192L8.49994 9.93625C8.84589 9.84706 9.16163 9.66682 9.41434 9.41429C9.66705 9.16175 9.84751 8.84614 9.93694 8.50025L11.5189 2.36525C11.5483 2.26017 11.6113 2.16759 11.6983 2.10164C11.7852 2.0357 11.8913 2 12.0004 2C12.1096 2 12.2157 2.0357 12.3026 2.10164C12.3896 2.16759 12.4525 2.26017 12.4819 2.36525L14.0629 8.50025C14.1522 8.84632 14.3326 9.16215 14.5853 9.41487C14.838 9.66759 15.1539 9.84797 15.4999 9.93725L21.6349 11.5182C21.7404 11.5473 21.8335 11.6103 21.8998 11.6973C21.9661 11.7844 22.002 11.8908 22.002 12.0002C22.002 12.1097 21.9661 12.2161 21.8998 12.3032C21.8335 12.3902 21.7404 12.4531 21.6349 12.4822L15.4999 14.0632C15.1539 14.1525 14.838 14.3329 14.5853 14.5856C14.3326 14.8384 14.1522 15.1542 14.0629 15.5002L12.4809 21.6353C12.4515 21.7403 12.3886 21.8329 12.3016 21.8989C12.2147 21.9648 12.1086 22.0005 11.9994 22.0005C11.8903 22.0005 11.7842 21.9648 11.6973 21.8989C11.6103 21.8329 11.5473 21.7403 11.5179 21.6353L9.93694 15.5002Z', // Figma design system: Icon/sparkles
   max: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
   min: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
   close: 'M6 6l12 12M18 6 6 18',
@@ -183,7 +183,7 @@ export const OpenProject = createContext(null);
  * A project card. On a live site it opens that project's page; otherwise it
  * falls back to the project's own link, or plain text in a thumbnail.
  */
-export function ProjectLink({ href, className, children, project }) {
+export function ProjectLink({ href, className, children, project, part }) {
   const isStatic = useContext(StaticSite);
   const nav = useContext(OpenProject);
   if (nav && !isStatic && project != null && project < nav.count) {
@@ -194,15 +194,15 @@ export function ProjectLink({ href, className, children, project }) {
       nav.open(project);
     };
     return (
-      <a className={`${className || ''} is-openable`} href={url || '#'} onClick={onClick}>
+      <a className={`${className || ''} is-openable`} href={url || '#'} onClick={onClick} data-part={part}>
         {children}
       </a>
     );
   }
   const safe = safeHref(href);
   return safe && !isStatic
-    ? <a className={className} href={safe} target="_blank" rel="noopener noreferrer">{children}</a>
-    : <span className={className}>{children}</span>;
+    ? <a className={className} href={safe} target="_blank" rel="noopener noreferrer" data-part={part}>{children}</a>
+    : <span className={className} data-part={part}>{children}</span>;
 }
 
 export function MailLink({ email, className, children }) {
@@ -210,4 +210,22 @@ export function MailLink({ email, className, children }) {
   return email && !isStatic
     ? <a className={className} href={`mailto:${email}`}>{children}</a>
     : <span className={className}>{children}</span>;
+}
+
+/**
+ * A nav item that scrolls to a section of the template (the section carries
+ * data-part="<part>"). Works on the published page and inside the editor's
+ * scroll box; in a thumbnail it is plain text.
+ */
+export function NavTo({ part, className, children }) {
+  const isStatic = useContext(StaticSite);
+  if (isStatic) return <span className={className}>{children}</span>;
+  const go = (e) => {
+    const root = e.currentTarget.closest('.site') || document;
+    const el = root.querySelector(`[data-part="${part}"]`);
+    if (!el) return;
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  };
+  return <button type="button" className={`navto ${className || ''}`.trim()} onClick={go}>{children}</button>;
 }

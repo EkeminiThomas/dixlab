@@ -1,5 +1,6 @@
 import { site, Shot, Glyph, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -11,10 +12,10 @@ export default function Bento({ data }) {
     <div className="site bento">
       <header className="bento__top">
         <Avatar s={s} className="bento__logo" />
-        <nav className="bento__nav"><span className="is-on">Home</span><span>Work</span><span>About</span></nav>
+        <nav className="bento__nav" aria-label="Sections"><NavTo part="top" className="is-on">Home</NavTo>{s.projects.length > 0 && <NavTo part="work">Work</NavTo>}{s.paras.length > 0 && <NavTo part="about">About</NavTo>}<NavTo part="contact">Contact</NavTo></nav>
       </header>
 
-      <div className="bento__grid">
+      <div className="bento__grid" data-part="top">
         <section className="bento__t bento__t--hero">
           <Avatar s={s} className="bento__avatar" />
           <h1 className="bento__h1">{s.name}</h1>
@@ -29,7 +30,7 @@ export default function Bento({ data }) {
         </section>
 
         {s.paras.length > 0 && (
-          <section className="bento__t bento__t--about">
+          <section className="bento__t bento__t--about" data-part="about">
             <p className="bento__k">About</p>
             {s.paras.slice(0, 2).map((p, i) => <p key={i} className="bento__p">{p}</p>)}
           </section>
@@ -45,7 +46,7 @@ export default function Bento({ data }) {
         </section>
 
         {s.projects.map((p, i) => (
-          <ProjectLink key={i} project={i} href={p.link} className="bento__t bento__t--proj">
+          <ProjectLink key={i} project={i} href={p.link} className="bento__t bento__t--proj" part={i === 0 ? "work" : undefined}>
             <Shot media={p.media?.[0]} title={p.title} i={i} />
             <div className="bento__proj-row">
               <div>

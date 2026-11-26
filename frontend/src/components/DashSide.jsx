@@ -54,7 +54,7 @@ export default function DashSide({ active, onFilter }) {
       <div className="dash__side-foot">
         {isSignedIn() && user.emailVerified === false ? <VerifyNudge /> : (
         <div className="dash__tip">
-          <p className="dash__tip-t"><DsIcon name="idea" size={13} />One story. More ways to tell it.</p>
+          <p className="dash__tip-t"><DsIcon name="sparkles" size={13} />One story. More ways to tell it.</p>
           <p className="dash__tip-d">A finished case study makes a strong section in your portfolio and a sharper line in your CV.</p>
         </div>
         )}

@@ -106,7 +106,7 @@ export default function Blocks({ data }) {
             <p className="bl__lede">{s.paras[0]}</p>
             {s.paras.slice(1).map((p, i) => <p key={i} className="bl__p">{p}</p>)}
             {s.certs.length > 0 && (
-              <ul className="bl__certs" aria-label="Certifications">{s.certs.map((c) => <li key={c}><span aria-hidden>✦</span>{c}</li>)}</ul>
+              <ul className="bl__certs" aria-label="Certifications">{s.certs.map((c) => <li key={c}><Glyph name="spark" size={11} stroke={2.2} />{c}</li>)}</ul>
             )}
           </div>
         </section>

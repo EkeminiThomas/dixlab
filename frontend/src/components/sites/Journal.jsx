@@ -1,5 +1,6 @@
 import { site, Shot, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -18,13 +19,13 @@ export default function Journal({ data }) {
         <div className="journal__meta"><span>Vol. {s.roman}</span><span>The portfolio of</span><span>{s.role}</span></div>
         <h1 className="journal__name">{s.name}</h1>
         <Avatar s={s} className="avp avp--journal" fallback={false} />
-        <nav className="journal__nav"><span>Work</span><span>Profile</span><span>Correspondence</span></nav>
+        <nav className="journal__nav" aria-label="Sections"><NavTo part="work">Work</NavTo>{s.paras.length > 0 && <NavTo part="profile">Profile</NavTo>}<NavTo part="contact">Correspondence</NavTo></nav>
       </header>
 
       {s.tagline && <p className="journal__dek">{s.tagline}</p>}
 
       {s.paras.length > 0 && (
-        <section className="journal__sec">
+        <section className="journal__sec" data-part="profile">
           <p className="journal__k">Profile</p>
           <div className="journal__cols">
             {s.paras.map((p, i) => <p key={i} className={i === 0 ? 'journal__drop' : ''}>{p}</p>)}
@@ -32,7 +33,7 @@ export default function Journal({ data }) {
         </section>
       )}
 
-      <section className="journal__sec">
+      <section className="journal__sec" data-part="work">
         <p className="journal__k">Selected work</p>
         <ProjectLink project={0} href={feature.link} className="journal__feature">
           <Shot media={feature.media?.[0]} title={feature.title} i={0} palette={PAPER} />

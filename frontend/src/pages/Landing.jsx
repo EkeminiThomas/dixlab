@@ -66,7 +66,7 @@ export default function Landing() {
       <section className="hero">
         <div className="hero__message">
           <p className="pill">
-            <DsIcon name="idea" size={14} />
+            <DsIcon name="wand" size={14} />
             YOUR EXPERIENCE. A NEW PERSPECTIVE.
           </p>
           <h1 className="hero__title"><span className="line">Turn your</span><span className="line">work into</span><span className="line line--grad">opportunities.</span></h1>
@@ -85,7 +85,7 @@ export default function Landing() {
             <div className="hero__portfolio"><PortfolioPreview width={520} photo={img.photoChairHero} /></div>
             <div className="hero__cv"><CVPreview width={230} /></div>
             <div className="hero__ai">
-              <span className="hero__ai-icon"><DsIcon name="bubble-chat-edit" size={18} /></span>
+              <span className="hero__ai-icon"><DsIcon name="wand" size={18} /></span>
               <span>
                 <strong>Your experience, clearly expressed.</strong>
                 <small>AI-assisted. Always your story.</small>
@@ -114,7 +114,7 @@ export default function Landing() {
           </div>
           <Icon src={img.arrowRight} size={20} className="flow__arrow" />
           <div className="flow__card flow__card--ai">
-            <p className="flow__label flow__label--accent"><DsIcon name="bubble-chat-edit" size={15} />A LITTLE HELP FINDING THE WORDS</p>
+            <p className="flow__label flow__label--accent"><DsIcon name="wand" size={15} />A LITTLE HELP FINDING THE WORDS</p>
             <p className="flow__questions">What problem did you solve?<br />What part did you own?<br />What did you learn?</p>
           </div>
           <Icon src={img.arrowRight} size={20} className="flow__arrow" />
@@ -170,14 +170,14 @@ export default function Landing() {
           <div className="voice__head">
             <span className="voice__dots" aria-hidden><i /><i /><i /></span>
             <p>YOUR STORY, COMING INTO FOCUS</p>
-            <DsIcon name="bubble-chat" size={18} />
+            <DsIcon name="mic" size={18} />
           </div>
           <div className="voice__orig">
             <p className="voice__k">YOUR STARTING POINT</p>
             <p className="voice__q">“I redesigned the sign-up flow for a student project. I did interviews and made prototypes.”</p>
           </div>
           <div className="voice__draft">
-            <p className="voice__k voice__k--accent"><DsIcon name="edit" size={13} />A CLEARER WAY TO SAY IT</p>
+            <p className="voice__k voice__k--accent"><DsIcon name="type" size={13} />A CLEARER WAY TO SAY IT</p>
             <p className="voice__text">I explored where students struggled with sign-up, then translated interview insights into a simpler, more considered onboarding experience.</p>
             <div className="chips"><span>User research</span><span>Interaction design</span></div>
           </div>

@@ -1,5 +1,6 @@
 import { site, ProjectLink, MailLink, Glyph } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -12,7 +13,7 @@ export default function Grid({ data }) {
       <header className="swiss__head">
         <b>{s.name}</b>
         <span>{s.role}</span>
-        <span className="swiss__nav">Index, Info, Contact</span>
+        <span className="swiss__nav"><NavTo part="index">Index</NavTo>{(s.tagline || s.paras.length > 0) && <>, <NavTo part="info">Info</NavTo></>}, <NavTo part="contact">Contact</NavTo></span>
       </header>
 
       <section className="swiss__hero">
@@ -21,7 +22,7 @@ export default function Grid({ data }) {
       </section>
 
       {(s.tagline || s.paras.length > 0) && (
-        <section className="swiss__row">
+        <section className="swiss__row" data-part="info">
           <p className="swiss__k">Info</p>
           <div className="swiss__info">
             {s.tagline && <p className="swiss__lead">{s.tagline}</p>}
@@ -30,7 +31,7 @@ export default function Grid({ data }) {
         </section>
       )}
 
-      <section className="swiss__row">
+      <section className="swiss__row" data-part="index">
         <p className="swiss__k">Index</p>
         <ol className="swiss__index">
           {s.projects.map((p, i) => (

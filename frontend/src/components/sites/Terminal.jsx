@@ -1,5 +1,6 @@
 import { site, hash, ProjectLink, MailLink } from './shared.jsx';
 import { Avatar } from './shared.jsx';
+import { NavTo } from './shared.jsx';
 import { GetInTouch } from './contact.jsx';
 import { ToolList } from './tools.jsx';
 
@@ -19,9 +20,9 @@ export default function Terminal({ data }) {
         <span className="term__path">{s.handle || 'me'}@portfolio: ~</span>
         <span />
       </div>
-      <nav className="term__tabs"><span className="is-on">about.md</span><span>projects/</span><span>contact.sh</span></nav>
+      <nav className="term__tabs" aria-label="Sections"><NavTo part="about" className="is-on">about.md</NavTo><NavTo part="projects">projects/</NavTo><NavTo part="contact">contact.sh</NavTo></nav>
 
-      <div className="term__body">
+      <div className="term__body" data-part="about">
         <Cmd>whoami</Cmd>
         <div className="term__who">
           <Avatar s={s} className="avp avp--term" fallback={false} />
@@ -38,7 +39,7 @@ export default function Terminal({ data }) {
         )}
 
         <Cmd>ls -la projects/</Cmd>
-        <ul className="term__ls">
+        <ul className="term__ls" data-part="projects">
           {s.projects.map((p, i) => (
             <li key={i}>
               <ProjectLink project={i} href={p.link} className="term__dir">
@@ -72,7 +73,7 @@ export default function Terminal({ data }) {
         )}
 
         <Cmd>./contact.sh</Cmd>
-        <p className="term__p">
+        <p className="term__p" data-part="contact">
           <span className="term__hl">→</span>{' '}
           {s.email ? <MailLink email={s.email} className="term__link">{s.email}</MailLink> : <span className="term__dim">add your email to show it here</span>}
         </p>
