@@ -1,3 +1,4 @@
+import { DsIcon } from './ui.jsx';
 import { useEffect, useState } from 'react';
 import { assistTailorCv, assistProfiles, cvCheck, isSignedIn, usePlan } from '../api.js';
 import { FigmaAccess, FigmaFilePicker, useFigmaReturn } from './FigmaAccess.jsx';
@@ -122,7 +123,7 @@ export default function AiAssist({ kind, project, onApply }) {
   if (!open) {
     return (
       <button type="button" className="aia__open" onClick={() => setOpen(true)}>
-        <span className="aia__spark" aria-hidden>✦</span>
+        <DsIcon name="idea" size={16} className="aia__spark" />
         <span><b>{isCv ? 'Let AI shape your CV' : 'Let AI build your portfolio'}</b>
           {isCv ? ' Check it against the standard hiring platforms like Mercor screen for, tailor it to a job, or build it from your GitHub, LinkedIn or X.' : ' From your GitHub, Figma, LinkedIn, X or website: your projects, how you work, what you build.'}</span>
         <span aria-hidden>Open →</span>
@@ -133,7 +134,7 @@ export default function AiAssist({ kind, project, onApply }) {
   return (
     <section className="aia" aria-label="AI assistant">
       <div className="aia__head">
-        <p className="aia__title"><span className="aia__spark" aria-hidden>✦</span>AI assistant</p>
+        <p className="aia__title"><DsIcon name="idea" size={16} className="aia__spark" />AI assistant</p>
         {plan?.enforced && <span className="aia__units">{(plan.credits ?? 0).toLocaleString()} credits</span>}
         <button type="button" className="aia__x" onClick={() => setOpen(false)} aria-label="Close the AI assistant">✕</button>
       </div>

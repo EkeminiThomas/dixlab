@@ -216,6 +216,7 @@ async function startSession({ user }) {
   write(LEGACY_TOKEN_KEY, null);
   write(SIGNED_IN_KEY, '1');
   write(OWNER_KEY, user.id);
+  saveProjects(loadProjects());  // signed in now: drops the signed-out demo projects from this browser
   saveUser(user);
   setStatus('idle');
   await syncProjects();

@@ -861,3 +861,32 @@ def test_email_can_go_through_sendliberty(monkeypatch):
     assert not mailer.send("ada@example.com\r\nBcc: x@y.z", "s", "b")          # no header injection
     monkeypatch.setattr(mailer.httpx, "post", lambda *a, **k: httpx.Response(401, json={"error": "Invalid API key"}))
     assert mailer.send("ada@example.com", "s", "b") is False
+
+
+def test_dixlabs_own_emails_point_to_the_contact_address(monkeypatch):
+    """Replies to Dixlab's emails reach hello@dixlab.click; a visitor's message still replies to the visitor."""
+    import httpx
+    from app import config as cfg, mailer
+    monkeypatch.setattr(mailer, "SENDLIBERTY_API_KEY", "sl_test")
+    monkeypatch.setattr(mailer, "SENDLIBERTY_FROM", "Dixlab <no-reply@dixlab.click>")
+    monkeypatch.setattr(mailer, "CONTACT_EMAIL", "hello@dixlab.click")
+    sent = []
+    monkeypatch.setattr(mailer.httpx, "post", lambda url, json=None, headers=None, timeout=None: sent.append(json) or httpx.Response(200, json={"id": "m"}))
+    assert mailer.send("ada@example.com", "Reset your Dixlab password", "Hi Ada")
+    assert sent[-1]["replyTo"] == "Dixlab <hello@dixlab.click>"
+    assert mailer.send("ada@example.com", "New message", "Hi", reply_to=("Bo", "bo@example.com"))
+    assert sent[-1]["replyTo"] == "Bo <bo@example.com>"
+    assert cfg.CONTACT_EMAIL == "hello@dixlab.click"
+
+
+def test_account_emails_say_where_to_write(monkeypatch):
+    from app import mailer
+    from app.routers import account
+    got = []
+    monkeypatch.setattr(mailer, "send", lambda to, subject, body, reply_to=None: got.append(body) or True)
+    monkeypatch.setattr(account, "_send_later", lambda background, to, subject, body: got.append(body))
+    monkeypatch.setattr(mailer, "can_send", lambda: True)  # pretend a mail service is set up
+    c = client()
+    sign_up(c, "contact-line@example.com", verified=False)
+    c.post("/api/auth/password/forgot", json={"email": "contact-line@example.com"})
+    assert got and all("Questions? Write to hello@dixlab.click" in b for b in got)

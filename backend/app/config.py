@@ -64,6 +64,8 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_FROM = os.getenv("SMTP_FROM", SMTP_USER).strip()
+# Where people can write to Dixlab: shown in Dixlab's own emails, and where replies to them go.
+CONTACT_EMAIL = os.getenv("DIXLAB_CONTACT_EMAIL", "hello@dixlab.click").strip()
 SMTP_STARTTLS = os.getenv("SMTP_STARTTLS", "true").lower() not in ("0", "false", "no")
 # Or send through SendLiberty (sendliberty.com): its HTTP API sends from a connected Gmail / Google Workspace account.
 SENDLIBERTY_API_KEY = os.getenv("SENDLIBERTY_API_KEY", "").strip()

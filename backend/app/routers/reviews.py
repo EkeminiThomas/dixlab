@@ -128,7 +128,7 @@ def _notify(user_id: str, subject: str, text: str) -> None:
         u = db.execute("SELECT email, name FROM users WHERE id = ?", (user_id,)).fetchone()
     if u:
         first = (u["name"] or "there").split()[0]
-        mailer.send(u["email"], subject, f"Hi {first},\n\n{text}\n\n— Dixlab")
+        mailer.send(u["email"], subject, f"Hi {first},\n\n{text}\n\n— Dixlab\nQuestions? Write to {config.CONTACT_EMAIL}")
 
 
 def _guard_submit(db, row, request: Request, table: str):

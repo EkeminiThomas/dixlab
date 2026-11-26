@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Logo, AppSparkles13, useProjects, useUser, initials } from './ui.jsx';
+import { Logo, DsIcon, useProjects, useUser, initials } from './ui.jsx';
 import { logOut, resendVerification, isSignedIn, usePlan } from '../api.js';
 
 const ITEMS = [
@@ -54,7 +54,7 @@ export default function DashSide({ active, onFilter }) {
       <div className="dash__side-foot">
         {isSignedIn() && user.emailVerified === false ? <VerifyNudge /> : (
         <div className="dash__tip">
-          <p className="dash__tip-t"><AppSparkles13 />One story. More ways to tell it.</p>
+          <p className="dash__tip-t"><DsIcon name="idea" size={13} />One story. More ways to tell it.</p>
           <p className="dash__tip-d">A finished case study makes a strong section in your portfolio and a sharper line in your CV.</p>
         </div>
         )}

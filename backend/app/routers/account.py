@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr, Field
 
 from .. import accounts, events, mailer, passwords
-from ..config import PUBLIC_URL, RESET_LINK_MINUTES, VERIFY_CODE_MINUTES, VERIFY_LINK_HOURS
+from ..config import CONTACT_EMAIL, PUBLIC_URL, RESET_LINK_MINUTES, VERIFY_CODE_MINUTES, VERIFY_LINK_HOURS
 from ..db import get_db
 from ..ratelimit import Limiter, client_ip
 from ..security import (clear_session_cookie, current_user, hash_password, now_ms, request_token,
@@ -96,7 +96,7 @@ def send_verification(db, user, background: BackgroundTasks | None = None) -> bo
     body = (f"Hi {mailer.safe_name(user['name'])},\n\nYour Dixlab confirmation code is:\n\n    {code}\n\n"
             f"Type it on the “Confirm your email” screen. It works for {VERIFY_CODE_MINUTES} minutes.\n\n"
             f"Or confirm with one click:\n\n{PUBLIC_URL}/verify-email#token={token}\n\n"
-            f"The link works for {VERIFY_LINK_HOURS} hours. If you didn’t create a Dixlab account, ignore this email.\n\n— Dixlab")
+            f"The link works for {VERIFY_LINK_HOURS} hours. If you didn’t create a Dixlab account, ignore this email.\n\n— Dixlab\nQuestions? Write to {CONTACT_EMAIL}")
     _send_later(background, user["email"], f"{code} is your Dixlab confirmation code", body)
     return True
 
@@ -200,7 +200,7 @@ def forgot_password(body: ForgotIn, request: Request, background: BackgroundTask
         token = _new_token(db, row["id"], "reset", RESET_LINK_MINUTES)
         text = (f"Hi {mailer.safe_name(row['name'])},\n\nSomeone asked to reset the password for your Dixlab account. If it was you, choose a new one here:\n\n"
                 f"{PUBLIC_URL}/reset-password#token={token}\n\n"
-                f"The link works for {RESET_LINK_MINUTES} minutes and only once. If you didn’t ask, ignore this email: your password stays the same.\n\n— Dixlab")
+                f"The link works for {RESET_LINK_MINUTES} minutes and only once. If you didn’t ask, ignore this email: your password stays the same.\n\n— Dixlab\nQuestions? Write to {CONTACT_EMAIL}")
         _send_later(background, row["email"], "Reset your Dixlab password", text)
         events.log(db, "user.reset_requested", row["id"])
     return {"ok": True, "message": "If there’s an account with that email, we’ve sent a link to reset the password."}

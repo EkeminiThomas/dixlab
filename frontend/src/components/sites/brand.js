@@ -22,6 +22,10 @@ export const ACCENTS = [
   ['#22d3ee', 'Cyan'], ['#111111', 'Ink'],
 ];
 
+/** Page colours: the template's own, or a light or dark version of it (modes.css). */
+export const PAGE_MODES = { default: 'Template', light: 'Light', dark: 'Dark' };
+export const pageMode = (brand = {}) => (brand.mode === 'light' || brand.mode === 'dark' ? brand.mode : undefined);
+
 export const MOTIONS = {
   none:  { label: 'None',        x: '0px',   y: '0px',   s: 1 },
   up:    { label: 'Rise up',     x: '0px',   y: '28px',  s: 1 },
@@ -74,6 +78,7 @@ export function brandProps(brand = {}) {
   return {
     className: `brand ${font ? 'brand--font' : ''} ${bg ? 'brand--bg' : ''}`,
     'data-motion': motion,
+    'data-mode': pageMode(brand),
     'data-float': brand.float === 'off' ? 'off' : 'on',
     ...(bg ? { 'data-bg': BG_PLACES[brand.bgPlace] ? brand.bgPlace : 'hero' } : {}),
     style,

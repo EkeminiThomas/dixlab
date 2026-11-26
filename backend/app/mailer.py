@@ -18,7 +18,7 @@ from email.utils import formataddr
 
 import httpx
 
-from .config import (MAIL_TO_LOG, SENDLIBERTY_API_KEY, SENDLIBERTY_FROM, SENDLIBERTY_URL,
+from .config import (CONTACT_EMAIL, MAIL_TO_LOG, SENDLIBERTY_API_KEY, SENDLIBERTY_FROM, SENDLIBERTY_URL,
                      SMTP_FROM, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_STARTTLS, SMTP_USER)
 
 log = logging.getLogger("dixlab.mail")
@@ -65,6 +65,8 @@ def send(to: str, subject: str, body: str, reply_to: tuple[str, str] | None = No
     if any(ch in s for s in (to, subject) for ch in "\r\n"):  # no header injection
         log.warning("Refused an email with a line break in its address or subject")
         return False
+    if reply_to is None and CONTACT_EMAIL:  # Dixlab's own emails: a reply reaches the team, even from a no-reply sender
+        reply_to = ("Dixlab", CONTACT_EMAIL)
     if sendliberty():
         return _send_sendliberty(to, subject, body, reply_to)
     return _send_smtp(to, subject, body, reply_to)

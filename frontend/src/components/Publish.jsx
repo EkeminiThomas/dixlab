@@ -95,10 +95,10 @@ export default function PublishDialog({ project, onClose, onStatus }) {
               <a className="app-btn app-btn--ghost" href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`} target="_blank" rel="noreferrer">LinkedIn</a>
               <span className="pub-dlg__views">{info.views === 1 ? 'Viewed once' : `Viewed ${info.views} times`}</span>
             </div>
+            <DomainPanel projectId={project.id} />
             <PagePassword projectId={project.id} on={info.protected} onChange={(v) => setInfo({ ...info, protected: v })} />
             <GalleryOptIn projectId={project.id} status={info.gallery} locked={info.protected} onChange={(g) => setInfo({ ...info, gallery: g })} />
             <Analytics projectId={project.id} />
-            <DomainPanel projectId={project.id} />
             {outdated && (
               <div className="pub-dlg__update">
                 <p>You’ve made changes since publishing. Visitors still see the earlier version.</p>
@@ -164,11 +164,11 @@ function DomainPanel({ projectId }) {
   return (
     <div className="pub-dom">
       <div className="pub-dom__head">
-        <p className="pub-dom__t">Your Dixlab address {!hasSub && <span className="ana__tag">Unlock</span>}</p>
-        <p className="pub-dom__d">A free web address for this page, like <b>yourname.{base}</b>. No domain to buy.</p>
+        <p className="pub-dom__t">Your Dixlab address {!hasSub && <span className="ana__tag">200 credits · yours for good</span>}</p>
+        <p className="pub-dom__d">A short web address for this page, like <b>yourname.{base}</b>, that’s easy to say and put on a CV. Live straight away, no domain to buy.</p>
       </div>
       {!info ? <p className="pw__d">Loading…</p> : !hasSub ? (
-        <button type="button" className="app-btn app-btn--ghost" onClick={() => openUpgrade({ code: 'unlock_needed', feature: 'subdomain' })}>Unlock with credits</button>
+        <button type="button" className="app-btn app-btn--primary" onClick={() => openUpgrade({ code: 'unlock_needed', feature: 'subdomain' })}>Get yourname.{base}</button>
       ) : info.sub ? (
         <div className="dom">
           <p className="dom__status"><a href={info.sub.url} target="_blank" rel="noreferrer"><b>{info.sub.domain}</b> ↗</a><span className="rv-badge is-approved">Live</span></p>

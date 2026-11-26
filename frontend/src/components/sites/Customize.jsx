@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { AppSparkles15, AppSparkles13, TEMPLATES } from '../ui.jsx';
+import { DsIcon, TEMPLATES } from '../ui.jsx';
 import { SITE_TEMPLATES } from './index.jsx';
-import { FONT_PAIRS, ACCENTS, MOTIONS, SPEEDS, DEPTHS, TILTS, FLOATS, BG_PLACES, BG_STRENGTHS, safeBg, isBranded } from './brand.js';
+import { PAGE_MODES, FONT_PAIRS, ACCENTS, MOTIONS, SPEEDS, DEPTHS, TILTS, FLOATS, BG_PLACES, BG_STRENGTHS, safeBg, isBranded } from './brand.js';
 import { uploadBackground, MAX_IMAGE_MB } from '../media.js';
 import { interpretPrompt, PROMPT_IDEAS, CV_PROMPT_IDEAS, CASE_PROMPT_IDEAS, THREE_PROMPT_IDEAS } from './promptCustomize.js';
 import { CV_SIZES } from '../cv/index.jsx';
@@ -28,11 +28,22 @@ export default function Customize({ project, onPatch, template, kind = 'site' })
   return (
     <>
       <div>
-        <p className="section-label"><AppSparkles15 /><span>Customize</span></p>
+        <p className="section-label"><DsIcon name="customize" /><span>Customize</span></p>
         <h2 className="ed__h2">Make {t?.name || 'your template'} unmistakably yours.</h2>
       </div>
       <p className="ed__lead">The template’s defaults stay in place. Describe a change in your own words, or fine-tune each setting below.{isDoc ? ' Your CV stays print-ready A4.' : ''}</p>
       <PromptPanel project={project} template={template} onPatch={onPatch} kind={kind} />
+
+      <fieldset className="ed__set">
+        <legend>Page colours</legend>
+        <div className="pills" role="group" aria-label="Page colours">
+          {Object.entries(PAGE_MODES).map(([k, label]) => {
+            const on = (brand.mode || 'default') === k;
+            return <button key={k} type="button" className={`pill-btn ${on ? 'is-active' : ''}`} aria-pressed={on} onClick={() => set('mode', k === 'default' ? null : k)}>{label}</button>;
+          })}
+        </div>
+        <small className="field__hint">{isDoc ? 'Dark is for the screen: your printed or downloaded CV stays light.' : 'A light (white) or dark (black) version of this template. Template keeps its own colours.'}</small>
+      </fieldset>
 
       <fieldset className="ed__set">
         <legend>Fonts</legend>
@@ -272,7 +283,7 @@ function PromptPanel({ project, template, onPatch, kind = 'site' }) {
   return (
     <section className="cz__ai" aria-label="Describe a change">
       <div className="cz__ai-head">
-        <span className="cz__ai-icon"><AppSparkles13 /></span>
+        <span className="cz__ai-icon"><DsIcon name="idea" size={13} /></span>
         <div>
           <p className="cz__ai-t">Describe a change</p>
           <p className="cz__ai-d">{isDoc ? 'Colours, fonts, text size, template, headline or summary, in plain words.' : 'Colours, fonts, animation, template or wording, in plain words.'}</p>

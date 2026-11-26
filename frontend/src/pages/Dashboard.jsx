@@ -7,6 +7,7 @@ import {
   deleteProject, ConfirmDelete, TrashIcon,
 } from '../components/ui.jsx';
 import DashSide from '../components/DashSide.jsx';
+import { hasFeature, usePlan } from '../api.js';
 import { ScaledSite, SITE_TEMPLATES } from '../components/sites/index.jsx';
 import { projectToSite } from '../components/sites/shared.jsx';
 import { ScaledDoc, CV_TEMPLATES } from '../components/cv/index.jsx';
@@ -23,6 +24,11 @@ const STARTERS = [
 export default function Dashboard() {
   const [params, setParams] = useSearchParams();
   const projects = useProjects();
+  const { plan } = usePlan();
+  // "Get your Dixlab address": once there's a published page, until they hide it.
+  const [addrTip, setAddrTip] = useState(() => { try { return localStorage.getItem('dixlab.hideAddressTip') !== '1'; } catch { return true; } });
+  const live = projects.find((p) => p.status === 'Published');
+  const hideTip = () => { setAddrTip(false); try { localStorage.setItem('dixlab.hideAddressTip', '1'); } catch { /* private mode */ } };
   const [doomed, setDoomed] = useState(null);
   const remove = () => { deleteProject(doomed.id); setDoomed(null); };
   const filter = ['cv', 'case', 'portfolio'].includes(params.get('f')) ? params.get('f') : 'all';
@@ -52,6 +58,17 @@ export default function Dashboard() {
           </div>
           <Link to="/editor" className="app-btn app-btn--primary app-btn--lg"><span>New story</span><AppArrow /></Link>
         </header>
+
+        {addrTip && live && (
+          <aside className="addr-tip" aria-label="Your Dixlab address">
+            <div>
+              <p className="addr-tip__t">Get a web address like <b>{((user.name || '').trim().split(' ')[0] || '').toLowerCase().replace(/[^a-z0-9]/g, '') || 'yourname'}.dixlab.click</b></p>
+              <p className="addr-tip__d">{hasFeature('subdomain', plan) ? 'You’ve unlocked it: pick your name in the page’s Publish settings.' : 'Short, easy to say and to put on a CV. 200 credits, yours for good.'}</p>
+            </div>
+            <Link to={`/editor/${live.id}?publish=1`} className="app-btn app-btn--primary">Choose my address</Link>
+            <button type="button" className="addr-tip__x" onClick={hideTip} aria-label="Hide this">×</button>
+          </aside>
+        )}
 
         <section className="dash__section">
           <h2 className="dash__h2">Start something new</h2>

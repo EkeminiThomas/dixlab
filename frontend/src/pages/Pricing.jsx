@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { mailto } from '../contact.js';
 import { Link, useNavigate } from 'react-router-dom';
 import { Logo, loadUser } from '../components/ui.jsx';
 import {
@@ -158,7 +159,7 @@ export default function Pricing() {
           <span className="prc__offer-tag">Coming soon</span>
           <h3>Dixlab for teams</h3>
           <p>For agencies, bootcamps and career centres: shared credits for your whole team, bulk onboarding and one bill.</p>
-          <a className="prc__cta prc__cta--ghost" href="mailto:hello@dixlab.app?subject=Dixlab%20for%20teams">Talk to us</a>
+          <a className="prc__cta prc__cta--ghost" href={mailto('Dixlab for teams')}>Talk to us</a>
         </div>
       </section>
 

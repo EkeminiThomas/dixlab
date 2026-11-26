@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { AppArrow, AppSparkles13, loadProjects, saveProjects } from '../components/ui.jsx';
+import { AppArrow, DsIcon, loadProjects, saveProjects } from '../components/ui.jsx';
 import { pushProject, fetchProject, isSignedIn } from '../api.js';
 import { topicsFor, askNext, writeDraft, draftKeysFor } from '../components/case/interview.js';
 
@@ -155,7 +155,7 @@ export default function Interview() {
         <Link to={home} className="ed__back">← {kind === 'portfolio' ? 'Portfolios' : 'Case studies'}</Link>
         <p className="intv__title">{kind === 'portfolio' ? 'Portfolio interview' : 'Case study interview'}</p>
         <span className={`intv__mode ${local ? '' : 'is-ai'}`} title={local ? 'Guided questions, written in your browser' : 'Questions and draft by AI'}>
-          {local ? 'Guided' : <><AppSparkles13 /> AI interviewer</>}
+          {local ? 'Guided' : <><DsIcon name="bubble-chat" size={13} /> AI interviewer</>}
         </span>
         <Link to={`/editor/${project.id}`} className="app-btn app-btn--ghost">Fill in the form instead</Link>
       </header>

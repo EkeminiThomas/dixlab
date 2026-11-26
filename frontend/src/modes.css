@@ -1,0 +1,135 @@
+/* ==========================================================================
+   Page colours: a light (white) or dark (black) version of any template.
+   The brand wrapper carries data-mode="light" | "dark" (brand.js pageMode);
+   without it every template keeps its own colours. Each template already
+   draws from a few colour tokens, so a mode swaps those tokens (and the
+   handful of colours written straight into a template's CSS).
+   CVs: dark is for the screen only; print and PDF stay light.
+   ========================================================================== */
+
+/* ---------- Portfolio templates: dark versions of the light ones ---------- */
+[data-mode="dark"] .folio { --f-ink: #f1f1f4; --f-muted: #a1a1ab; --f-faint: #6f6f78; --f-line: #2a2a31; --f-soft: #17171c; background: #0f0f12; }
+[data-mode="dark"] .bento { --b-ink: #f1f1f4; --b-muted: #a3a09a; --b-tile: #17171a; --b-line: #2b2a27; background: #0b0b0d; }
+[data-mode="dark"] .journal { --j-ink: #f0ebe2; --j-muted: #a89f92; --j-rule: #3a342c; background: #15120e; }
+[data-mode="dark"] .exhibit { --e-accent: var(--brand-accent, #f1efe9); --e-ink: #f1efe9; --e-muted: #a29e95; --e-line: #34322d; background: #121110; }
+[data-mode="dark"] .punch { --p-ink: #f6f3ea; --p-bg: #111111; }
+[data-mode="dark"] .casebook { --c-ink: #ecebf5; --c-muted: #9d9cb2; --c-line: #2a293a; --c-soft: #191826; background: #0f0e18; }
+[data-mode="dark"] .swiss { --s-ink: #f4f4f2; --s-muted: #a0a09c; --s-line: #f4f4f2; background: #0c0c0b; }
+[data-mode="dark"] .bl { --bl-paper: #121117; --bl-ink: #f0eff4; --bl-muted: #a3a0ad; --bl-faint: #6e6b78; --bl-line: rgba(255, 255, 255, 0.12); }
+
+/* ---------- Portfolio templates: light versions of the dark ones ---------- */
+[data-mode="light"] .term { --t-bg: #fbfcfb; --t-fg: #1d2a21; --t-dim: #5b6b5f; --t-green: var(--brand-accent, #1a7f37); --t-yellow: #8a5d00;
+  --t-blue: #0969da; --t-line: #dfe6e0; border-color: #d0d7d1; }
+[data-mode="light"] .sentinel { --n-bg: #f6f8fb; --n-panel: #ffffff; --n-line: #dde3ec; --n-ink: #0b1322; --n-muted: #56647a; --n-accent: var(--brand-accent, #0e7490); }
+[data-mode="light"] .reel { --r-bg: #ffffff; --r-ink: #0a0a0a; --r-muted: #66666b; --r-line: #e6e6e6; }
+
+/* ---------- Case studies ---------- */
+/* Dark version of the light templates. */
+[data-mode="dark"] .cs:not(.cs-spotlight):not(.dp):not(.cs-terminal) {
+  --k-bg: #0f0f12; --k-ink: #f1f1f4; --k-muted: #a1a1ab; --k-line: #2a2a31; --k-soft: #17171c; color-scheme: dark;
+}
+/* Light version of the dark ones. */
+[data-mode="light"] :is(.cs-spotlight, .cs.dp, .cs-terminal) {
+  --k-bg: #ffffff; --k-ink: #16161a; --k-muted: #5f5f6b; --k-line: #e4e4e8; --k-soft: #f4f4f6; color-scheme: light;
+}
+[data-mode="light"] .cs.dp { --dp-faint: #8a8799; --dp-card: #f4f4f7; }
+[data-mode="light"] .cs-terminal { --k-accent: var(--brand-accent, #1a7f37); }
+/* The reading bar above every case study. */
+[data-mode="dark"] .cs-meta { background: #141418; color: #ececf0; border-bottom-color: #26262c; }
+[data-mode="dark"] .cs-meta__toc a { color: #a1a1ab; }
+[data-mode="dark"] .cs-meta__toc a:hover { color: #ffffff; }
+
+/* ---------- CVs (screen only) ---------- */
+@media screen {
+  [data-mode="dark"] .cvdoc { --c-ink: #ececf1; --c-muted: #a3a3ad; --c-line: #2c2c33; background: #131316; color: var(--c-ink); color-scheme: dark; }
+}
+
+/* ---------- Colours written straight into a template ---------- */
+/* Dark: things drawn "ink on white" flip to "light ink on the page colour". */
+[data-mode="dark"] :is(.folio__mono, .bento__logo, .bento__nav .is-on) { color: #0f0f12; }
+[data-mode="dark"] :is(.bento__nav, .bento__pill) { background: var(--b-tile); color: var(--b-ink); }
+[data-mode="dark"] .bento .git { --g-field: #17171a; }
+[data-mode="dark"] .folio__xp li::before { background: #0f0f12; }
+[data-mode="dark"] :is(.folio__avatar, .bento__avatar).has-photo { box-shadow: 0 0 0 3px #0f0f12, 0 0 0 4px var(--f-line, var(--b-line)); }
+[data-mode="dark"] .journal .git { --g-field: rgba(255, 255, 255, 0.06); }
+[data-mode="dark"] .journal__drop::first-letter { color: var(--j-ink); }
+[data-mode="dark"] .exhibit .git { --g-field: rgba(255, 255, 255, 0.06); --g-on: #121110; }
+[data-mode="dark"] .exhibit .git__send { color: #121110; }
+[data-mode="dark"] .swiss .git { --g-field: #161615; }
+[data-mode="dark"] .swiss p { color: var(--s-ink); }
+[data-mode="dark"] .punch__cta { color: #111; }
+[data-mode="dark"] .punch__tag { color: #cfcabd; }
+[data-mode="dark"] :is(.punch__box, .punch__xp li) { background: #1b1b1b; }
+[data-mode="dark"] .punch .git { --g-field: #1b1b1b; --g-muted: #bdb8ab; }
+[data-mode="dark"] :is(.punch__logo, .punch__sticker, .punch mark) { color: #111; }
+[data-mode="dark"] .cb__cta { color: #0f0e18; }
+[data-mode="dark"] :is(.cb__device, .cb__case-meta span, .cb__chips li) { background: var(--c-soft); color: var(--c-ink); }
+[data-mode="dark"] .casebook .git { --g-field: var(--c-soft); }
+[data-mode="dark"] .casebook .tk__item { background: var(--c-soft); color: var(--c-ink); }
+[data-mode="dark"] .bl__chip { background: rgba(255, 255, 255, 0.06); }
+[data-mode="dark"] .bl__k { color: color-mix(in srgb, var(--bl-accent) 60%, #fff); }
+[data-mode="dark"] .bl__card-back { background: #1e1d25; color: var(--bl-ink); }
+[data-mode="dark"] .bl__flip--dark { color: var(--bl-ink); }
+[data-mode="dark"] .bl__card-desc { color: var(--bl-muted); }
+
+/* Light: white text on what is now a white page turns to ink. */
+[data-mode="light"] .term__name, [data-mode="light"] .term .git__title { color: var(--t-fg); text-shadow: none; }
+[data-mode="light"] .term__p { color: var(--t-dim); }
+[data-mode="light"] .term .tk__item { border-color: var(--t-line); }
+[data-mode="light"] :is(.sn__status, .sn__ok) { color: #047857; border-color: color-mix(in srgb, #047857 40%, transparent); }
+[data-mode="light"] .sn__status i { background: #059669; box-shadow: none; }
+[data-mode="light"] .sn__p { color: var(--n-muted); }
+[data-mode="light"] .sentinel .tk__item { border-color: var(--n-line); }
+[data-mode="light"] .reel .git { --g-field: #f4f4f5; }
+[data-mode="light"] .reel .tk__item { border-color: var(--r-line); }
+[data-mode="light"] .rl__no { background: rgba(0, 0, 0, 0.7); color: #fff; }
+[data-mode="light"] :is(.rl__rec, .rl__title, .rl__title h1) { color: #fff; }
+[data-mode="light"] .avp--reel { border-color: var(--r-line); }
+
+/* Case studies. Accent-coloured text is lightened on dark pages and deepened on light ones. */
+[data-mode="dark"] .cs :is(.cs-k, .cs-steps__n, .tl-k, .cs-h, .dp__k) { color: color-mix(in srgb, var(--k-accent) 55%, #fff); }
+[data-mode="dark"] .cs-blueprint :is(.cs-sec, .cs-pair > .cs-sec) { background: rgba(255, 255, 255, 0.04); }
+[data-mode="dark"] .cs-blueprint .cs-tags li { background: var(--k-soft); }
+[data-mode="dark"] .cs-impact .cs-ba__b { background: #2a1714; }
+[data-mode="dark"] .cs-impact .cs-ba__b .cs-k { color: #fdba74; }
+[data-mode="dark"] .cs-impact .cs-ba__a { background: color-mix(in srgb, var(--k-accent) 16%, #0f0f12); }
+[data-mode="dark"] .cs-deck .cs-slide:not(.cs-hero) { background: #17171c; box-shadow: none; }
+[data-mode="dark"] .cs-deck .cs-slide:nth-of-type(even):not(.cs-hero) { background: #0a0a0c; }
+[data-mode="dark"] .cs-pocket { --k-soft: #17171c; }
+[data-mode="dark"] .cs-tiles .tl-t--solution { background: #1d1d24; color: var(--k-ink); }
+[data-mode="dark"] .cs-poster .cs-k { background: var(--k-ink); color: #0f0f12; }
+[data-mode="dark"] .cs-aurora { --k-bg: #0f0f12; --k-soft: rgba(23, 23, 28, 0.72); }
+[data-mode="dark"] .cs-aurora :is(.au-pill, .au-metrics li, .au-card, .au-steps li) { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+[data-mode="dark"] .cs-aurora .au-glow { opacity: 0.35; }
+
+[data-mode="light"] :is(.cs-spotlight, .cs.dp, .cs-terminal) :is(.cs-k, .cs-steps__n, .cs-big, .cs-h, .dp__k, .dp__brand) { color: color-mix(in srgb, var(--k-accent) 55%, #000); }
+[data-mode="light"] .cs.dp .dp__brand { color: var(--k-ink); }
+[data-mode="light"] .cs-terminal .tm-log code { color: #8250df; }
+[data-mode="light"] .cs-terminal .tm-stack { color: #0969da; }
+
+/* Second pass: white panels and fixed-colour tiles. */
+[data-mode="dark"] .folio__bar { background: rgba(15, 15, 18, 0.9); }
+[data-mode="dark"] .bento__t--contact { color: #151515; }
+[data-mode="dark"] .bento__t--contact .bento__k { color: #151515; opacity: 0.7; }
+[data-mode="dark"] .journal__drop::first-letter { color: color-mix(in srgb, var(--j-accent) 55%, #fff); }
+[data-mode="dark"] .punch__card { background: #1b1b1b; }
+[data-mode="dark"] .punch__card > p { color: #bdb8ab; }
+[data-mode="dark"] .punch__xp li span:last-child { color: #bdb8ab; }
+[data-mode="dark"] .punch__badge { color: #111; }
+[data-mode="light"] .rl__p { color: var(--r-muted); }
+[data-mode="dark"] :is(.bl__card-front, .bl__about, .bl__role) { background: #1b1a21; }
+[data-mode="dark"] .bl__role { box-shadow: 0 0 0 1px var(--bl-line), 0 24px 46px rgba(0, 0, 0, 0.4); }
+[data-mode="dark"] .bl__role.is-now { background: #2a2932; color: var(--bl-ink); }
+[data-mode="light"] .dp__nav { background: rgba(255, 255, 255, 0.72); }
+[data-mode="dark"] .folio__btn { color: var(--brand-on, #0f0f12); }
+[data-mode="dark"] .punch__btn { color: #111; }
+[data-mode="dark"] .punch__foot { color: #bdb8ab; }
+[data-mode="dark"] .bl__formcard { background: #1b1a21; }
+[data-mode="dark"] .bl__when b { color: #16151b; }
+[data-mode="dark"] .bl__foot { background: #0a0a0d; color: var(--bl-muted); }
+[data-mode="dark"] .journal__cols p { color: #cfc7ba; }
+[data-mode="dark"] .bl__foot .bl__btn--ghost { color: var(--bl-ink); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); }
+[data-mode="light"] .term .git { --g-field: #f2f5f2; --g-on: #ffffff; }
+[data-mode="light"] .term__chrome { background: #eef2ee; }
+[data-mode="light"] :is(.sentinel, .reel, .term) .git__input { color-scheme: light; }
+[data-mode="light"] .sentinel .git { --g-on: #ffffff; }

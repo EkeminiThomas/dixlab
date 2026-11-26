@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { Classic, Meridian, Executive, Margin, Timeline, Plain, Canvas, Stack, Graduate, Atelier } from './templates.jsx';
 import { CV_SAMPLES } from './data.js';
-import { FONT_PAIRS, onColor } from '../sites/brand.js';
+import { FONT_PAIRS, onColor, pageMode } from '../sites/brand.js';
 
 /** A4 at 96 dpi. */
 export const PAGE_W = 794;
@@ -47,7 +47,7 @@ export function cvBrandStyle(brand = {}) {
 /** Render a CV template at full A4 size. */
 export function CvDoc({ template, data }) {
   const T = (CV_TEMPLATES[template] || CV_TEMPLATES.classic).Component;
-  return <div className="cvwrap" style={cvBrandStyle(data?.brand)}><T data={data} /></div>;
+  return <div className="cvwrap" data-mode={pageMode(data?.brand)} style={cvBrandStyle(data?.brand)}><T data={data} /></div>;
 }
 
 /**

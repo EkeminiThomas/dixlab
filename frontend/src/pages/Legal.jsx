@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
+import { CONTACT_EMAIL } from '../contact.js';
 import { Link, useLocation } from 'react-router-dom';
 import { Logo, loadUser } from '../components/ui.jsx';
 import { isSignedIn, homeFor } from '../api.js';
 
 const UPDATED = '22 November 2026';
-const CONTACT = 'hello@dixlab.app';
+const CONTACT = CONTACT_EMAIL;
 const Mail = () => <a href={`mailto:${CONTACT}`}>{CONTACT}</a>;
 
 /* ---------------------------------------------------------------- Terms of use */

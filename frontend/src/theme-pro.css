@@ -1007,3 +1007,22 @@ body::after {
   .ed__actions .app-btn { flex: none; padding: 8px 14px; font-size: 13px; }
   .ed__actions .app-btn--primary { margin-left: auto; }
 }
+
+/* Dashboard: "Get your Dixlab address" */
+.addr-tip { position: relative; display: flex; align-items: center; gap: 16px; margin: 0 0 32px; padding: 16px 48px 16px 18px; border-radius: 14px;
+  border: 1px solid rgba(157, 149, 255, 0.35); background: linear-gradient(120deg, rgba(157, 149, 255, 0.14), rgba(124, 232, 192, 0.06)); }
+.addr-tip > div { flex: 1; min-width: 0; }
+.addr-tip__t { margin: 0; color: var(--ink); font-size: 15px; font-weight: 500; overflow-wrap: anywhere; }
+.addr-tip__t b { font-family: var(--mono); font-weight: 500; color: var(--accent); }
+.addr-tip__d { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.addr-tip .app-btn { flex: none; }
+.addr-tip__x { position: absolute; top: 8px; right: 10px; width: 28px; height: 28px; border-radius: 50%; color: var(--muted); font-size: 18px; line-height: 1; }
+.addr-tip__x:hover { color: var(--ink); background: rgba(255, 255, 255, 0.06); }
+@media (max-width: 560px) { .addr-tip { flex-direction: column; align-items: stretch; } }
+
+/* Design-system icons (components/ui.jsx DsIcon): drawn in the text colour around them. */
+.ds-icon { display: inline-block; flex: none; vertical-align: -0.15em; background: currentColor;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: contain; mask-size: contain; }
+.section-label .ds-icon, .focus__k--accent .ds-icon, .flow__label--accent .ds-icon, .voice__k--accent .ds-icon, .dash__tip-t .ds-icon { color: var(--accent); }
+.aia__spark.ds-icon { color: var(--accent); }

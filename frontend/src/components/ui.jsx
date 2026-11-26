@@ -99,15 +99,16 @@ export function InsetIcon({ src, size, inset, bleed, mask, maskOffset }) {
 
 export const AppArrow = () => <InsetIcon src={img.arrowUpRightWhiteSm} size={18} inset="29.17%" bleed="-11.34%" />;
 export const AppArrowAccent = () => <InsetIcon src={img.arrowUpRightAccentSm} size={20} inset="29.17%" bleed="-10.2%" />;
-export const AppSparkles13 = () => (
-  <InsetIcon src={img.sparklesGlyph13} mask={img.sparklesMask13} maskOffset="-1.082px -1.083px" size={13} inset="8.33% 8.32% 8.32% 8.32%" bleed="-7.84%" />
+/**
+ * An icon from the design system's icon set (Figma → Designs → "Huge Icon Set v2.0"),
+ * served from /assets/icons and drawn in the text colour around it (currentColor).
+ * Names: idea, bubble-chat, bubble-chat-edit, compass, layers, image, edit, customize.
+ */
+export const DsIcon = ({ name, size = 15, className = '', label }) => (
+  <span className={`ds-icon ${className}`} role={label ? 'img' : undefined} aria-label={label} aria-hidden={label ? undefined : true}
+    style={{ width: size, height: size, WebkitMaskImage: `url(/assets/icons/${name}.svg)`, maskImage: `url(/assets/icons/${name}.svg)` }} />
 );
-export const AppSparkles15 = () => (
-  <InsetIcon src={img.sparklesGlyph15} mask={img.sparklesMask15} maskOffset="-1.248px -1.25px" size={15} inset="8.33% 8.32% 8.32% 8.32%" bleed="-6.8%" />
-);
-export const AppSparkles18 = () => (
-  <InsetIcon src={img.sparklesGlyph18} mask={img.sparklesMask18} maskOffset="-1.498px -1.499px" size={18} inset="8.33% 8.32% 8.32% 8.32%" bleed="-5.67% -5.66%" />
-);
+
 export const AppStickyNote = () => <InsetIcon src={img.stickyNoteGlyph} size={15} inset="12.5%" bleed="-7.56%" />;
 export const AppFileCheck = () => <InsetIcon src={img.fileCheckGlyph} size={15} inset="8.33% 16.67%" bleed="-6.8% -8.5% -9.62% -8.5%" />;
 
@@ -320,11 +321,20 @@ const writeProjects = (projects) => {
   try { localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects)); return true; } catch { return false; }
 };
 
+// Signed in (the same flag api.js sets): "Your work" is only what this person made.
+const signedIn = () => { try { return Boolean(localStorage.getItem('dixlab.session') || localStorage.getItem('dixlab.token')); } catch { return false; } };
+
 export function loadProjects() {
+  const mine = signedIn();
   try {
     const raw = localStorage.getItem(PROJECTS_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const all = JSON.parse(raw);
+      // The demo projects are for signed-out visitors only: never shown as someone's own work.
+      return mine ? all.filter((p) => !p.sample) : all;
+    }
   } catch {}
+  if (mine) return [];
   const seeded = seedProjects(); // demo content for signed-out visitors
   writeProjects(seeded);
   return seeded;

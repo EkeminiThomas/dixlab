@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { img } from '../assets.js';
-import { Logo, Icon, AppSparkles13, AppArrow } from '../components/ui.jsx';
+import { Logo, Icon, DsIcon, AppArrow } from '../components/ui.jsx';
 
 export function AuthLayout({ mode, title, lead, children, footer }) {
   return (
@@ -59,7 +59,7 @@ export default function AuthAside() {
           <p className="focus__q">“I redesigned the sign-up flow for a student project. I did interviews and made prototypes.”</p>
         </div>
         <div className="focus__draft">
-          <p className="focus__k focus__k--accent"><AppSparkles13 />A CLEARER WAY TO SAY IT</p>
+          <p className="focus__k focus__k--accent"><DsIcon name="edit" size={13} />A CLEARER WAY TO SAY IT</p>
           <p className="focus__text">I explored where students struggled with sign-up, then translated interview insights into a simpler onboarding experience.</p>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  AppArrow, AppSparkles15, AppSparkles18, AppStickyNote, AppFileCheck,
+  AppArrow, DsIcon, AppStickyNote, AppFileCheck,
   FORMATS, TEMPLATES, loadProjects, saveProjects, loadUser,
   deleteProject, ConfirmDelete, TrashIcon,
 } from '../components/ui.jsx';
@@ -116,7 +116,8 @@ export default function Editor() {
   const [expanded, setExpanded] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [storeFull, setStoreFull] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  // ?publish=1 (from the dashboard's "Get your Dixlab address" card) opens the Publish dialog.
+  const [publishing, setPublishing] = useState(() => search.get('publish') === '1');
   const [feedback, setFeedback] = useState(false);
   const [languages, setLanguages] = useState(false);
   const dirty = useRef(Boolean(id) && d.id === id);
@@ -291,7 +292,7 @@ export default function Editor() {
             {sid === 'site' && (
               <>
                 <div>
-                  <p className="section-label"><AppSparkles15 /><span>Show your work</span></p>
+                  <p className="section-label"><DsIcon name="image" /><span>Show your work</span></p>
                   <h2 className="ed__h2">Projects, experience, and a way to reach you.</h2>
                 </div>
                 <div className="ed__pair">
@@ -380,7 +381,7 @@ export default function Editor() {
             {sid === 'story' && (
               <>
                 <div>
-                  <p className="section-label"><AppSparkles15 /><span>A little help finding the words</span></p>
+                  <p className="section-label"><DsIcon name="bubble-chat-edit" /><span>A little help finding the words</span></p>
                   <h2 className="ed__h2">Three questions bring your contribution into focus.</h2>
                 </div>
                 {QUESTIONS.map(([k, , q, eg]) => (
@@ -390,7 +391,7 @@ export default function Editor() {
                   </label>
                 ))}
                 <div className="ed__note">
-                  <AppSparkles18 />
+                  <DsIcon name="bubble-chat" size={18} />
                   <p>AI rewriting isn’t connected in this build. The preview arranges your own words, so your experience remains the source of truth.</p>
                 </div>
               </>
@@ -486,7 +487,7 @@ export default function Editor() {
             {sid === 'cs-problem' && (
               <>
                 <div>
-                  <p className="section-label"><AppSparkles15 /><span>Problem & goals</span></p>
+                  <p className="section-label"><DsIcon name="compass" /><span>Problem & goals</span></p>
                   <h2 className="ed__h2">What needed solving, and why it mattered.</h2>
                 </div>
                 <label className="field">
@@ -514,7 +515,7 @@ export default function Editor() {
             {sid === 'cs-process' && (
               <>
                 <div>
-                  <p className="section-label"><AppSparkles15 /><span>Process</span></p>
+                  <p className="section-label"><DsIcon name="layers" /><span>Process</span></p>
                   <h2 className="ed__h2">How you got from problem to solution.</h2>
                 </div>
                 <label className="field">
@@ -589,7 +590,7 @@ export default function Editor() {
             {sid === 'cs-materials' && (
               <>
                 <div>
-                  <p className="section-label"><AppSparkles15 /><span>Materials</span></p>
+                  <p className="section-label"><DsIcon name="image" /><span>Materials</span></p>
                   <h2 className="ed__h2">Show the work: screens, sketches, photos and links.</h2>
                 </div>
                 <div className="field">
@@ -711,7 +712,7 @@ export default function Editor() {
             {sid === 'cv-exp' && (
               <>
                 <div>
-                  <p className="section-label"><AppSparkles15 /><span>Experience</span></p>
+                  <p className="section-label"><DsIcon name="edit" /><span>Experience</span></p>
                   <h2 className="ed__h2">Where you’ve worked, and what changed because you were there.</h2>
                 </div>
                 <fieldset className="ed__set">

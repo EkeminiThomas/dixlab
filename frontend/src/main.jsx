@@ -8,6 +8,7 @@ import './case.css';
 import './three.css'; // 3D templates: Blocks (portfolio) and Depth (case study)
 import './theme-pro.css'; // Resend-inspired dark theme (swap back to './theme.css' for the original look)
 import './product.css';
+import './modes.css'; // page colours: light or dark versions of every template
 import './pricing.css';
 import { syncProjects, refreshUser, refreshPlan, loadCatalog, isSignedIn } from './api.js';
 import { useUser } from './components/ui.jsx';

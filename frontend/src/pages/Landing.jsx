@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { mailto } from '../contact.js';
 import { Link } from 'react-router-dom';
 import { img } from '../assets.js';
-import { Logo, Icon, SectionLabel, PortfolioPreview, CVPreview, useAmbient } from '../components/ui.jsx';
+import { DsIcon, Logo, Icon, SectionLabel, PortfolioPreview, CVPreview, useAmbient } from '../components/ui.jsx';
 import { ScaledSite } from '../components/sites/index.jsx';
 
 const FAQS = [
@@ -65,7 +66,7 @@ export default function Landing() {
       <section className="hero">
         <div className="hero__message">
           <p className="pill">
-            <Icon src={img.sparkles14} size={14} />
+            <DsIcon name="idea" size={14} />
             YOUR EXPERIENCE. A NEW PERSPECTIVE.
           </p>
           <h1 className="hero__title"><span className="line">Turn your</span><span className="line">work into</span><span className="line line--grad">opportunities.</span></h1>
@@ -84,7 +85,7 @@ export default function Landing() {
             <div className="hero__portfolio"><PortfolioPreview width={520} photo={img.photoChairHero} /></div>
             <div className="hero__cv"><CVPreview width={230} /></div>
             <div className="hero__ai">
-              <span className="hero__ai-icon"><Icon src={img.sparkles18} size={18} /></span>
+              <span className="hero__ai-icon"><DsIcon name="bubble-chat-edit" size={18} /></span>
               <span>
                 <strong>Your experience, clearly expressed.</strong>
                 <small>AI-assisted. Always your story.</small>
@@ -113,7 +114,7 @@ export default function Landing() {
           </div>
           <Icon src={img.arrowRight} size={20} className="flow__arrow" />
           <div className="flow__card flow__card--ai">
-            <p className="flow__label flow__label--accent"><Icon src={img.sparkles15} size={15} />A LITTLE HELP FINDING THE WORDS</p>
+            <p className="flow__label flow__label--accent"><DsIcon name="bubble-chat-edit" size={15} />A LITTLE HELP FINDING THE WORDS</p>
             <p className="flow__questions">What problem did you solve?<br />What part did you own?<br />What did you learn?</p>
           </div>
           <Icon src={img.arrowRight} size={20} className="flow__arrow" />
@@ -169,14 +170,14 @@ export default function Landing() {
           <div className="voice__head">
             <span className="voice__dots" aria-hidden><i /><i /><i /></span>
             <p>YOUR STORY, COMING INTO FOCUS</p>
-            <Icon src={img.sparkles18} size={18} />
+            <DsIcon name="bubble-chat" size={18} />
           </div>
           <div className="voice__orig">
             <p className="voice__k">YOUR STARTING POINT</p>
             <p className="voice__q">“I redesigned the sign-up flow for a student project. I did interviews and made prototypes.”</p>
           </div>
           <div className="voice__draft">
-            <p className="voice__k voice__k--accent"><Icon src={img.sparkles13} size={13} />A CLEARER WAY TO SAY IT</p>
+            <p className="voice__k voice__k--accent"><DsIcon name="edit" size={13} />A CLEARER WAY TO SAY IT</p>
             <p className="voice__text">I explored where students struggled with sign-up, then translated interview insights into a simpler, more considered onboarding experience.</p>
             <div className="chips"><span>User research</span><span>Interaction design</span></div>
           </div>
@@ -298,7 +299,7 @@ export default function Landing() {
             <Heading lines={['Good questions.', 'Clear answers.']} />
             <p className="sec__lead">A few things you might be wondering before you get started.</p>
           </div>
-          <a href="mailto:hello@dixlab.app" className="faq__contact">Have another question? Get in touch <Icon src={img.arrowUpRightAccent16} size={16} /></a>
+          <a href={mailto()} className="faq__contact">Have another question? Get in touch <Icon src={img.arrowUpRightAccent16} size={16} /></a>
         </div>
         <div className="faq__list">
           {FAQS.map(([q, a], i) => (
@@ -337,7 +338,7 @@ export default function Landing() {
           <div className="footer__links">
             <div><p>Explore</p><a href="#why">Why Dixlab</a><a href="#how">How it works</a><a href="#templates">Templates</a><Link to="/pricing">Pricing</Link></div>
             <div><p>Create</p><Link to="/signup">Portfolios</Link><Link to="/signup">CVs</Link><Link to="/signup">Case studies</Link></div>
-            <div><p>Connect</p><a href="mailto:hello@dixlab.app">Get in touch</a><a href="https://www.linkedin.com" target="_blank" rel="noreferrer">LinkedIn ↗</a><a href="https://www.instagram.com" target="_blank" rel="noreferrer">Instagram ↗</a></div>
+            <div><p>Connect</p><a href={mailto()}>Get in touch</a><a href="https://www.linkedin.com" target="_blank" rel="noreferrer">LinkedIn ↗</a><a href="https://www.instagram.com" target="_blank" rel="noreferrer">Instagram ↗</a></div>
           </div>
         </div>
         <div className="footer__legal">
